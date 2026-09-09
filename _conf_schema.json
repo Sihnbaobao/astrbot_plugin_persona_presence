@@ -1,0 +1,454 @@
+{
+    "gcp_basic": {
+        "description": "⚙️ 基础",
+        "type": "object",
+        "items": {
+            "enable_group_chat": {
+                "description": "启用群聊增强",
+                "type": "bool",
+                "default": true,
+                "hint": "关闭后本插件不处理任何群聊消息。"
+            },
+            "enable_private_chat": {
+                "description": "启用私聊增强",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后处理私聊；关闭时保持原有群聊-only 行为。"
+            },
+            "enabled_private_users": {
+                "description": "启用的私聊用户",
+                "type": "list",
+                "default": [],
+                "hint": "留空=所有私聊用户；填用户ID则只处理指定用户。"
+            },
+            "takeover_private_reply": {
+                "description": "接管私聊回复",
+                "type": "bool",
+                "default": true,
+                "hint": "开启=插件静默或判断/处理失败时阻止 AstrBot 默认兜底；关闭=将这些结果交回核心链路。仅在插件已启用并接管当前消息时生效。"
+            },
+            "private_reply_mode": {
+                "description": "私聊回复策略",
+                "type": "string",
+                "options": [
+                    "direct",
+                    "decide"
+                ],
+                "default": "direct",
+                "hint": "direct=白天普通私聊绕过私聊参与判断，直接进入正式回复流程；本地时间01:00-07:00的未明确指向普通私聊会进入一次概率性深夜复核，默认更克制但不硬禁言；一旦实际回复成功，会在短时间内视为已醒并恢复自然对话。是否以及如何回应仍由当前Persona、聊天上下文和已有收尾状态决定，不保证一定输出回复。decide=普通私聊先使用私聊专用参与判断，可能增加延迟并判定不回复。纯图片/表情包仍按各自媒体策略处理。"
+            },
+            "enable_debug_log": {
+                "description": "调试日志",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后输出更多处理细节日志，排查用。"
+            },
+            "enabled_groups": {
+                "description": "启用的群聊",
+                "type": "list",
+                "default": [],
+                "hint": "留空=全部群；填群号则只在指定群生效，每行一个。"
+            },
+            "desktop_mode": {
+                "description": "运行环境识别",
+                "type": "string",
+                "default": "auto",
+                "options": [
+                    "auto",
+                    "force_desktop",
+                    "force_standard"
+                ],
+                "hint": "auto 自动识别桌面端/服务端。"
+            },
+            "takeover_group_reply": {
+                "description": "接管群聊回复",
+                "type": "bool",
+                "default": true,
+                "hint": "开启=插件静默或判断/处理失败时阻止 AstrBot 默认兜底；关闭=将这些结果交回 AstrBot。仅在插件已启用并接管当前群消息时生效。"
+            },
+            "group_reply_scope": {
+                "description": "群聊响应范围",
+                "type": "string",
+                "options": [
+                    "addressed",
+                    "ambient"
+                ],
+                "default": "ambient",
+                "hint": "ambient=普通群聊消息也进入兴趣判断；开放话题默认克制，但人格有强烈且具体的个人切入点时可以发言；addressed=只让@机器人、关键词、回复机器人消息或戳机器人进入候选。无论哪种模式，@和关键词都不保证回复。"
+            }
+        }
+    },
+    "gcp_private": {
+        "description": "🗨️ 私聊行为与判断",
+        "type": "object",
+        "items": {
+            "private_decision_ai_extra_prompt": {
+                "description": "私聊判断补充提示词",
+                "type": "text",
+                "default": "",
+                "hint": "留空=私聊沿用通用判断补充提示词；填写后只对私聊生效。默认提示词正文可在插件页预览。",
+                "promptDataRef": "private-decision-ai"
+            },
+            "private_decision_ai_prompt_mode": {
+                "description": "私聊提示词模式",
+                "type": "string",
+                "options": [
+                    "append",
+                    "override"
+                ],
+                "default": "append",
+                "hint": "append=保留内置私聊规则并追加自定义内容；override=用自定义内容替换内置私聊规则，必须自行保留结构化 JSON 输出契约。"
+            },
+            "private_decision_ai_reply_tendency": {
+                "description": "私聊回复倾向",
+                "type": "string",
+                "options": [
+                    "persona",
+                    "reserved",
+                    "active"
+                ],
+                "default": "persona",
+                "hint": "persona=按人格性格；reserved=更克制；active=更愿意接住有内容的私聊。"
+            }
+        }
+    },
+    "gcp_decision": {
+        "description": "🧠 参与判断（决定要不要回）",
+        "type": "object",
+        "items": {
+            "decision_ai_provider_id": {
+                "description": "判断用模型",
+                "type": "string",
+                "default": "",
+                "hint": "留空=跟随会话默认模型。",
+                "_special": "select_provider"
+            },
+            "decision_ai_include_persona": {
+                "description": "判断携带人格",
+                "type": "bool",
+                "default": true,
+                "hint": "开启=参与判断使用当前人格(推荐)；不会把判断提示词注入正式回复，但会通过是否放行间接决定是否生成回复。"
+            },
+            "decision_ai_extra_prompt": {
+                "description": "判断补充提示词",
+                "type": "text",
+                "default": "",
+                "hint": "追加到通用参与判断提示词；留空=不追加自定义内容。",
+                "promptDataRef": "decision-ai"
+            },
+            "decision_ai_timeout": {
+                "description": "判断超时(秒)",
+                "type": "int",
+                "default": 30,
+                "hint": "判断超时或异常时按 takeover_private_reply/takeover_group_reply 处理；接管开启则保持静默，关闭则交回核心链路。建议30秒。"
+            },
+            "ambient_reply_min_interval_seconds": {
+                "description": "开放发言最小间隔(秒)",
+                "type": "float",
+                "default": 45.0,
+                "hint": "只限制没有明确指向你的 open/side 发言；设为0关闭间隔限制。"
+            },
+            "ambient_reply_window_seconds": {
+                "description": "开放发言统计窗口(秒)",
+                "type": "float",
+                "default": 600.0,
+                "hint": "与开放发言上限一起使用；设为0不保留窗口记录。"
+            },
+            "ambient_reply_max_per_window": {
+                "description": "开放发言窗口上限",
+                "type": "int",
+                "default": 4,
+                "hint": "单个群聊窗口内最多主动补充次数；设为0关闭上限。"
+            },
+            "decision_ai_reply_tendency": {
+                "description": "回复倾向",
+                "type": "string",
+                "options": [
+                    "persona",
+                    "reserved",
+                    "active"
+                ],
+                "default": "persona",
+                "hint": "persona=按当前人格；reserved=更克制；active=更愿意接住有内容的消息。它只影响参与判断，不改写正式回复人格。"
+            },
+            "decision_ai_persona_name": {
+                "description": "指定判断人格",
+                "type": "string",
+                "default": "",
+                "hint": "留空=跟随当前会话人格；填人格名固定用它判断。"
+            }
+        }
+    },
+    "gcp_trigger": {
+        "description": "🗝️ 触发关键词",
+        "type": "object",
+        "items": {
+            "trigger_keywords": {
+                "description": "触发关键词",
+                "type": "list",
+                "default": [],
+                "hint": "命中只提高消息的注意力权重并进入统一兴趣判断，不保证回复(可填角色别名)。"
+            },
+            "blacklist_keywords": {
+                "description": "屏蔽关键词",
+                "type": "list",
+                "default": [],
+                "hint": "命中直接忽略该消息。"
+            },
+            "keyword_smart_mode": {
+                "description": "关键词智能模式",
+                "type": "bool",
+                "default": true,
+                "hint": "兼容旧配置；现在无论开关状态都经过统一兴趣判断，关键词只提高注意力，不直接保证回复。"
+            }
+        }
+    },
+    "gcp_reply": {
+        "description": "💬 回复生成与防复读",
+        "type": "object",
+        "items": {
+            "reply_ai_extra_prompt": {
+                "description": "回复补充提示词",
+                "type": "text",
+                "default": "",
+                "hint": "生成回复时追加的要求；留空用默认。",
+                "promptDataRef": "reply-ai"
+            },
+            "include_timestamp": {
+                "description": "带发送时间",
+                "type": "bool",
+                "default": true,
+                "hint": "控制每条消息上下文是否标注发送时间；不控制当前现实时间注入。现实时间由 AstrBot 全局 provider_settings.datetime_system_prompt 和 timezone 决定，关闭此项不会关闭全局时间感知。"
+            },
+            "include_sender_info": {
+                "description": "带发送者信息",
+                "type": "bool",
+                "default": true,
+                "hint": "消息上下文标注发送者。"
+            },
+            "collapse_reply_newlines": {
+                "description": "收敛普通回复换行",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后将普通纯文本回复中的主动换行合并为空格；代码块和 Markdown 列表保留原格式。"
+            },
+            "max_context_messages": {
+                "description": "历史消息条数",
+                "type": "int",
+                "default": -1,
+                "hint": "喂给AI的历史上限；-1不限，0不获取。"
+            },
+            "enable_duplicate_filter": {
+                "description": "防复读",
+                "type": "bool",
+                "default": true,
+                "hint": "正式回复与近期相同文本重复时跳过发送，避免短时间重复回复；不判断语义相似。"
+            }
+        }
+    },
+    "gcp_manage": {
+        "description": "🚫 群聊管理与过滤",
+        "type": "object",
+        "items": {
+            "enable_user_blacklist": {
+                "description": "用户黑名单开关",
+                "type": "bool",
+                "default": false,
+                "hint": "屏蔽指定用户的消息。"
+            },
+            "blacklist_user_ids": {
+                "description": "黑名单用户ID",
+                "type": "list",
+                "default": [],
+                "hint": "每行一个QQ号，其消息被忽略。"
+            },
+            "enable_command_filter": {
+                "description": "指令过滤开关",
+                "type": "bool",
+                "default": true,
+                "hint": "忽略以指定前缀开头(如/、!)的消息。"
+            },
+            "command_prefixes": {
+                "description": "指令前缀",
+                "type": "list",
+                "default": [
+                    "/",
+                    "!",
+                    "#"
+                ],
+                "hint": "以这些前缀开头的消息不处理，如 / ! #。"
+            }
+        }
+    },
+    "gcp_concurrent": {
+        "description": "⚡ 并发（Smart 批量）",
+        "type": "object",
+        "items": {
+            "concurrent_mode": {
+                "description": "并发模式",
+                "type": "string",
+                "default": "legacy",
+                "options": [
+                    "legacy",
+                    "smart"
+                ],
+                "hint": "legacy=逐条独立；smart=短时多条合并一批再判断回复。"
+            },
+            "private_concurrent_mode": {
+                "description": "私聊并发模式",
+                "type": "string",
+                "default": "smart",
+                "options": [
+                    "legacy",
+                    "smart"
+                ],
+                "hint": "私聊单独控制；smart 会把短时间连续的 direct 或 decide 私聊合并为一轮正式回复。decide 纯文本会并行预判；direct 纯文本还会并行生成不执行工具、非流式缓冲文本；Smart 提交时仅复用已完成草稿，仍在生成或有新消息时相应草稿作废，并对合并批次重生成。direct 仍绕过普通私聊 DecisionAI，但会参与 Smart 合并。"
+            },
+            "private_batch_wait_ms": {
+                "description": "私聊短连发等待(毫秒)",
+                "type": "int",
+                "default": 4500,
+                "hint": "需要 Smart 的私聊消息保留后续短连发的时间；纯文本 decide 会在窗口期间并行预判，无后续消息时复用结果；direct 纯文本会并行生成不执行工具、非流式缓冲文本；Smart 提交时仅复用已完成草稿，仍在生成的草稿会取消并走正常 Agent，有 follower 时作废并对合并消息重生成；尚未到唤醒时间的 literal sleep 不使用此等待。"
+            },
+            "private_batch_max_size": {
+                "description": "私聊批次上限",
+                "type": "int",
+                "default": 10,
+                "hint": "单个 Smart 私聊批次最多合并的消息数，direct 和 decide 都适用。"
+            }
+        }
+    },
+    "gcp_enhance": {
+        "description": "✨ 扩展（图片/记忆/表情/戳一戳）",
+        "type": "object",
+        "items": {
+            "enable_image_processing": {
+                "description": "图片识别",
+                "type": "bool",
+                "default": false,
+                "hint": "启用图片保留与处理；配置图片转文字模型时生成描述，未配置时按多模态路径把图片交给回复模型。"
+            },
+            "image_read_mode": {
+                "description": "图片读取时机",
+                "type": "string",
+                "default": "lazy",
+                "options": [
+                    "lazy",
+                    "eager"
+                ],
+                "hint": "lazy=参与判断前先不读取图片，确认进入回复流程后再筛选/读取相关图片；eager=在前置处理阶段读取图片。direct 私聊没有参与判断时，lazy 仍会在正式回复前处理相关图片。"
+            },
+            "image_to_text_scope": {
+                "description": "图片处理范围",
+                "type": "string",
+                "default": "all",
+                "options": [
+                    "all",
+                    "mention_only",
+                    "at_only",
+                    "keyword_only"
+                ],
+                "hint": "all=所有图片；mention_only=@或关键词才处理（其余纯图片整条丢弃）；at_only=仅@消息；keyword_only=仅关键词消息。"
+            },
+            "private_image_mode": {
+                "description": "私聊纯图片策略",
+                "type": "string",
+                "default": "decide",
+                "options": [
+                    "ignore",
+                    "decide",
+                    "always"
+                ],
+                "hint": "仅对图片处理器保留的纯图片生效；enable_image_processing=false 或 image_to_text_scope 不匹配时，图片会在此策略前被过滤。ignore=插件直接丢弃，不进入边界复核；decide=交给参与判断；always=无活动私聊收尾状态时直接进入正式回复，有活动边界时仍按边界复核。takeover_private_reply=false 时，ignore 或前置过滤结果可能交回核心链路；含文字的图文消息按普通消息处理。"
+            },
+            "private_emoji_mode": {
+                "description": "私聊纯表情包策略",
+                "type": "string",
+                "default": "ignore",
+                "options": [
+                    "ignore",
+                    "decide",
+                    "always"
+                ],
+                "hint": "ignore=插件直接丢弃纯表情包，不进入边界复核；decide=交给参与判断；always=无活动私聊收尾状态时直接进入正式回复，有活动边界时仍按边界复核。表情识别不依赖重复折叠开关；takeover_private_reply=false 时，ignore 或前置过滤结果可能交回核心链路；含文字的图文消息按普通消息处理。"
+            },
+            "private_collapse_duplicate_emoji": {
+                "description": "折叠重复表情包",
+                "type": "bool",
+                "default": true,
+                "hint": "同一批次或短时间内重复发送相同表情包时只保留一份。"
+            },
+            "private_duplicate_emoji_window_ms": {
+                "description": "重复表情窗口(毫秒)",
+                "type": "int",
+                "default": 1500,
+                "hint": "同一表情包在窗口内重复发送时直接折叠。"
+            },
+            "image_to_text_provider_id": {
+                "description": "图片转文字模型",
+                "type": "string",
+                "default": "",
+                "hint": "图片处理启用且媒体被保留时，留空=按多模态路径交给回复AI；填写后使用指定模型生成图片描述。",
+                "_special": "select_provider"
+            },
+            "enable_memory_injection": {
+                "description": "记忆注入",
+                "type": "bool",
+                "default": false,
+                "hint": "从记忆插件(livingmemory)取记忆辅助判断/回复。"
+            },
+            "memory_plugin_mode": {
+                "description": "记忆插件",
+                "type": "string",
+                "default": "auto",
+                "options": [
+                    "auto",
+                    "legacy",
+                    "livingmemory"
+                ],
+                "hint": "auto=自动检测已安装记忆插件。"
+            },
+            "livingmemory_top_k": {
+                "description": "记忆条数",
+                "type": "int",
+                "default": 5,
+                "hint": "每次召回记忆条数。"
+            },
+            "enable_emoji_filter": {
+                "description": "表情包识别",
+                "type": "bool",
+                "default": false,
+                "hint": "在支持的平台识别表情包并添加表情标记；私聊纯表情是否忽略、判断或直接处理由 private_emoji_mode 单独控制。"
+            },
+            "poke_message_mode": {
+                "description": "戳一戳模式",
+                "type": "string",
+                "default": "bot_only",
+                "options": [
+                    "ignore",
+                    "bot_only",
+                    "all"
+                ],
+                "hint": "ignore=忽略；bot_only=仅响应戳自己；all=都处理。"
+            },
+            "enable_poke_after_reply": {
+                "description": "回复后戳一戳",
+                "type": "bool",
+                "default": false,
+                "hint": "回复后按概率戳一下提问者。"
+            },
+            "poke_after_reply_probability": {
+                "description": "回复后戳人概率",
+                "type": "float",
+                "default": 0.15,
+                "hint": "回复后戳一戳的概率(建议0.1-0.3)。"
+            },
+            "max_images_per_message": {
+                "description": "单条图片上限",
+                "type": "int",
+                "default": 10,
+                "hint": "单条消息最多处理几张图。"
+            }
+        }
+    }
+}

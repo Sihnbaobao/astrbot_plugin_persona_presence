@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Persona Presence · 管理控制台</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <h1>⚡ Persona Presence <span class="ver" id="ver">…</span></h1>
+      <p class="sub">Persona 自主参与 · 群聊增强 · 管理控制台</p>
+    </div>
+    <div class="hero-pills">
+      <div class="pill"><span class="dot" id="dotMain"></span><span id="mainSwitch">群聊回复：…</span></div>
+      <div class="pill" id="tendencyPill">倾向：…</div>
+      <div class="pill" id="smartPill">并发：…</div>
+    </div>
+  </header>
+
+  <!-- 配置：分组 tab + 分页浏览 -->
+  <section class="section" id="configSection">
+    <h2 class="section-title">🃏 配置 <span class="tip">一次一组 · 点击 ⓘ 看字段说明 · 底部切组</span></h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="panel" id="configPanel"></div>
+
+  </section>
+
+  <!-- 提示词预览 -->
+  <section class="section">
+    <h2 class="section-title">📜 提示词预览 <span class="tip">与真实拼接逻辑一致（不含运行时人格注入）</span></h2>
+    <div class="prompt-grid" id="promptGrid"></div>
+  </section>
+
+  <div class="footer-note">
+    保存的配置即时写入插件配置并生效。<br />
+    自定义提示词可在下方“提示词预览”中编辑保存；其余高级项已并入对应分组。
+  </div>
+
+  <div id="tipBox"></div>
+  <div id="toast"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
