@@ -1,5 +1,13 @@
 ## 📝 更新日志
 
+## 1.1.1
+
+- **Private DecisionAI recovery**: ordinary private messages without an active sleep or avoidance boundary now enter the formal reply path when the participation check fails; group chats and protected private boundaries remain fail-closed.
+- **Persona-first time handling**: private participation decisions use the current Persona as the primary source of willingness, while runtime time remains background context instead of an automatic yes/no instruction.
+- **Prompt and tool hygiene**: stop appending the full active Skills inventory to every Persona reply while preserving request tool sets.
+- **Plugin page alignment**: keep configuration labels and info icons on one row, align form controls, and fix prompt-card save button positioning.
+- **Documentation and regression coverage**: document release synchronization and add coverage for fallback, prompt boundaries, Skills handling, and UI-related source contracts.
+
 ## 1.1.0
 
 - **Private late-night behavior**: direct private chat now uses a probabilistic DecisionAI review from 01:00 to 07:00, with a short awake-session window after a successful reply.

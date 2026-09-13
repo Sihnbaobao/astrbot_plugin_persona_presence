@@ -130,8 +130,9 @@ function fieldControl(key) {
   const val = state.values[key];
   const hint = def.hint || "";
   const showInline = hint && hint.length <= 36; // 短说明直接显示，长说明才折叠进 ⓘ
-  const label = `<span class="field-label">${esc(def.label)}</span>` +
-    (hint && !showInline ? `<span class="hint-ico" data-hint="${esc(hint)}" title="${esc(hint)}">ⓘ</span>` : "");
+  const label = `<div class="field-label-row"><span class="field-label">${esc(def.label)}</span>` +
+    (hint && !showInline ? `<span class="hint-ico" data-hint="${esc(hint)}" title="${esc(hint)}">ⓘ</span>` : "") +
+    "</div>";
   const hintLine = showInline ? `<div class="field-hint">${esc(hint)}</div>` : "";
   let ctrl = "";
   if (def.type === "bool") {

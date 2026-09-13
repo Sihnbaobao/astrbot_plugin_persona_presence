@@ -91,10 +91,14 @@ body {
 
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px 20px; }
 .field { display: flex; flex-direction: column; gap: 5px; }
-.field-label { font-size: 13px; color: var(--text); }
+.field-label-row {
+  display: flex; align-items: flex-start; gap: 6px; min-height: 21px;
+}
+.field-label { min-width: 0; font-size: 13px; line-height: 1.6; color: var(--text); }
 .hint-ico {
-  display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center;
-  margin-left: 6px; border-radius: 50%; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 16px; width: 16px; height: 16px;
+  margin-top: 1px; border-radius: 50%; cursor: pointer;
   background: var(--accent-soft); color: var(--accent); font-size: 11px;
 }
 .hint-ico:hover { background: var(--accent); color: #fff; }
@@ -133,7 +137,9 @@ body {
 .prompt-card h3 { margin: 0 0 6px; font-size: 14px; }
 .prompt-card .meta { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
 .prompt-card textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; }
-.prompt-card .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
+.prompt-card .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 8px 0; }
+.prompt-card .row .save-status { min-width: 0; line-height: 1.5; }
+.prompt-card .row .btn { flex: 0 0 auto; white-space: nowrap; }
 .prompt-preview { margin-top: 8px; }
 .prompt-preview summary { cursor: pointer; font-size: 12px; color: var(--accent); }
 .prompt-preview pre {

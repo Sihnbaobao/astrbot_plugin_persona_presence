@@ -113,7 +113,7 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 2. target 与 participation 的说话姿态不一致时直接 no；other 只能采用 side 说话姿态，不能替其他用户作答。
 3. open、side 和 direct 的主观是否参与由 Persona 决定；continuation 不构成本地兴趣门槛，但未经发送者事实校验的群聊续话不会进入正式回复；interest、information、reason_code 仍不单独构成本地兴趣门槛。
 4. reply=no 不能被后续代码重新解释为可以回答；@ 也不是强制命令。
-5. 空 JSON、JSON 解析失败或其他不可信输出静默。
+5. 空 JSON、JSON 解析失败或其他不可信输出：群聊和活动私聊收尾边界保持静默；普通私聊无活动边界时可回退到正式回复链，最终仍由正式 provider 的安全策略决定。
 
 旧 provider 返回精确 yes/no 时保留受限兼容，不授予旧格式的 side 旁观能力。看起来像 JSON 但解析失败的输出不会被当成自然语言 yes。
 
@@ -143,7 +143,7 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 
 ## Phase 10：静默消息和缓存
 
-模型拒绝、预算拒绝或决策异常时：
+模型明确拒绝、预算拒绝或受保护边界拒绝时：
 
 - 当前消息可以写入 decision_state=observed；
 - Smart follower 同样标为 observed；
@@ -153,7 +153,7 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 - 对应的 takeover_group_reply/takeover_private_reply=true 时 stop_event，避免 AstrBot 默认链路再次回答；
 - 对应开关为 false 时将控制交还 AstrBot 核心链路。
 
-参与判断异常在接管模式下必须 fail closed。这样 provider 故障不会被误变成全量回复。
+群聊和活动私聊收尾边界的参与判断异常仍 fail closed；普通私聊无活动边界时在接管模式下 fail-open 到正式回复链，避免 DecisionAI 上游审查或短暂故障直接吞掉私聊。正式 provider 仍会执行自己的安全策略。
 
 ## 私聊分支
 
@@ -175,7 +175,7 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 
 ### 所有消息都没有回复
 
-检查 DecisionAI provider、timeout、当前 Persona 是否为空、group_reply_scope、enabled_groups 和 takeover 日志。结构化输出解析失败会静默，这是故障保护，不应通过关闭硬边界解决。
+检查 DecisionAI provider、timeout、当前 Persona 是否为空、group_reply_scope、enabled_groups 和 takeover 日志。群聊或活动私聊边界的结构化输出解析失败会静默；普通私聊无活动边界时会记录 fail-open 并进入正式回复，正式 provider 仍可能按自身安全策略拒绝。
 
 ### 同一条消息反复成为上下文
 

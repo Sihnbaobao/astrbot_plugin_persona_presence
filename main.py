@@ -2191,16 +2191,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             and not is_emoji_message
             and not is_explicitly_addressed
         )
+        # The global datetime context already supplies the current time. Keep the
+        # late-night route as a code path, without adding another yes/no instruction.
         private_late_night_hint = ""
         if private_late_night_review:
-            private_late_night_hint = (
-                "\n\n[Private late-night availability]\n"
-                f"Local time is around {private_late_night_hour:02d}:00 in the runtime timezone. "
-                "Treat this as a probabilistic rest assumption, not a hard ban: "
-                "ordinary small talk, weak topics, and low-stakes messages should usually receive "
-                "reply=no. Explicitly important, urgent, substantive messages, or a strong natural "
-                "reason for Persona to be awake may still receive reply=yes."
-            )
             logger.info(
                 f"[Private late-night] Sending ordinary private text through DecisionAI "
                 f"at hour={private_late_night_hour:02d}"
@@ -3084,6 +3078,36 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
 
         should_reply = decision_result.reply
+        decision_ai_failed = bool(getattr(event, "_decision_ai_error", False))
+        if (
+            not should_reply
+            and decision_ai_failed
+            and is_private
+            and takeover_reply
+            and not private_boundary
+        ):
+            # A failed attention check must not turn a normal private turn into silent loss.
+            # The formal reply still goes through the provider's own safety checks.
+            decision_result = decision_result.with_reply(
+                True,
+                target="bot",
+                participation="direct",
+                information="substantive",
+                interest="weak",
+                reason_code="direct_request",
+                confidence="low",
+                source="fallback",
+                error="",
+            )
+            should_reply = True
+            try:
+                delattr(event, "_decision_ai_error")
+            except AttributeError:
+                pass
+            logger.warning(
+                "[DecisionAI] Private participation evaluation failed; "
+                "falling back to the formal reply path"
+            )
         if should_reply and private_late_night_review:
             event.set_extra("_persona_late_night_session_candidate", chat_id)
         if should_reply and is_private:
@@ -3114,11 +3138,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
 
         if not should_reply:
-            decision_ai_failed = bool(getattr(event, "_decision_ai_error", False))
             if decision_ai_failed:
                 logger.warning(
                     "[DecisionAI] Participation evaluation failed; "
-                    "takeover mode will remain silent"
+                    "keeping the current silence policy"
                 )
             if takeover_reply:
                 try:
@@ -4924,8 +4947,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         2. 恢复插件 contexts（[]），保留其他插件注入的 contexts
         3. 恢复插件图片/音频URL（合并第三方注入）
         4. 合并插件工具集到 req.func_tool（保留框架内置工具）
-        5. 注入 Skills 提示词（框架对无 conversation 的请求跳过此步骤）
-        6. 不再注入任何插件行为指令/情绪/工具提醒文本
+        5. 不再注入任何插件行为指令/情绪/工具提醒文本；工具集仍按请求合并
         """
         from .utils.reply_handler import (
             PLUGIN_CURRENT_MESSAGE,
@@ -5033,22 +5055,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 else:
                     req.func_tool = plugin_tool_set
 
-            # 6. 注入 Skills 提示词（插件请求无 conversation，框架跳过）
-            try:
-                from astrbot.core.skills.skill_manager import (
-                    SkillManager,
-                    build_skills_prompt,
-                )
-
-                skill_manager = SkillManager()
-                skills = skill_manager.list_skills(active_only=True)
-                if skills:
-                    skills_prompt = build_skills_prompt(skills)
-                    req.system_prompt = (
-                        req.system_prompt or ""
-                    ) + f"\n{skills_prompt}\n"
-            except Exception as e:
-                logger.warning(f"⚠️ 注入 Skills 提示词时出错（不影响主流程）: {e}")
+            # Skills are intentionally not appended to every persona reply.
+            # The request keeps its tool set, while unrelated skill instructions stay out
+            # of the persona system prompt.
 
             if self.debug_mode:
                 logger.info("  ✅ 已恢复插件自定义上下文:")

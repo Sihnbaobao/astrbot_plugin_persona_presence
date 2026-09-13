@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.1.0。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.1.1。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -24,7 +24,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 
 ## 回复边界
 
-插件不替换 AstrBot 当前人格，也不把旧版的情绪、注意力、主动对话等内部状态重新注入系统提示。DecisionAI 先输出受校验的参与结果，再决定是否继续正式回复流程；它的完整 JSON 和分析过程不会传给正式回复模型。正式请求使用当前人格、消息上下文，以及涉及其他群友时的最小参与边界提示。reply_ai_extra_prompt 只影响正式回复生成，不会被保存为用户历史正文。
+插件不替换 AstrBot 当前人格，也不把旧版的情绪、注意力、主动对话等内部状态重新注入系统提示。DecisionAI 先输出受校验的参与结果，再决定是否继续正式回复流程；它的完整 JSON 和分析过程不会传给正式回复模型。正式请求使用当前人格、消息上下文，以及涉及其他群友时的最小参与边界提示；不会把全部 active Skills 清单无条件追加到每条人格回复的 system prompt，工具集合仍按请求保留。reply_ai_extra_prompt 只影响正式回复生成，不会被保存为用户历史正文。
 
 正式回复的人格选择顺序由 AstrBot 会话机制决定：
 
@@ -55,12 +55,12 @@ concurrent_mode 有两种模式：
 
 private_reply_mode 控制普通私聊文本：
 
-- direct：白天没有收尾状态时普通私聊绕过私聊参与判断，直接进入正式回复流程，适合自然的一对一聊天，也是当前推荐模式；本地时间 01:00-07:00 的未明确指向普通私聊会进入一次概率性深夜复核，默认更克制但不硬禁言；一旦实际回复成功，接下来约 45 分钟视为 Persona 已醒，后续消息恢复自然对话。这里的“直接”是流程直通，不是强制回复；是否以及如何回应仍由当前 Persona、聊天上下文和已有状态决定。人格说要睡时会进入睡眠假设，把“去睡”视为真实的休息或离线边界；普通新消息仍会进入私聊判断上下文，但按“可能没有看到、不会被普通消息叫醒”处理。通常在约 4-10 小时范围内不回，超过范围后恢复普通私聊。明确说“睡一会儿/午睡”时使用约 30 分钟至 3 小时的短睡范围。睡眠范围内会随机安排一次唤醒检查，并在存在更晚截止点时追加接近范围结束的最终复核；如果期间确实收到消息，Persona 会在这些时点根据待处理消息整体判断是否值得打扰、是否自然恢复对话，重要或紧急消息只提高评估优先级，不强制回复。没有待处理消息时不会主动发言。
+- direct：白天没有收尾状态时普通私聊绕过私聊参与判断，直接进入正式回复流程，适合自然的一对一聊天，也是当前推荐模式；本地时间 01:00-07:00 的未明确指向普通私聊会进入一次概率性深夜复核，时间只作背景，由当前 Persona 结合消息内容独立权衡，不单独决定 yes/no；一旦实际回复成功，接下来约 45 分钟视为 Persona 已醒，后续消息恢复自然对话。这里的“直接”是流程直通，不是强制回复；是否以及如何回应仍由当前 Persona、聊天上下文和已有状态决定。人格说要睡时会进入睡眠假设，把“去睡”视为真实的休息或离线边界；普通新消息仍会进入私聊判断上下文，但按“可能没有看到、不会被普通消息叫醒”处理。通常在约 4-10 小时范围内不回，超过范围后恢复普通私聊。明确说“睡一会儿/午睡”时使用约 30 分钟至 3 小时的短睡范围。睡眠范围内会随机安排一次唤醒检查，并在存在更晚截止点时追加接近范围结束的最终复核；如果期间确实收到消息，Persona 会在这些时点根据待处理消息整体判断是否值得打扰、是否自然恢复对话，重要或紧急消息只提高评估优先级，不强制回复。没有待处理消息时不会主动发言。
 - decide：普通私聊使用私聊专用参与判断，因此每条普通文本都可能增加一次模型判断耗时，也可能得到 no；只有需要按人格筛选普通私聊时才建议开启。收尾边界同样优先。private_reply_mode=direct 下，普通消息不经过这一步。
 
 人格表达“不想聊”“别烦”“没空陪你”等话语后，只建立一个需要复核的软提示，不把这句话当成永久拒绝。后续消息会结合上一条 Persona 原话、当前消息、语气和关系判断是否真的在打扰：继续施压、重复纠缠时可以不回；礼貌收住、道歉、提供有用信息或提出自然的新话题时可以恢复。reply=yes 只有在正式回复成功送达后才会清除软提示；如果生成或发送失败，原边界和待处理消息继续保留。reply=no 则继续保留；被跳过的消息会保留为后续私聊上下文。
 
-takeover_private_reply 控制插件静默时是否阻止 AstrBot 默认兜底。开启时，明确判定 no、判断超时、判断异常或插件处理失败都会保持静默；关闭时将这些结果交回 AstrBot 核心链路。它只在插件已启用并接管当前私聊消息时生效。
+takeover_private_reply 控制插件静默时是否阻止 AstrBot 默认兜底。开启时，明确判定 no、活动睡眠/回避边界中的拒绝和正式处理失败仍保持静默；普通私聊的 DecisionAI 超时或异常在没有活动边界时会 fail-open 进入正式回复链，正式回复仍由 provider 自己执行安全审查。关闭时其他未接管结果交回 AstrBot 核心链路。它只在插件已启用并接管当前私聊消息时生效。
 
 ### 私聊提示词与时间
 
@@ -119,7 +119,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 | enable_private_chat | false | 私聊总开关 |
 | enabled_private_users | [] | 留空处理所有私聊用户，否则只处理指定用户 |
 | private_reply_mode | direct | direct 普通私聊绕过参与判断，直接进入正式回复；decide 普通私聊先经过私聊参与判断。direct 不是强制 Persona 必须输出回复 |
-| takeover_private_reply | true | 私聊静默、判断或处理失败时是否阻止 AstrBot 核心兜底；true 保持静默，false 交回核心链路 |
+| takeover_private_reply | true | 私聊静默、边界拒绝或正式处理失败时是否阻止 AstrBot 核心兜底；普通私聊 DecisionAI 超时/异常且无活动边界时仍进入正式回复；false 将其他未接管结果交回核心链路 |
 | provider_settings.datetime_system_prompt | true | AstrBot 全局现实世界时间感知；私聊参与判断跟随此设置 |
 | private_decision_ai_extra_prompt | 空 | 私聊专用参与判断补充提示词，留空沿用通用配置 |
 | private_decision_ai_prompt_mode | append | 私聊判断提示词追加或覆盖模式；override 必须自行保留结构化 JSON 输出契约 |
@@ -229,6 +229,19 @@ ambient 模式允许普通群消息进入判断。Persona 通常会先观察，�
 - 私聊图片、表情包和换行策略。
 - Smart 批次大小、到达顺序和后续消息吸收。
 - 配置 schema 与本地运行配置的一致性。
+
+## 开发与发布同步
+
+本插件的正式源代码仓库是 [astrbot_plugin_persona_presence](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)。AstrBot 运行目录中的 `data/plugins/astrbot_plugin_persona_presence/` 只是部署副本，主 AstrBot 仓库会忽略 `data/`，因此只修改运行目录不会自动进入 GitHub。
+
+完成一组可用的行为、提示词、配置、文档或插件页 UI 改动后，必须同步到插件仓库再视为完成：
+
+1. 在 `metadata.yaml` 更新插件版本；
+2. 在 `CHANGELOG.md` 记录本次改动；
+3. 运行上面的回归测试、语法检查和 Ruff 检查；
+4. 将源文件提交并推送到插件 GitHub 仓库，必要时通过 Pull Request 合并。
+
+只用于临时排查的本地改动可以暂不发布；任何面向用户的修复或功能改动都不能只留在 `data/` 部署副本中。版本、CHANGELOG 和 README 的版本信息必须保持一致。
 
 ## 项目结构
 

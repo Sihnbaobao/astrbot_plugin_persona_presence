@@ -204,7 +204,32 @@ def test_direct_private_late_night_routes_plain_text_through_decision_ai():
     assert "Sending ordinary private text through DecisionAI" in source
     assert "or private_late_night_review" in source
     assert "and not private_late_night_review" in source
-    assert "probabilistic rest assumption" in source
+    assert 'private_late_night_hint = ""' in source
+    assert "The global datetime context already supplies the current time" in source
+    assert "Treat this as context, not a presumption that Persona is asleep" not in source
+    assert "ordinary greetings, questions, sharing, and natural follow-ups should normally receive yes" not in source
+
+
+def test_private_decision_failure_falls_back_without_crossing_boundaries():
+    source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")
+
+    assert "decision_ai_failed = bool(getattr(event," in source
+    assert "_decision_ai_error" in source
+    assert "and is_private" in source
+    assert "and takeover_reply" in source
+    assert "and not private_boundary" in source
+    assert "source=" in source
+    assert "fallback" in source
+    assert "falling back to the formal reply path" in source
+    assert "keeping the current silence policy" in source
+
+
+def test_formal_reply_hook_does_not_inject_global_skills_inventory():
+    source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")
+
+    assert "build_skills_prompt" not in source
+    assert "SkillManager" not in source
+    assert "The request keeps its tool set" in source
 
 
 def test_quoted_reply_cannot_fake_at_or_keyword(addressing_modules):

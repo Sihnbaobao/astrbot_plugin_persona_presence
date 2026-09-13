@@ -5,7 +5,7 @@
 - 插件 ID：astrbot_plugin_persona_presence
 - 展示名：人格自主参与 / Persona Presence
 - 仓库：https://github.com/Sihnbaobao/astrbot_plugin_persona_presence
-- 当前版本：1.1.0
+- 当前版本：1.1.1
 
 ## 从旧版本迁移
 
@@ -41,9 +41,9 @@
 | --- | --- | --- | --- |
 | enable_private_chat | bool | false | 是否启用私聊增强。 |
 | enabled_private_users | list | [] | 留空处理所有私聊；填写用户 ID 后只处理指定用户。 |
-| private_reply_mode | string | direct | direct 白天普通私聊绕过私聊参与判断，直接进入正式回复流程；本地时间 01:00-07:00 的未明确指向普通私聊会进入一次概率性深夜复核，默认更克制但不硬禁言；实际回复成功后约 45 分钟视为已醒并恢复自然对话。decide 让普通私聊也逐条经过私聊参与判断，可能增加延迟并返回 no。两种模式都会尊重收尾边界。 |
-| takeover_private_reply | bool | true | 私聊静默、参与判断超时或异常时是否阻止 AstrBot 默认回复；true 保持静默，false 将控制交回核心链路。 |
-| provider_settings.datetime_system_prompt | bool | true | AstrBot 全局现实世界时间感知。私聊 DecisionAI 跟随此设置；深夜/清晨只会降低普通消息的开口意愿，不是绝对禁言。 |
+| private_reply_mode | string | direct | direct 白天普通私聊绕过私聊参与判断，直接进入正式回复流程；本地时间 01:00-07:00 的未明确指向普通私聊会进入一次概率性深夜复核，时间只作背景，由当前 Persona 结合性格、心情、关系、边界和消息内容权衡，不单独决定 yes/no；实际回复成功后约 45 分钟视为已醒并恢复自然对话。decide 让普通私聊也逐条经过私聊参与判断，可能增加延迟并返回 no。两种模式都会尊重收尾边界。 |
+| takeover_private_reply | bool | true | 私聊静默、边界拒绝或正式处理失败时是否阻止 AstrBot 默认回复；普通私聊参与判断超时/异常且无活动边界时会 fail-open 进入正式回复，false 将其他未接管结果交回核心链路。 |
+| provider_settings.datetime_system_prompt | bool | true | AstrBot 全局现实世界时间感知。私聊 DecisionAI 跟随此设置；私聊中时间只作背景，由当前 Persona 结合性格、心情、关系、边界和消息内容权衡；深夜/清晨本身不单独构成 yes 或 no。 |
 | private_decision_ai_extra_prompt | text | 空 | 私聊专用的参与判断补充提示词；留空时沿用通用 decision_ai_extra_prompt，不会注入正式回复链路。 |
 | private_decision_ai_prompt_mode | string | append | append 保留内置私聊规则并追加自定义内容；override 完全替换内置私聊提示词，必须自行保留结构化 JSON 输出契约。 |
 | private_decision_ai_reply_tendency | string | persona | 只影响私聊参与判断：persona 按当前人格，reserved 更克制，active 更愿意接住有内容的私聊；不会改写正式回复人格。 |
@@ -58,7 +58,7 @@
 | decision_ai_include_persona | bool | true | 将当前 Persona 注入参与判断，让人格的兴趣、关系、心情和边界成为决策主体。 |
 | decision_ai_persona_name | string | 空 | 留空跟随当前会话 Persona；填写后固定使用指定人格判断。 |
 | decision_ai_extra_prompt | text | 空 | 追加参与判断要求。不得写成“命中就必回”来绕过本地硬边界。 |
-| decision_ai_timeout | int | 30 | 参与判断超时时静默；接管群聊时不会回退为全量回复。 |
+| decision_ai_timeout | int | 30 | 群聊参与判断超时会静默；普通私聊在无活动睡眠/回避边界且 takeover_private_reply=true 时会回退到正式回复链。 |
 | decision_ai_reply_tendency | string | persona | persona 完全依据人格；reserved 更克制；active 更愿意参与有内容的公共话题。三种倾向都不能绕过消息对象、说话姿态和主动参与预算。 |
 
 群聊参与判断输出一个结构化 JSON，包含 reply、target、information、continuation、participation、interest、reason_code、confidence 和 topic_key。代码会校验枚举并再次执行消息对象和说话姿态边界；continuation 的语义由 DecisionAI 根据近期对话和中间群聊内容判断，群聊 continuation=yes 还必须通过当前发送者关系的结构化事实校验。旧 provider 返回精确 yes/no 仍可兼容，但不能借此获得 side 旁观权限。
@@ -129,7 +129,7 @@ strong 和 weak 只描述这次人格意愿的力度：strong 可以展开，wea
 | max_context_messages | int | -1 | 历史上限；-1 不限，0 不获取。 |
 | collapse_reply_newlines | bool | false | 是否合并普通纯文本回复中的主动换行。 |
 
-正式回复使用 AstrBot 当前会话 Persona。参与判断的 JSON 和分析过程不会进入正式回复 prompt；只会传递 direct/side/open 姿态和有限 reason_code 的短 handoff。
+正式回复使用 AstrBot 当前会话 Persona。参与判断的 JSON 和分析过程不会进入正式回复 prompt；只会传递 direct/side/open 姿态和有限 reason_code 的短 handoff。Persona Presence 不会把全部 active Skills 清单无条件追加到每条人格回复的 system prompt，但会继续合并当前请求的工具集。
 
 被拒绝的消息可以写入 observation-only 缓存。它们不会作为 active 未回复上下文、续话依据或 lazy 图片候选。
 

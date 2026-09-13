@@ -452,7 +452,9 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "抱歉，刚才那件事我说清楚了" in private_prompt
     assert "没有固定的四小时解禁规则" in private_prompt
     assert "当前现实时间" in private_prompt
-    assert "深夜和清晨通常降低普通消息的开口意愿" in private_prompt
+    assert "与当前 Persona 的性格、心情、关系和边界一起判断" in private_prompt
+    assert "时间只是背景因素" in private_prompt
+    assert "不要把“有内容”机械等同于 yes" in private_prompt
     assert "boundary_interpretation" in private_prompt
 
     source = (UTILS_DIR / "decision_ai.py").read_text(encoding="utf-8")
