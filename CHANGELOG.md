@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 1.1.2
+
+- **Group participation prompt**: treat substantive messages that clearly address the bot as normal reply opportunities, and allow open-topic participation when the Persona has a concrete personal contribution or natural reaction. Existing message-ownership, side-speaking, noise, and participation-budget boundaries remain in place.
+- **Prompt clarity**: remove repeated wording that could turn "be cautious" into near-permanent silence while keeping Persona willingness as the final decision.
+- **Version and documentation sync**: update runtime/plugin-page version reporting and clarify the more balanced ambient group behavior.
+
 ## 1.1.1
 
 - **Private DecisionAI recovery**: ordinary private messages without an active sleep or avoidance boundary now enter the formal reply path when the participation check fails; group chats and protected private boundaries remain fail-closed.

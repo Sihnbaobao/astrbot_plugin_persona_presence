@@ -402,12 +402,12 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "participation = direct | side | open | none" in prompt
     assert "persona_willingness = yes | no" in prompt
     assert "open 表示公开话题，不是自动邀请" in prompt
-    assert "是一个可能的公共发言入口；通常先观察" in prompt
-    assert "reply 是整体判断，不是兴趣字段的机械计算" in prompt
+    assert "open 表示公开话题，不是自动邀请，但也不是默认 no" in prompt
+    assert "最终结果：reply = persona_willingness" in prompt
     assert "九月有什么好看的番吗" in prompt
     assert "ownership == other 只表示“直接对象是别人”" in prompt
-    assert "不能替被@或被回复的用户作答" in prompt
-    assert "不要把每个可回答的问题都当成发言机会" in prompt
+    assert "不替被@或被回复的用户作答" in prompt
+    assert "而不是把“谨慎”执行成几乎永远不说话" in prompt
     assert "平台没有检测到机器人信号" in prompt
     assert "不等于消息不能开放参与" in prompt
     assert "关键词命中只是触发信号" in prompt
@@ -468,9 +468,10 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "请只基于当前消息判断是否回复" not in source
     assert "普通闲聊、寒暄、纯陈述一律不回复" not in source
     assert "不确定时倾向于回复（yes）" not in source
-    assert "被@或点名只说明消息对象可能是当前人格" in source
+    assert "被@、点名或可靠回复只说明消息对象可能是当前人格" in source
+    assert "明确指向 bot 的 direct 消息" in source
     assert "ownership == open 时默认 no" not in source
-    assert "普通问题、泛泛求助" in source
+    assert "open 不是自动邀请，但也不是默认 no" in source
     assert "continuation_context_available" not in source
 
     main_source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")

@@ -5,7 +5,7 @@
 - 插件 ID：astrbot_plugin_persona_presence
 - 展示名：人格自主参与 / Persona Presence
 - 仓库：https://github.com/Sihnbaobao/astrbot_plugin_persona_presence
-- 当前版本：1.1.1
+- 当前版本：1.1.2
 
 ## 从旧版本迁移
 
@@ -26,13 +26,13 @@
 | enable_group_chat | bool | true | 群聊总开关。 |
 | enabled_groups | list | [] | 留空处理所有群；填写群号后只处理指定群。 |
 | takeover_group_reply | bool | true | 插件已接管群消息时，静默、参与判断失败或处理失败是否阻止 AstrBot 默认兜底；true 保持静默，false 将结果交回 AstrBot 核心链路。 |
-| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断，开放话题默认克制但由当前 Persona 整体判断，不再用 strong interest 作为本地硬门槛；addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选。两种模式下 @ 和关键词都不保证回复。 |
+| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断；明确指向机器人的有效消息按正常回应机会评估，开放话题有具体个人补充时也可以参与。addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选。两种模式下 @ 和关键词都不保证回复。 |
 
 群聊的基本规则：
 
 - direct：消息面向机器人，但人格仍可因为无聊、重复、冒犯、打扰或话题结束而拒绝。
 - side：消息面向其他人时，只有人格自己的独立、相关补充才允许参与，不能替对方回答或接管话题。
-- open：无明确对象的公共话题默认克制；是否参与由 Persona 当下是否自然想开口决定，可以展开，也可以只低打扰地插一句。
+- open：无明确对象的公共话题不是默认 no；如果 Persona 有具体的个人经历、观点、情绪反应或自然补充，可以展开，也可以只低打扰地插一句。
 - noise、reaction、unclear 和只等待其他人回答的消息通常静默。
 
 ### 私聊
