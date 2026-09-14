@@ -776,6 +776,45 @@ class MessageCacheManager:
         """检查是否有缓存消息"""
         return self.get_cache_count(chat_id) > 0
 
+    def get_observed_context_messages(
+        self,
+        chat_id: str,
+        max_count: int = 5,
+    ) -> list[dict]:
+        """Return recent observed messages for low-priority context only.
+
+        Args:
+            chat_id: Conversation ID.
+            max_count: Maximum number of observed messages to return.
+
+        Returns:
+            Recent observed messages that are still within the pending-cache TTL.
+        """
+        if chat_id not in self.pending_messages_cache:
+            return []
+
+        observed_messages = [
+            msg
+            for msg in self.pending_messages_cache[chat_id]
+            if isinstance(msg, dict)
+            and msg.get("decision_state") == "observed"
+            and not msg.get("window_buffered", False)
+        ]
+        if not observed_messages:
+            return []
+
+        try:
+            context_limit = max(1, int(max_count))
+        except (TypeError, ValueError):
+            context_limit = 5
+
+        return _filter_expired_cached_messages(
+            observed_messages,
+            cache_ttl_seconds=self.cache_ttl_seconds,
+            max_cache_count=min(self.max_cache_count, context_limit),
+            debug_mode=self.debug_mode,
+        )
+
     def get_regular_cached_messages(
         self,
         chat_id: str,

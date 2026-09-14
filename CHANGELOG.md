@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.1.3
+
+- **Observed context recovery**: retain recent group messages previously judged as no-decision for the existing 30-minute cache TTL and expose them as low-priority background only after a later message has already passed participation judgment.
+- **Follow-up continuity**: formal replies can now understand questions such as "why did you ignore me?" without turning rejected messages into pending replies, continuation triggers, or active/image context.
+
 ## 1.1.2
 
 - **Group participation prompt**: treat substantive messages that clearly address the bot as normal reply opportunities, and allow open-topic participation when the Persona has a concrete personal contribution or natural reaction. Existing message-ownership, side-speaking, noise, and participation-budget boundaries remain in place.

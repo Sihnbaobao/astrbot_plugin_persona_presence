@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.1.2（Persona Presence 参与判断重构）
+版本: 1.1.3（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -84,7 +84,7 @@ from .utils.private_conversation_state import PrivateConversationState
     "astrbot_plugin_persona_presence",
     "Sihnbaobao",
     "让当前 Persona 按兴趣、关系和当下意愿选择是否参与对话的增强插件",
-    "1.1.2",
+    "1.1.3",
     "https://github.com/Sihnbaobao/astrbot_plugin_persona_presence",
 )
 class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
@@ -496,7 +496,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # 日志输出
         logger.info("=" * 50)
-        logger.info("Persona Presence 已加载 - 1.1.2（人格自主参与）")
+        logger.info("Persona Presence 已加载 - 1.1.3（人格自主参与）")
         logger.info(
             f"🔘 群聊功能总开关: {'✓ 已启用' if self.enable_group_chat else '✗ 已禁用'}"
         )
@@ -947,7 +947,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         groups = self._schema_groups()
         return json_response(
             {
-                "version": "1.1.2",
+                "version": "1.1.3",
                 "values": values,
                 "groups": groups,
                 "runtime": runtime,
@@ -3512,6 +3512,41 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     formatted_context,
                     merged_image_urls,
                 )
+
+            # Keep recent no-decision messages available as background for a
+            # later formal reply, without making them active or unanswered work.
+            if not is_private:
+                observed_context_messages = (
+                    self.cache_manager.get_observed_context_messages(chat_id)
+                )
+                observed_context_lines = []
+                for observed_message in observed_context_messages:
+                    observed_content = ContextManager._content_to_safe_text(
+                        observed_message.get("content", "")
+                    ).strip()
+                    if not observed_content:
+                        continue
+                    observed_sender = (
+                        str(observed_message.get("sender_name", "") or "").strip()
+                        or str(observed_message.get("sender_id", "") or "").strip()
+                        or "未知用户"
+                    )
+                    observed_context_lines.append(
+                        f"- {observed_sender}: {observed_content}"
+                    )
+                if observed_context_lines:
+                    observed_context = (
+                        "[群聊背景-此前未参与的消息]\n"
+                        "以下消息此前被判断为本轮不参与，仅用于理解当前消息；"
+                        "不要把它们当成待回复任务，也不要自动补答，"
+                        "除非当前消息明确在追问或承接它们。\n"
+                        + "\n".join(observed_context_lines)
+                    )
+                    formatted_context = observed_context + "\n\n" + formatted_context
+                    if self.debug_mode:
+                        logger.info(
+                            f"[上下文] 已加入 {len(observed_context_lines)} 条近期观察消息作为低优先级背景"
+                        )
 
             async for result in self._generate_and_send_reply(
                 event,

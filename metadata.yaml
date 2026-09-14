@@ -2,7 +2,7 @@ name: astrbot_plugin_persona_presence # Plugin identifier
 display_name: 人格自主参与
 desc: 让当前 Persona 按兴趣、关系和当下意愿选择是否参与群聊的对话增强插件 # 插件简短描述
 help: 让当前 Persona 自主选择何时参与群聊：@和关键词只提高注意力，不保证回复；无@但有强烈具体个人连接时也可以自然参与。支持 Smart 连发合并、图片与表情包分流、观察缓存隔离、参与频率预算和 AstrBot 官方人格/历史链路。 # 插件的帮助信息
-version: 1.1.2 # 插件版本号
+version: 1.1.3 # 插件版本号
 author: Sihnbaobao # 插件作者
 repo: https://github.com/Sihnbaobao/astrbot_plugin_persona_presence # 插件的仓库地址
 astrbot_version: ">=4.11.0"

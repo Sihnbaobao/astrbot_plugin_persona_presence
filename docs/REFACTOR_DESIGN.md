@@ -120,12 +120,15 @@ DecisionAI 只把以下最小信息交给 ReplyHandler：允许的 participation
 
 ## 6. 缓存与 Smart 规则
 
-观察缓存的用途是保留事件痕迹和避免消息完全消失，不是堆积“机器人欠下的回答”。缓存读取接口会排除 decision_state=observed：
+观察缓存的用途是保留事件痕迹和避免消息完全消失，不是堆积“机器人欠下的回答”。active 缓存读取接口会排除 decision_state=observed；正式群聊回复可以在 TTL 内以低优先级背景读取最近观察消息：
 
 - 不进入 active regular context；
 - 不进入 window continuation context；
 - 不触发下一条消息的自动续话；
-- 不参与 lazy 图片候选合并。
+- 不参与 lazy 图片候选合并；
+- 不会因为作为背景被读取而自动触发正式回复。
+
+正式回复读取的观察背景带有“此前未参与的消息”标记，只有当前消息已经通过 DecisionAI 时才加入，避免观察缓存反过来改变参与判断。
 
 Smart anchor 被判定静默时，anchor 和 follower 都转为 observation-only。Smart anchor 通过时，follower 作为背景保留原发送者、顺序和媒体信息，不改变主要回复对象。
 

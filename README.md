@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.1.3-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.1.2。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.1.3。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -36,7 +36,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 
 ## 群聊行为
 
-群聊默认开启，`group_reply_scope=ambient` 时普通群消息可以进入参与判断。明确指向机器人的有效消息会被当作正常回应机会，由当前 Persona 决定是否接住；开放性群消息也不是默认 no，只要人格有具体的个人经历、观点、情绪反应或自然补充，就可以低打扰地参与。明确回复其他用户的消息仍需人格自己的独立补充，不能替对方作答或接管话题。@、点名和关键词会提高注意力，但不强制回复。未明确指向机器人的 ambient 纯图片/贴纸和明显低信息短句可能在模型调用前被过滤；被 @、点名、关键词或可靠回复信号明确指向的纯媒体仍可进入后续图片处理和参与判断，不自动视为噪声。未被接受的消息会标记为 observation-only，不会自动制造对话目标；open/side 通过结果还受 45 秒、10 分钟、4 次的默认预算限制。
+群聊默认开启，`group_reply_scope=ambient` 时普通群消息可以进入参与判断。明确指向机器人的有效消息会被当作正常回应机会，由当前 Persona 决定是否接住；开放性群消息也不是默认 no，只要人格有具体的个人经历、观点、情绪反应或自然补充，就可以低打扰地参与。明确回复其他用户的消息仍需人格自己的独立补充，不能替对方作答或接管话题。@、点名和关键词会提高注意力，但不强制回复。未明确指向机器人的 ambient 纯图片/贴纸和明显低信息短句可能在模型调用前被过滤；被 @、点名、关键词或可靠回复信号明确指向的纯媒体仍可进入后续图片处理和参与判断，不自动视为噪声。未被接受的消息会标记为 observation-only，不会自动制造对话目标；最近 30 分钟内的群聊观察消息只会在后续正式回复中作为低优先级背景，帮助理解“为什么不理我”这类追问，不会触发补答或 continuation；open/side 通过结果还受 45 秒、10 分钟、4 次的默认预算限制。
 
 将 `group_reply_scope` 改为 `addressed` 后，未明确指向机器人的群消息在参与判断前静默。明确指向包括 @机器人、当前文本可靠点名、结构化回复引用机器人的消息、戳机器人或触发关键词；候选消息仍由 Persona 判断，任何一种 signal 都不保证回复。这个模式适合需要更安静的群聊。
 
