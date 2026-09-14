@@ -5,7 +5,7 @@
 - 插件 ID：astrbot_plugin_persona_presence
 - 展示名：人格自主参与 / Persona Presence
 - 仓库：https://github.com/Sihnbaobao/astrbot_plugin_persona_presence
-- 当前版本：1.1.3
+- 当前版本：1.1.4
 
 ## 从旧版本迁移
 
@@ -131,7 +131,7 @@ strong 和 weak 只描述这次人格意愿的力度：strong 可以展开，wea
 
 正式回复使用 AstrBot 当前会话 Persona。参与判断的 JSON 和分析过程不会进入正式回复 prompt；只会传递 direct/side/open 姿态和有限 reason_code 的短 handoff。Persona Presence 不会把全部 active Skills 清单无条件追加到每条人格回复的 system prompt，但会继续合并当前请求的工具集。
 
-被拒绝的消息可以写入 observation-only 缓存。它们不会作为 active 未回复上下文、续话依据或 lazy 图片候选；默认 30 分钟内，群聊正式回复可以把最近观察消息作为低优先级背景读取，但不会因此自动补答。
+被拒绝的消息可以写入 observation-only 缓存。它们不会作为 active 未回复上下文、续话依据或 lazy 图片候选。群聊参与判断和正式回复的近期群聊背景由 AstrBot 官方 GroupChatContext 提供；启用 `provider_ltm_settings.group_icl_enable` 时，`group_message_max_cnt` 默认保留 1000 条内存记录，正式回复由 AstrBot hook 注入，DecisionAI 由插件读取同一缓冲。`group_message_history_enable` 只控制是否持久化到历史库。
 
 ## Smart 并发
 

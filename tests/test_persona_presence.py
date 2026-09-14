@@ -921,19 +921,16 @@ def test_rejected_cache_entries_do_not_become_active_context(monkeypatch):
     assert [item["content"] for item in manager.get_cached_messages("group")] == [
         "active"
     ]
-    assert [
-        item["content"]
-        for item in manager.get_observed_context_messages("group")
-    ] == ["ignored"]
 
 
-def test_observed_messages_are_formal_background_only():
+def test_decision_ai_reads_official_group_context():
     source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")
 
-    assert "get_observed_context_messages(chat_id)" in source
-    assert "群聊背景-此前未参与的消息" in source
-    assert "不要把它们当成待回复任务" in source
-    assert "if not is_private:" in source
+    assert "_get_official_group_context_records" in source
+    assert 'get_registered_star("astrbot")' in source
+    assert "_group_context_record_id" in source
+    assert "[AstrBot 官方群聊上下文]" in source
+    assert "不要因为这些消息本身而回复" in source
 
 
 def test_lazy_image_urls_survive_cache_normalization(monkeypatch):

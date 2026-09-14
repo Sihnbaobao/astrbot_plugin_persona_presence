@@ -149,7 +149,6 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 - Smart follower 同样标为 observed；
 - 私聊纯文本 anchor 可在 Smart 窗口内提前预判；无 follower 时复用预判，有 follower 时丢弃预判并只使用合并批次的权威判断。
 - MessageCacheManager 的 active、regular、window 和图片候选读取都会排除 observed；
-- 已经通过后续参与判断的正式群聊回复，可读取当前 TTL 内有限的 observed 背景；
 - 不生成正式回复；
 - 对应的 takeover_group_reply/takeover_private_reply=true 时 stop_event，避免 AstrBot 默认链路再次回答；
 - 对应开关为 false 时将控制交还 AstrBot 核心链路。

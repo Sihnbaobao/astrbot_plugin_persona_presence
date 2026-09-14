@@ -157,7 +157,7 @@ MessageCacheManager 的 active 读取接口会排除 observed：
 - get_window_buffered_messages；
 - lazy 图片候选合并。
 
-这阻止三种旧式回流：下一条消息被误判为 continuation、历史缓存制造“当前对象”、上一条被拒绝图片再次触发视觉处理。观察记录仍可以在当前缓存 TTL 内存在；如果后续消息已经通过参与判断并进入正式群聊回复，最近观察消息会作为明确标记的低优先级背景提供，不会变成待回复任务。
+这阻止三种旧式回流：下一条消息被误判为 continuation、历史缓存制造“当前对象”、上一条被拒绝图片再次触发视觉处理。观察记录仍可以在当前缓存 TTL 内存在，便于诊断和正常生命周期清理。群聊参与判断读取 AstrBot 官方 GroupChatContext 的当前缓冲；正式回复仍由 AstrBot 的官方 LLM hook 注入同一缓冲。
 
 ## 9. 节流设计
 

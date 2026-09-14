@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.1.3（Persona Presence 参与判断重构）
+版本: 1.1.4（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -84,7 +84,7 @@ from .utils.private_conversation_state import PrivateConversationState
     "astrbot_plugin_persona_presence",
     "Sihnbaobao",
     "让当前 Persona 按兴趣、关系和当下意愿选择是否参与对话的增强插件",
-    "1.1.3",
+    "1.1.4",
     "https://github.com/Sihnbaobao/astrbot_plugin_persona_presence",
 )
 class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
@@ -496,7 +496,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # 日志输出
         logger.info("=" * 50)
-        logger.info("Persona Presence 已加载 - 1.1.3（人格自主参与）")
+        logger.info("Persona Presence 已加载 - 1.1.4（人格自主参与）")
         logger.info(
             f"🔘 群聊功能总开关: {'✓ 已启用' if self.enable_group_chat else '✗ 已禁用'}"
         )
@@ -947,7 +947,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         groups = self._schema_groups()
         return json_response(
             {
-                "version": "1.1.3",
+                "version": "1.1.4",
                 "values": values,
                 "groups": groups,
                 "runtime": runtime,
@@ -1756,6 +1756,59 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     self._private_conversation_state.record_pending_message(
                         chat_key, pending_message
                     )
+
+    async def _get_official_group_context_records(
+        self, event: AstrMessageEvent
+    ) -> list[str]:
+        """Read buffered group messages from AstrBot's built-in context.
+
+        Args:
+            event: Current group message event whose record marks the boundary.
+
+        Returns:
+            Messages buffered before the current event, or an empty list when the
+            built-in group context is unavailable or not enabled.
+        """
+        try:
+            star_metadata = self.context.get_registered_star("astrbot")
+            builtin_main = getattr(star_metadata, "star_cls", None)
+            group_context = getattr(builtin_main, "group_chat_context", None)
+            if group_context is None:
+                return []
+
+            umo = event.unified_msg_origin
+            lock_getter = getattr(group_context, "_get_lock", None)
+            if not callable(lock_getter):
+                return []
+
+            async with lock_getter(umo):
+                raw_records = getattr(group_context, "raw_records", None)
+                record_ids_by_umo = getattr(group_context, "_record_ids", None)
+                if not hasattr(raw_records, "get") or not hasattr(
+                    record_ids_by_umo, "get"
+                ):
+                    return []
+
+                records = list(raw_records.get(umo, ()))
+                record_ids = list(record_ids_by_umo.get(umo, ()))
+                if not records:
+                    return []
+
+                record_id = event.get_extra("_group_context_record_id", None)
+                prompt_index = event.get_extra("_group_context_raw_idx", -1)
+                if isinstance(record_id, str) and record_id in record_ids:
+                    prompt_index = record_ids.index(record_id)
+                if not isinstance(prompt_index, int) or not (
+                    0 < prompt_index <= len(records)
+                ):
+                    return []
+                return records[:prompt_index]
+        except Exception as error:
+            if self.debug_mode:
+                logger.debug(
+                    f"[DecisionAI] 读取 AstrBot 官方群聊上下文失败: {error}"
+                )
+            return []
 
     async def _format_ai_context(
         self,
@@ -2852,6 +2905,24 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         f"[Smart并发] 决策阶段重建批次上下文失败，回退原上下文: {smart_ctx_err}"
                     )
 
+            if not is_private:
+                official_group_context_records = (
+                    await self._get_official_group_context_records(event)
+                )
+                if official_group_context_records:
+                    decision_context = (
+                        "[AstrBot 官方群聊上下文]\n"
+                        "以下是当前消息之前的官方群聊消息，只用于理解当前消息的语境；"
+                        "不要因为这些消息本身而回复，也不要把它们当成当前消息。\n"
+                        + "\n".join(official_group_context_records)
+                        + "\n\n"
+                        + decision_context
+                    )
+                    if self.debug_mode:
+                        logger.info(
+                            f"[DecisionAI] 已加入 {len(official_group_context_records)} 条官方群聊上下文"
+                        )
+
             image_question_text = original_message_text or ""
             if smart_batch_messages:
                 for batch_message in smart_batch_messages:
@@ -3512,41 +3583,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     formatted_context,
                     merged_image_urls,
                 )
-
-            # Keep recent no-decision messages available as background for a
-            # later formal reply, without making them active or unanswered work.
-            if not is_private:
-                observed_context_messages = (
-                    self.cache_manager.get_observed_context_messages(chat_id)
-                )
-                observed_context_lines = []
-                for observed_message in observed_context_messages:
-                    observed_content = ContextManager._content_to_safe_text(
-                        observed_message.get("content", "")
-                    ).strip()
-                    if not observed_content:
-                        continue
-                    observed_sender = (
-                        str(observed_message.get("sender_name", "") or "").strip()
-                        or str(observed_message.get("sender_id", "") or "").strip()
-                        or "未知用户"
-                    )
-                    observed_context_lines.append(
-                        f"- {observed_sender}: {observed_content}"
-                    )
-                if observed_context_lines:
-                    observed_context = (
-                        "[群聊背景-此前未参与的消息]\n"
-                        "以下消息此前被判断为本轮不参与，仅用于理解当前消息；"
-                        "不要把它们当成待回复任务，也不要自动补答，"
-                        "除非当前消息明确在追问或承接它们。\n"
-                        + "\n".join(observed_context_lines)
-                    )
-                    formatted_context = observed_context + "\n\n" + formatted_context
-                    if self.debug_mode:
-                        logger.info(
-                            f"[上下文] 已加入 {len(observed_context_lines)} 条近期观察消息作为低优先级背景"
-                        )
 
             async for result in self._generate_and_send_reply(
                 event,

@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.1.4
+
+- **DecisionAI context bridge**: read the messages buffered by AstrBot's built-in GroupChatContext before judging the current group message, including messages previously judged as no-decision by this plugin.
+- **Single source of group context**: remove the duplicate plugin-side observed-context injection; formal replies continue using AstrBot's native LLM hook, while DecisionAI reads the same official in-memory buffer.
+
 ## 1.1.3
 
 - **Observed context recovery**: retain recent group messages previously judged as no-decision for the existing 30-minute cache TTL and expose them as low-priority background only after a later message has already passed participation judgment.

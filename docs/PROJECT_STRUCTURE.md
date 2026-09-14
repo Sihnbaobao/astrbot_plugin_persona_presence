@@ -40,7 +40,7 @@ main.py 不承担正式回复正文的人格生成，也不应重新引入随机
 | decision_ai.py | 构造参与判断请求、注入当前 Persona、解析结构化 JSON，并兼容旧 yes/no。 |
 | participation.py | 校验不可信模型字段、校验消息对象和说话姿态、生成最小 handoff、限制主动参与频率；不替 Persona 做主观兴趣或连续性裁决。 |
 | reply_handler.py | 解析当前会话 Persona，创建 AstrBot provider request，复用正式回复和 Hook 边界。 |
-| message_cache_manager.py | 管理待处理消息、过期和数量限制；active 读取排除 decision_state=observed，并为正式群聊回复提供短期低优先级观察背景。 |
+| message_cache_manager.py | 管理待处理消息、过期和数量限制；active 读取排除 decision_state=observed。 |
 | smart_concurrent_manager.py | 按到达序号选择 anchor，吸收 follower，维护有界 Smart 批次。 |
 | context_manager.py | 格式化消息上下文、同步官方历史、管理缓存转正。 |
 | message_processor.py | 提取、清洗和标注发送者、时间、At、引用和媒体消息。 |
@@ -75,7 +75,7 @@ _conf_schema.json 的分组与字段由 AstrBot 配置页读取。pages/control/
 
 ParticipationDecision 是一次判断的不可变结果，至少包含 reply、target、continuation、participation、information、interest、reason_code、confidence 和 topic_key。
 
-被拒绝消息写入缓存时添加 decision_state=observed。MessageCacheManager 的 active、regular、window 和图片候选读取都排除它，避免被拒绝消息制造续话、目标或下一次视觉处理；正式群聊回复可在缓存 TTL 内读取有限的观察背景。
+被拒绝消息写入缓存时添加 decision_state=observed。MessageCacheManager 的 active、regular、window 和图片候选读取都排除它，避免被拒绝消息制造续话、目标或下一次视觉处理。DecisionAI 的群聊判断和正式回复分别读取 AstrBot 官方 GroupChatContext；前者在参与判断前读取当前事件之前的官方缓冲，后者继续由 AstrBot 的 LLM hook 注入。
 
 Smart anchor 是主要回复对象。follower 只提供背景；无论是否通过，发送者和到达顺序都不能被覆盖。
 
