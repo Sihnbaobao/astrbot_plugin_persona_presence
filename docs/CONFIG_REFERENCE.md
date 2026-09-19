@@ -5,7 +5,7 @@
 - 插件 ID：astrbot_plugin_persona_presence
 - 展示名：人格自主参与 / Persona Presence
 - 仓库：https://github.com/Sihnbaobao/astrbot_plugin_persona_presence
-- 当前版本：1.1.4
+- 当前版本：1.1.5
 
 ## 从旧版本迁移
 
@@ -26,7 +26,7 @@
 | enable_group_chat | bool | true | 群聊总开关。 |
 | enabled_groups | list | [] | 留空处理所有群；填写群号后只处理指定群。 |
 | takeover_group_reply | bool | true | 插件已接管群消息时，静默、参与判断失败或处理失败是否阻止 AstrBot 默认兜底；true 保持静默，false 将结果交回 AstrBot 核心链路。 |
-| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断；明确指向机器人的有效消息按正常回应机会评估，开放话题有具体个人补充时也可以参与。addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选。两种模式下 @ 和关键词都不保证回复。 |
+| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断；明确指向机器人的有效消息进入认真评估，但仍由 Persona 读空气决定是否接住，开放话题有具体个人补充时也可以参与。addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选。两种模式下 @ 和关键词都不保证回复。 |
 
 群聊的基本规则：
 
@@ -107,7 +107,7 @@ strong 和 weak 只描述这次人格意愿的力度：strong 可以展开，wea
 
 | 配置项 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| trigger_keywords | list | [] | 命中后提高注意力并进入统一参与判断，不直接保证回复。 |
+| trigger_keywords | list | [] | 命中后提高注意力并进入统一参与判断，不直接保证回复；@、点名和关键词都不能绕过 Persona 的读空气判断。 |
 | keyword_smart_mode | bool | true | 兼容旧配置。现在无论开关状态都不会让关键词绕过参与判断。 |
 | blacklist_keywords | list | [] | 命中后直接忽略消息。 |
 | enable_user_blacklist | bool | false | 是否启用用户黑名单。 |

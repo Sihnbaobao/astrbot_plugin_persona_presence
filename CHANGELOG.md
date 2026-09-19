@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.1.5
+
+- **Read-the-air @ behavior**: treat @, name mentions, and direct-address signals as attention cues rather than reply guarantees; weak or absent willingness may still return no. Tighten side participation so the bot does not interrupt messages addressed to another user without a clear independent contribution.
+
 ## 1.1.4
 
 - **DecisionAI context bridge**: read the messages buffered by AstrBot's built-in GroupChatContext before judging the current group message, including messages previously judged as no-decision by this plugin.

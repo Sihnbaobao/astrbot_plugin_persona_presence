@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.1.4（Persona Presence 参与判断重构）
+版本: 1.1.5（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -84,7 +84,7 @@ from .utils.private_conversation_state import PrivateConversationState
     "astrbot_plugin_persona_presence",
     "Sihnbaobao",
     "让当前 Persona 按兴趣、关系和当下意愿选择是否参与对话的增强插件",
-    "1.1.4",
+    "1.1.5",
     "https://github.com/Sihnbaobao/astrbot_plugin_persona_presence",
 )
 class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
@@ -496,7 +496,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # 日志输出
         logger.info("=" * 50)
-        logger.info("Persona Presence 已加载 - 1.1.4（人格自主参与）")
+        logger.info("Persona Presence 已加载 - 1.1.5（人格自主参与）")
         logger.info(
             f"🔘 群聊功能总开关: {'✓ 已启用' if self.enable_group_chat else '✗ 已禁用'}"
         )
@@ -947,7 +947,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         groups = self._schema_groups()
         return json_response(
             {
-                "version": "1.1.4",
+                "version": "1.1.5",
                 "values": values,
                 "groups": groups,
                 "runtime": runtime,

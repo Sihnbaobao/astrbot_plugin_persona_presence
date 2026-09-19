@@ -469,7 +469,10 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "普通闲聊、寒暄、纯陈述一律不回复" not in source
     assert "不确定时倾向于回复（yes）" not in source
     assert "被@、点名或可靠回复只说明消息对象可能是当前人格" in source
+    assert "正文有效只表示值得评估，不等于当前人格现在愿意接话" in source
+    assert "即使是 direct，weak 或 none 也可以 no" in source
     assert "明确指向 bot 的 direct 消息" in source
+    assert "@、点名、提问和关键词只能提高注意力，不能强制 yes" in source
     assert "ownership == open 时默认 no" not in source
     assert "open 不是自动邀请，但也不是默认 no" in source
     assert "continuation_context_available" not in source

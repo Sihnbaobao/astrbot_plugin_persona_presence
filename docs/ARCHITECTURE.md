@@ -51,7 +51,7 @@ platform event
 
 ### 3.1 ambient 和 addressed
 
-ambient 是默认模式。普通群消息可以进入 DecisionAI，但纯媒体、低信息反应、只等待其他用户回答的无正文消息可以提前静默。明确指向机器人的有效消息按正常回应机会评估；开放话题在当前 Persona 有具体个人补充或自然反应时也可以参与，既可以展开，也可以只低打扰地补充一句。
+ambient 是默认模式。普通群消息可以进入 DecisionAI，但纯媒体、低信息反应、只等待其他用户回答的无正文消息可以提前静默。明确指向机器人的有效消息进入认真评估，但仍由 Persona 读空气决定是否接住；开放话题在当前 Persona 有具体个人补充或自然反应时也可以参与，既可以展开，也可以只低打扰地补充一句。
 
 addressed 只让明确指向机器人或被配置为触发信号的消息进入候选。这里的明确指向包括平台 @/戳/回复信号、当前正文可靠点名和关键词。候选仍会经过 DecisionAI；@ 和关键词不是 bypass。
 
@@ -73,7 +73,7 @@ DecisionAI 将当前消息分成两个互补维度。
 ### 4.2 Persona 意愿
 
 - strong：Persona 对具体内容有明显兴趣、情绪、经历或观点，并且现在就想展开说自己的相关内容。
-- weak：Persona 没有强烈冲动，但可能只想轻轻补充一句；它与 strong 都是意愿描述，不是本地回复门槛。
+- weak：Persona 没有强烈冲动，可能只想轻轻补充一句，也可能选择安静；它不是 @ 后的自动通过信号。
 - none：无聊、重复、冒犯、打扰、疲惫、已经说完或没有自然入口。
 
 硬策略如下：
@@ -84,7 +84,7 @@ DecisionAI 将当前消息分成两个互补维度。
 | target 与 participation 说话姿态不一致 | no |
 | target=other 但 participation 不是 side | no |
 | continuation | 描述上下文关系；群聊 yes 还需通过发送者事实校验，不替 Persona 做主题判断 |
-| direct + Persona 明确不愿意回复 | no |
+| direct + Persona 明确不愿意回复，或只有弱意愿而没有自然接话理由 | no |
 | side + 人格有自己的相关补充 | 可 yes |
 | open + Persona 自然想参与 | 可 yes |
 
