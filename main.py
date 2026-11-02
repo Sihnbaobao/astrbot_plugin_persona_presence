@@ -5237,6 +5237,34 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if not reply_text:
                 return
 
+            # Models occasionally echo the request scaffolding back into the
+            # reply. AstrBot injects <system_reminder> blocks carrying user,
+            # group and datetime info, so a leaked block must never reach the
+            # chat; drop it (and any dangling closing tag) before anything else.
+            stripped_reply_text = re.sub(
+                r"<\s*system[\s_-]*reminder\s*>[\s\S]*?"
+                r"(?:<\s*/\s*system[\s_-]*reminder\s*>|$)"
+                r"|<\s*/\s*system[\s_-]*reminder\s*>",
+                "",
+                reply_text,
+                flags=re.IGNORECASE,
+            ).strip()
+            if stripped_reply_text != reply_text:
+                logger.info(
+                    f"[Output filter] Removed leaked system reminder: "
+                    f"{len(reply_text)} -> {len(stripped_reply_text)} characters"
+                )
+                text_components = [
+                    comp for comp in result.chain if hasattr(comp, "text")
+                ]
+                if not stripped_reply_text:
+                    event.clear_result()
+                    return
+                text_components[0].text = stripped_reply_text
+                for comp in text_components[1:]:
+                    comp.text = ""
+                reply_text = stripped_reply_text
+
             if self.collapse_reply_newlines and "\n" in reply_text:
                 has_structured_format = bool(
                     re.search(
@@ -5254,8 +5282,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     and len(text_components) == len(result.chain)
                 ):
                     normalized_reply_text = re.sub(
-                        r"[ \t]*\r?\n[ \t]*", " ", reply_text
+                        r"\s*\r?\n+\s*", " ", reply_text
                     ).strip()
+                    # Chinese chat text must not keep the filler space at a line
+                    # join: "……\n发呆" would otherwise reach the user as
+                    # "……  发呆" with one space per collapsed line break.
+                    normalized_reply_text = re.sub(
+                        r"((?:\.{2,}|[。，、！？；：…~～]))\s+(?=\S)",
+                        r"\1",
+                        normalized_reply_text,
+                    )
+                    normalized_reply_text = re.sub(
+                        r"(?<=[\u4e00-\u9fff）】」』”])"
+                        r"\s+(?=[\u4e00-\u9fff（【「『“])",
+                        "",
+                        normalized_reply_text,
+                    )
                     if normalized_reply_text != reply_text:
                         text_components[0].text = normalized_reply_text
                         for comp in text_components[1:]:
