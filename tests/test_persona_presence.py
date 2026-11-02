@@ -406,8 +406,19 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "最终结果：reply = persona_willingness" in prompt
     assert "九月有什么好看的番吗" in prompt
     assert "ownership == other 只表示“直接对象是别人”" in prompt
-    assert "不替被@或被回复的用户作答" in prompt
-    assert "而不是把“谨慎”执行成几乎永远不说话" in prompt
+    assert "不能替被@或被回复的用户作答" in prompt
+    assert "当前 Persona 是第一决策主体，不是通用问答助手" in prompt
+    assert "[系统信息-当前人格名称] 中的正式名字" in prompt
+    assert "单纯提到名字不等于在对你说话" in prompt
+    assert "不能因名字出现就自动判为 bot" in prompt
+    assert "[当前人格名字]在做什么" in prompt
+    assert "璃月" not in prompt
+    assert "正常社交往往更倾向于接住" in prompt
+    assert "不要求必须有亲身经历" in prompt
+    assert "是否已有群友在回答" in prompt
+    assert "不要给所有 Persona 套用同一回复率" in prompt
+    assert "@当前人格名字，你知道这题怎么做吗" in prompt
+    assert "有人知道这题怎么做吗" in prompt
     assert "平台没有检测到机器人信号" in prompt
     assert "不等于消息不能开放参与" in prompt
     assert "关键词命中只是触发信号" in prompt
@@ -446,7 +457,7 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "ignore 通常在调用本契约前停止" in private_prompt
     assert "always 只在没有 active 私聊收尾边界时绕过本契约" in private_prompt
     assert "当前消息本身是否真的构成打扰" in private_prompt
-    assert "别烦璃月" in private_prompt
+    assert "别烦我" in private_prompt
     assert "当前消息本身是否真的构成打扰" in private_prompt
     assert "继续施压、重复催促" in private_prompt
     assert "抱歉，刚才那件事我说清楚了" in private_prompt
@@ -468,13 +479,13 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "请只基于当前消息判断是否回复" not in source
     assert "普通闲聊、寒暄、纯陈述一律不回复" not in source
     assert "不确定时倾向于回复（yes）" not in source
-    assert "被@、点名或可靠回复只说明消息对象可能是当前人格" in source
-    assert "正文有效只表示值得评估，不等于当前人格现在愿意接话" in source
+    assert "被@、点名或可靠回复通常是更强的回应邀请" in source
+    assert "正文有效只说明值得评估，不等于当前人格现在愿意接话" in source
     assert "即使是 direct，weak 或 none 也可以 no" in source
     assert "明确指向 bot 的 direct 消息" in source
-    assert "@、点名、提问和关键词只能提高注意力，不能强制 yes" in source
+    assert "@、点名和提问提高回应优先级，但不强制 yes" in source
     assert "ownership == open 时默认 no" not in source
-    assert "open 不是自动邀请，但也不是默认 no" in source
+    assert "面向群体的问题若当前 Persona 能给出答案、时机合适" in source
     assert "continuation_context_available" not in source
 
     main_source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")
@@ -691,7 +702,7 @@ def test_participation_parser_accepts_json_and_rejects_unknown_enums(monkeypatch
     assert private.boundary_interpretation == "ambiguous"
 
 
-def test_malformed_group_json_fails_closed_in_evaluate(monkeypatch):
+def test_decision_evaluate_prompt_modes_and_malformed_output(monkeypatch):
     response_filter = _load_module(
         monkeypatch,
         "ai_response_filter.py",
@@ -712,7 +723,7 @@ def test_malformed_group_json_fails_closed_in_evaluate(monkeypatch):
     )
 
     async def resolve_judgment_persona(**kwargs):
-        return {"system_prompt": ""}
+        return {"system_prompt": "selected Persona prompt", "persona_name": "新人格"}
 
     decision.DecisionAI.resolve_judgment_persona = staticmethod(
         resolve_judgment_persona
@@ -763,6 +774,9 @@ def test_malformed_group_json_fails_closed_in_evaluate(monkeypatch):
     )
     assert "[系统信息-当前现实时间]" in context.provider.last_prompt
     assert "Asia/Shanghai" in context.provider.last_prompt
+    assert "selected Persona prompt" in context.provider.last_system_prompt
+    assert "[系统信息-当前人格名称]" in context.provider.last_system_prompt
+    assert "新人格" in context.provider.last_system_prompt
     assert result.reply is False
     assert result.source == "error"
     assert result.error == "invalid_structured_output"
@@ -800,6 +814,42 @@ def test_malformed_group_json_fails_closed_in_evaluate(monkeypatch):
     override_prompt = context.provider.last_system_prompt + context.provider.last_prompt
     assert "仅输出 yes 或 no" in override_prompt
     assert "一对一私聊中" not in override_prompt
+
+    _run(
+        decision.DecisionAI.evaluate(
+            context,
+            Event(),
+            "有人知道相机怎么选吗？",
+            "",
+            "",
+            reply_tendency="active",
+            is_private=False,
+            include_current_time=False,
+        )
+    )
+    active_prompt = context.provider.last_system_prompt + context.provider.last_prompt
+    assert "[persona_willingness preset: active]" in active_prompt
+    assert "ownership=open 且 information=substantive" in active_prompt
+    assert "不要默认旁观" in active_prompt
+
+    _run(
+        decision.DecisionAI.evaluate(
+            context,
+            Event(),
+            "群里正在聊一个 Persona 感兴趣的话题",
+            "",
+            "",
+            reply_tendency="persona",
+            is_private=False,
+            include_current_time=False,
+        )
+    )
+    persona_group_prompt = (
+        context.provider.last_system_prompt + context.provider.last_prompt
+    )
+    assert "[persona_willingness preset: persona]" in persona_group_prompt
+    assert "不要把安静、冷淡或话少自动理解成不参与群聊" in persona_group_prompt
+    assert "可以用符合其个性的简短回应" in persona_group_prompt
 
 
 def test_global_datetime_setting_can_disable_decision_time(monkeypatch):

@@ -2,16 +2,16 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.1.5-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.1.6-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.1.5。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.1.6。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
-- 群聊参与判断：明确指向机器人的消息进入认真评估，但 @ 只是邀请而不是必回；开放话题在当前 Persona 有具体的个人经历、观点、情绪反应或自然补充时也可以参与，强兴趣可以展开，较弱意愿也可以选择安静。
+- 群聊参与判断：当前 Persona 决定何时开口。被明确提问且能够回答，通常是更强的回应机会；面向群体的问题也可自然接话，不强求亲身经历。是否回应仍取决于 Persona 的性格、关系、边界和当下话轮，而不是统一回复率。
 - 群聊安全边界：只对无正文的他人定向消息、纯媒体和明显低信息短句提前过滤；有正文的他人对话仍交给模型判断是否适合旁观补充。
 - 私聊独立策略：普通私聊默认可以直接回应，不继承群聊的安静人格规则。
 - Smart 连续消息：短时间连续发送的多条消息可以合并为一轮输入，只生成一条综合回复。
@@ -36,9 +36,9 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 
 ## 群聊行为
 
-群聊默认开启，`group_reply_scope=ambient` 时普通群消息可以进入参与判断。明确指向机器人的有效消息会进入认真评估，但仍由当前 Persona 读空气并决定是否接住；开放性群消息也不是默认 no，只要人格有具体的个人经历、观点、情绪反应或自然补充，就可以低打扰地参与。明确回复其他用户的消息仍需人格自己的独立补充，不能替对方作答或接管话题。@、点名和关键词会提高注意力，但不强制回复。未明确指向机器人的 ambient 纯图片/贴纸和明显低信息短句可能在模型调用前被过滤；被 @、点名、关键词或可靠回复信号明确指向的纯媒体仍可进入后续图片处理和参与判断，不自动视为噪声。未被接受的消息会标记为 observation-only，不会自动制造对话目标；open/side 通过结果还受 45 秒、10 分钟、4 次的默认预算限制。
+群聊默认开启，`group_reply_scope=ambient` 时普通群消息可以进入参与判断。@、点名或回复机器人会让消息更受注意；对方确实在问 Persona 能回答的问题时，正常社交通常更倾向于接住，但仍由 Persona 的性格、关系、边界和当下状态决定，不是必回规则。面向群体的公开问题也可以像普通群友一样回答，不要求每次都有亲身经历；是否插话还要看话题是不是向群体开放、当前话轮是否自然、是否已有群友回答。只是知道某个事实或能补充一句，不代表必须抢话。明确回复其他用户的消息仍不能替对方作答或接管话题。未明确指向机器人的 ambient 纯图片/贴纸和明显低信息短句可能在模型调用前被过滤；被 @、点名、关键词或可靠回复信号明确指向的纯媒体仍可进入后续图片处理和参与判断，不自动视为噪声。未被接受的消息会标记为 observation-only，不会自动制造对话目标；open/side 通过结果仍受 45 秒、10 分钟、4 次的默认预算限制。
 
-将 `group_reply_scope` 改为 `addressed` 后，未明确指向机器人的群消息在参与判断前静默。明确指向包括 @机器人、当前文本可靠点名、结构化回复引用机器人的消息、戳机器人或触发关键词；候选消息仍由 Persona 判断，任何一种 signal 都不保证回复。这个模式适合需要更安静的群聊。
+将 `group_reply_scope` 改为 `addressed` 后，未明确指向机器人的群消息在参与判断前静默。明确指向包括 @机器人、当前文本可靠点名、结构化回复引用机器人的消息、戳机器人或触发关键词；这些 signal 让消息优先进入 Persona 判断，不替 Persona 决定 yes/no。这个模式适合希望普通闲聊不参与判断的群聊。
 
 concurrent_mode 有两种模式：
 
@@ -115,7 +115,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 | enable_group_chat | true | 群聊总开关 |
 | enabled_groups | [] | 留空处理所有群，否则只处理指定群 |
 | takeover_group_reply | true | 插件已接管群消息时，静默、参与判断失败或处理失败是否阻止 AstrBot 核心兜底；true 保持静默，false 交回核心链路 |
-| group_reply_scope | ambient | ambient 允许普通群消息进入参与判断；addressed 只让明确 signal 进入候选，@和关键词仍不保证回复 |
+| group_reply_scope | ambient | ambient 允许普通群消息进入判断；被问到且能回答通常是较强的回应机会，公开问题也可自然参与。addressed 只让明确 signal 进入候选；是否回复仍由 Persona 决定 |
 | enable_private_chat | false | 私聊总开关 |
 | enabled_private_users | [] | 留空处理所有私聊用户，否则只处理指定用户 |
 | private_reply_mode | direct | direct 普通私聊绕过参与判断，直接进入正式回复；decide 普通私聊先经过私聊参与判断。direct 不是强制 Persona 必须输出回复 |
@@ -130,6 +130,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 | private_batch_max_size | 10 | 单个私聊批次最多合并的消息数 |
 | decision_ai_provider_id | 空 | 参与判断使用的提供商；留空跟随会话默认提供商 |
 | decision_ai_include_persona | true | 参与判断是否携带当前人格 |
+| decision_ai_reply_tendency | persona | 默认按当前 Persona；reserved/active 是全局倾向调整，不是回复概率 |
 | ambient_reply_min_interval_seconds | 45.0 | open/side 主动参与的最小间隔（秒） |
 | ambient_reply_window_seconds | 600.0 | open/side 参与统计窗口（秒） |
 | ambient_reply_max_per_window | 4 | 单个群在窗口内最多 open/side 参与次数 |
@@ -160,6 +161,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 - concurrent_mode = smart
 - keyword_smart_mode = true
 - group_reply_scope = ambient
+- decision_ai_reply_tendency = persona（按人格自然参与；安静可以简短回应，不等于默认沉默）
 - ambient_reply_min_interval_seconds = 45
 - ambient_reply_window_seconds = 600
 - ambient_reply_max_per_window = 4
@@ -184,11 +186,11 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 
 ### 被 @ 了为什么没有回复？
 
-@、点名、戳和关键词只提高参与判断的注意力，不是强制命令。@机器人也必须读空气：正文有效只是进入认真评估的必要条件，当前 Persona 仍可能因为无聊、重复、冒犯、话题已结束、只是例行召唤、只是在等其他人回答，或当下没有具体兴趣而保持安静；这是接管模式下的预期行为。
+@、点名和回复机器人会提高注意力，也通常表示对方在邀请 Persona 接话。对方明确问了一个 Persona 能回答的问题时，通常值得接住；但 Persona 仍可因性格、关系、边界、疲惫、重复催促或话题已结束而不回。若只是例行召唤、无正文重复@，也不必每次都回应。接管模式下，插件判定 no 后会保持安静，不会再由 AstrBot 默认回复兜底。
 
 ### 没有 @ 为什么偶尔会回复？
 
-ambient 模式允许普通群消息进入判断。Persona 通常会先观察，但是否开口主要由当下的性格、兴趣、情绪和聊天氛围决定；@只提高注意力，不替 Persona 做 yes/no 决定。interest、reason 等字段用于表达和诊断，weak 允许简短回复也允许安静。open/side 回复仍受参与预算限制，side 只能在有明确独立补充时发言。
+ambient 模式允许普通群消息进入判断。Persona 不应为了展示知识而随意插话，也不应把克制变成默认沉默：面向群体的问题若 Persona 能回答、且话轮自然，可以参与；不要求必须有亲身经历。是否开口由 Persona 的社交风格、兴趣、关系、情绪和聊天节奏决定。明确@会提高回应优先级；被问到且能回答通常是正向理由，但不保证 yes。open/side 回复仍受参与预算限制，side 不能替他人作答或抢话。
 
 ### 上午的旧话题会被误认为下午的续话吗？
 

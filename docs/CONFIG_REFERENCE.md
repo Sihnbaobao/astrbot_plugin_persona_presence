@@ -5,7 +5,7 @@
 - 插件 ID：astrbot_plugin_persona_presence
 - 展示名：人格自主参与 / Persona Presence
 - 仓库：https://github.com/Sihnbaobao/astrbot_plugin_persona_presence
-- 当前版本：1.1.5
+- 当前版本：1.1.6
 
 ## 从旧版本迁移
 
@@ -26,14 +26,14 @@
 | enable_group_chat | bool | true | 群聊总开关。 |
 | enabled_groups | list | [] | 留空处理所有群；填写群号后只处理指定群。 |
 | takeover_group_reply | bool | true | 插件已接管群消息时，静默、参与判断失败或处理失败是否阻止 AstrBot 默认兜底；true 保持静默，false 将结果交回 AstrBot 核心链路。 |
-| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断；明确指向机器人的有效消息进入认真评估，但仍由 Persona 读空气决定是否接住，开放话题有具体个人补充时也可以参与。addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选。两种模式下 @ 和关键词都不保证回复。 |
+| group_reply_scope | string | ambient | ambient 让普通群消息进入参与判断；明确提问且 Persona 能回答时通常是自然回应机会，公开问题也可以参与，不要求亲身经历。最终由 Persona 的社交风格、关系、边界和当前话轮决定。addressed 只让 @、戳、回复机器人、可靠文本点名或关键词消息进入候选；文本点名按插件单独注入的当前 Persona 正式名字，以及 Persona 设定中的称呼结合语境识别，单纯提及不够。这些 signal 提高注意力，不替 Persona 决定回复。 |
 
 群聊的基本规则：
 
-- direct：消息面向机器人，但人格仍可因为无聊、重复、冒犯、打扰或话题结束而拒绝。
-- side：消息面向其他人时，只有人格自己的独立、相关补充才允许参与，不能替对方回答或接管话题。
-- open：无明确对象的公共话题不是默认 no；如果 Persona 有具体的个人经历、观点、情绪反应或自然补充，可以展开，也可以只低打扰地插一句。
-- noise、reaction、unclear 和只等待其他人回答的消息通常静默。
+- direct：消息面向机器人，是较强的回应邀请；对方在问 Persona 能回答的问题时，通常值得接住，但当前性格、关系、边界、疲惫和重复程度仍可让它选择不回。
+- side：消息面向其他人时，先判断话题是否向群体开放、此刻是否适合加入；不能替对方回答、接管话题或只为展示知识插话。
+- open：面向群体的问题若 Persona 能回答、话轮自然，可以像群友一样回答，不要求亲身经历；是否加入仍由 Persona 的社交风格和当下状态决定。一般陈述不因“可以补充”就自动插话。
+- noise、reaction、unclear 和只等待其他人回答的消息通常静默；简单反应是否回应也由 Persona 决定。
 
 ### 私聊
 
@@ -59,7 +59,7 @@
 | decision_ai_persona_name | string | 空 | 留空跟随当前会话 Persona；填写后固定使用指定人格判断。 |
 | decision_ai_extra_prompt | text | 空 | 追加参与判断要求。不得写成“命中就必回”来绕过本地硬边界。 |
 | decision_ai_timeout | int | 30 | 群聊参与判断超时会静默；普通私聊在无活动睡眠/回避边界且 takeover_private_reply=true 时会回退到正式回复链。 |
-| decision_ai_reply_tendency | string | persona | persona 完全依据人格；reserved 更克制；active 更愿意参与有内容的公共话题。三种倾向都不能绕过消息对象、说话姿态和主动参与预算。 |
+| decision_ai_reply_tendency | string | persona | persona 以当前 Persona 的社交风格和当下状态为主；reserved/active 是全局倾向覆盖，分别更克制/更愿意参与。它不是回复概率，也不绕过消息对象和说话姿态。 |
 
 群聊参与判断输出一个结构化 JSON，包含 reply、target、information、continuation、participation、interest、reason_code、confidence 和 topic_key。代码会校验枚举并再次执行消息对象和说话姿态边界；continuation 的语义由 DecisionAI 根据近期对话和中间群聊内容判断，群聊 continuation=yes 还必须通过当前发送者关系的结构化事实校验。旧 provider 返回精确 yes/no 仍可兼容，但不能借此获得 side 旁观权限。
 
@@ -77,7 +77,7 @@
 | confidence | high / medium / low | 分类置信度，仅用于决策语义和诊断。 |
 | topic_key | 短文本 | 有界诊断标签，不用于生成回复目标。 |
 
-strong 和 weak 只描述这次人格意愿的力度：strong 可以展开，weak 可能只想轻轻说一句，none 则表示不想参与。它们用于帮助 DecisionAI 表达整体判断，不再被 participation.py 作为主观强度门槛；真正能回答但人格不想说时仍应输出 reply=no。
+strong 和 weak 只描述这次人格意愿的力度：strong 可以展开；weak 面对明确问给自己且能回答的问题时，若符合 Persona 的社交风格，通常可以简短回应，也可以因当下情境安静；none 表示不想参与。它们不被 participation.py 作为主观强度门槛。能回答是正向社交理由，但不等于 Persona 必须回答。
 
 ### 可选推理协议
 

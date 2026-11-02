@@ -1,5 +1,12 @@
 ## 📝 更新日志
 
+## 1.1.6
+
+- **Persona-led group replies**: clarify that direct questions the Persona can answer are normally strong reply opportunities, while the Persona still decides based on its social style, relationship, boundaries, and current context.
+- **Balanced open participation**: allow natural answers to questions addressed to the group without requiring personal experience; use turn-taking and Persona behavior to avoid unsolicited interruptions.
+- **No generic reply rate**: keep reply choice Persona-driven and non-random; update regression coverage and maintenance guidance.
+- **Dynamic Persona identity**: inject the selected Persona's formal name and use it with names and aliases from its definition to resolve text addresses; a name mention alone does not make a message addressed to the bot.
+
 ## 1.1.5
 
 - **Read-the-air @ behavior**: treat @, name mentions, and direct-address signals as attention cues rather than reply guarantees; weak or absent willingness may still return no. Tighten side participation so the bot does not interrupt messages addressed to another user without a clear independent contribution.

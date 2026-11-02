@@ -74,7 +74,7 @@
                     "ambient"
                 ],
                 "default": "ambient",
-                "hint": "ambient=普通群聊消息也进入兴趣判断；明确指向机器人的有效消息按正常回应机会评估，开放话题有具体个人补充或自然反应时也可以发言；addressed=只让@机器人、关键词、回复机器人消息或戳机器人进入候选。无论哪种模式，@和关键词都不强制回复。"
+                "hint": "ambient=普通群聊消息也进入判断；被明确问到且 Persona 能回答时通常是自然的回应机会，面向群体的问题也可在话轮合适时回答。最终由 Persona 的社交风格和当下情境决定；addressed=只让@、关键词、回复或戳机器人进入候选，这些信号提高注意力，不替 Persona 决定回复。"
             }
         }
     },
@@ -169,7 +169,7 @@
                     "active"
                 ],
                 "default": "persona",
-                "hint": "persona=按当前人格；reserved=更克制；active=更愿意接住有内容的消息。它只影响参与判断，不改写正式回复人格。"
+                "hint": "persona=以当前 Persona 的社交风格和当下状态为主；active=更愿意接住开放群聊中的有内容提问和话题分享；reserved=更克制。倾向只影响参与判断，不是回复概率，也不改写正式回复人格。"
             },
             "decision_ai_persona_name": {
                 "description": "指定判断人格",

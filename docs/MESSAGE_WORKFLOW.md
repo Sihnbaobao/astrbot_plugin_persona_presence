@@ -1,6 +1,6 @@
 # Persona Presence 消息工作流程
 
-本文按事件到达顺序说明 Persona Presence（人格自主参与）如何决定一次消息是否进入正式回复。核心选择来自 Persona 的兴趣与当下意愿，而不是随机概率或固定的 @ 必回规则。
+本文按事件到达顺序说明 Persona Presence（人格自主参与）如何决定一次消息是否进入正式回复。决策以当前 Persona 的社交风格、关系、兴趣、边界和当下状态为主；明确提问是更强的回应邀请，能回答通常是正向理由，但不会机械变成 yes，也不使用随机回复率。
 
 [← 返回 README](../README.md) | [架构指南](ARCHITECTURE.md) | [配置参考](CONFIG_REFERENCE.md) | [项目结构](PROJECT_STRUCTURE.md)
 
@@ -56,7 +56,7 @@
 - 近期机器人回复以及其后的群聊内容；
 - 当前事件是否在语义上承接这轮对话，或只是一个新的公开话题。
 
-这些事实只描述事件，不代替 Persona 决定是否愿意参与。关键词和 @ 是注意力 signal，不能直接设置 reply=yes。DecisionAI 会判断中间的群友消息是否实际接管或改变话题，短暂的无关插话不自动结束续话。
+这些事实描述事件，不代替 Persona 决定是否愿意参与。@、点名和回复信号会提高注意力；文本点名使用插件单独注入的当前 Persona 正式名字，以及 Persona 设定中的自称、常用称呼和别名，并结合语境确认对象；单纯提及名字不等于在对 Persona 说话。被明确问到且能够回答，通常是比普通闲聊更强的回应理由，但仍不直接设置 reply=yes。对话对象、群聊是否公开、是否已有群友回应以及当前话轮都要纳入判断。DecisionAI 会判断中间的群友消息是否实际接管或改变话题，短暂的无关插话不自动结束续话。
 
 group_reply_scope=addressed 时，未明确指向机器人的群消息在这里结束；被允许进入候选的消息仍要经过后续参与判断。group_reply_scope=ambient 时，普通消息继续进入后续流程。
 
@@ -103,7 +103,7 @@ DecisionAI 使用当前 Persona、当前发送者、当前正文、目标 signal
 - confidence 和有界 topic_key；
 - reply：yes 或 no。
 
-判断顺序是先确认消息对象和说话姿态，再由 Persona 结合正文、近期对话、插话是否接管、性格、情绪和聊天氛围做整体判断。模型“能回答”不等于一定要回复，也不再由本地代码强制要求某个 interest 等级。continuation 的语义判断属于 Persona；群聊 continuation=yes 还要通过当前发送者与最近机器人回复对应发送者的结构化事实校验。
+先确认消息对象、说话姿态和当前话轮，再由 Persona 结合正文、近期对话、性格、社交习惯、关系、边界和聊天氛围做整体判断。明确问给机器人的问题若能正常回答，通常是自然回应机会；面向群体的公开问题也可在时机合适时回答，不要求亲身经历。只是知道某个事实、或能对一句陈述作补充，并不自动要求插话。Persona 是否愿意回应不由统一回复率或随机数决定。continuation 的语义判断属于 Persona；群聊 continuation=yes 还要通过当前发送者与最近机器人回复对应发送者的结构化事实校验。
 
 ## Phase 7：本地硬边界
 
@@ -167,11 +167,11 @@ ParticipationDecision normalizer 在模型之后重新执行不可被 prompt 绕
 
 ### 被 @ 了但没有回复
 
-这是预期可能行为。检查日志中的 target、information、interest、reason_code 和 participation；被 @ 只提高注意力，模型仍可能判断无聊、重复、冒犯、已结束或不想回应。若显示 ambient budget，检查 45/600/4 设置。
+明确提问且 Persona 能回答时，正常社交通常更倾向于回应，但仍可能因 Persona 性格、关系、边界、疲惫、重复或当前话轮而不回。检查 target、information、interest、reason_code 和 participation，并确认当前 Persona 与 decision_ai_extra_prompt 符合预期。ambient budget 只限制 open/side，不限制 direct。
 
 ### 没有 @ 却回复了
 
-确认它是 open/side，且模型明确选择了合适的说话姿态。这是允许的 Persona 自主参与，不是关键词误触发；如果回复过于频繁，降低预算上限或调整 Persona 边界。
+确认它是 open/side，且当前消息确实面向群体、当前话轮适合参与。这是允许的 Persona 自主参与：能回答开放问题通常是正向理由，不要求亲身经历；只是对一般陈述有知识补充则不自动插话。若仍过于频繁，可降低 open/side 预算，或调整 Persona 的社交风格和参与边界。
 
 ### 所有消息都没有回复
 
