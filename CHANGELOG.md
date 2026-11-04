@@ -1,5 +1,28 @@
 ## 📝 更新日志
 
+## 1.3.0
+
+- **Life sight**: the Persona now carries a short note about what it actually watched or did on its own time, so questions like "what were you just watching" are answered from real experience instead of a blank.
+- **Persona decides, facts only**: the note is framed as background with an explicit "mention it or skip it" instruction; it never obliges a reply, so a reserved Persona can stay silent without pretending it saw nothing.
+- **Read-only companion data**: the note is built from the Bilibili companion plugin's watch log; a missing, stale or reshaped file simply produces no note. Failed evaluations and records outside the window are dropped.
+- **Cross-group awareness reworked**: a referenced group is quoted in depth while every other active group keeps a small always-on digest, so awareness no longer depends on naming a group first. Abbreviations such as a shortened group name now resolve, and sightings survive restarts through a small on-disk buffer.
+- **Leaked system tags are stripped**: replies that echo system scaffolding back into the chat are cleaned before sending.
+- **Notebook entries are editable**: the memory network on the plugin page can now rename or delete any stored entry, and the change marks it as manual so automatic learning does not overwrite it.
+- **Curiosity follows knowledge gaps**: instead of reacting to question-shaped sentences, the Persona reflects on what it could not place while reading a batch of chat, then classifies whether the term is common knowledge, slang, not worth knowing, or worth a lookup.
+- **Turn-taking guard**: a Persona that already spoke about the current topic stays out when nobody addressed it, so it no longer answers every remark about itself.
+- **Dialogue fatigue**: consecutive replies in one chat lower the chance of the next one along a decay curve, and the count resets as soon as the Persona stays silent, the speaker changes or the window passes.
+- **Short decision context**: participation is judged from the recent turns plus a turn-facts block instead of the full archive, which keeps attention on the message being judged.
+- **Jargon sampling sees the whole room**: mining reads every group message instead of only the ones the Persona answered, and each run now logs whether it found candidates.
+- **History stays complete**: the bot now saves its own replies, so later turns can see what it actually said.
+
+## 1.2.0
+
+- **Cross-group sight**: when replying in one group, the Persona can now draw on a short digest of what it recently read in its other enabled groups, the way a person who keeps several chats open would. Disabled by default; tuned per window, group count, per-group quote count and buffer size.
+- **Explicit provenance**: quoted sightings are labelled as coming from another group, so the model does not present them as this group's history and can say it saw them elsewhere.
+- **Core-only data source**: the sight layer reads AstrBot core message history and alias tables, so a memory plugin update can never break it.
+- **Optional cross-group memory**: an extra recall pass queries the plugin's existing memory adapter once per related group instead of changing any memory-plugin scope setting; no migration and no upstream internals.
+- **Privacy guard**: a denylist keeps chosen groups out of every injection, and the block is only built for group replies.
+
 ## 1.1.6
 
 - **Persona-led group replies**: clarify that direct questions the Persona can answer are normally strong reply opportunities, while the Persona still decides based on its social style, relationship, boundaries, and current context.

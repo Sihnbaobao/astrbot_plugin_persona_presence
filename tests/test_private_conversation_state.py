@@ -58,9 +58,7 @@ def test_ambiguous_sleep_signoff_uses_a_soft_boundary():
 def test_explicit_sleep_claim_is_literal_even_with_a_persona_name():
     """A clear persona sleep claim creates the real overnight boundary."""
     state = PrivateConversationState()
-    boundary = state.record_reply(
-        "qq_private_42", "凌晨三点了，璃月要睡了", now=100
-    )
+    boundary = state.record_reply("qq_private_42", "凌晨三点了，璃月要睡了", now=100)
 
     assert boundary is not None
     assert boundary.sleep_mode == "literal"

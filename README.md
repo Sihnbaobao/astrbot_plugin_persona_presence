@@ -182,7 +182,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 
 ### 如何清理聊天历史？
 
-使用 AstrBot 或当前平台提供的 `/reset`。Persona Presence 不再注册旧的 `gcp_reset` 和 `gcp_reset_here` 指令；`gcp_clear_image_cache` 只清理图片描述缓存，不影响聊天历史。
+使用 AstrBot 或当前平台提供的 `/reset`。Persona Presence 不再注册旧的 `gcp_reset` 和 `gcp_reset_here` 指令；`persona_clear_image_cache` 只清理图片描述缓存，不影响聊天历史（仅管理员可用，执行后会重启 AstrBot）。
 
 ### 被 @ 了为什么没有回复？
 

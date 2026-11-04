@@ -9,7 +9,6 @@ import time
 
 from astrbot.api import logger
 from astrbot.api.all import *
-from astrbot.api.event import filter
 
 from .context_manager import ContextManager
 from .message_cleaner import MessageCleaner
@@ -18,7 +17,6 @@ from .probability_manager import ProbabilityManager
 
 
 class SaveMixin:
-    @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):
         """
         消息发送后的钩子，保存AI回复与用户消息到官方对话系统

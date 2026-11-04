@@ -206,8 +206,13 @@ def test_direct_private_late_night_routes_plain_text_through_decision_ai():
     assert "and not private_late_night_review" in source
     assert 'private_late_night_hint = ""' in source
     assert "The global datetime context already supplies the current time" in source
-    assert "Treat this as context, not a presumption that Persona is asleep" not in source
-    assert "ordinary greetings, questions, sharing, and natural follow-ups should normally receive yes" not in source
+    assert (
+        "Treat this as context, not a presumption that Persona is asleep" not in source
+    )
+    assert (
+        "ordinary greetings, questions, sharing, and natural follow-ups should normally receive yes"
+        not in source
+    )
 
 
 def test_private_decision_failure_falls_back_without_crossing_boundaries():

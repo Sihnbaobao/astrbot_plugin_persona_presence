@@ -6,6 +6,7 @@ AI响应过滤器 - 处理带思考链/额外推理块的AI返回
 版本: V1.2.3.hotfix.2
 """
 
+import html
 import re
 from typing import Any
 
@@ -38,6 +39,16 @@ class AIResponseFilter:
         r"<分析>.*?</分析>",
     ]
 
+    # Models occasionally echo request scaffolding back into the reply. AstrBot
+    # injects system_reminder blocks (user/group/datetime) and other components
+    # use system_internal style wrappers, so any leaked block must be dropped
+    # before the text reaches the chat. A dangling closing tag is dropped too.
+    LEAKED_SYSTEM_TAG_PATTERNS = [
+        r"<\s*system(?:[\s_-]+\w+)*[^>]*>[\s\S]*?"
+        r"(?:<\s*/\s*system(?:[\s_-]+\w+)*\s*>|$)",
+        r"<\s*/\s*system(?:[\s_-]+\w+)*\s*>",
+    ]
+
     # 中文思考过程前缀模式
     CHINESE_THINKING_PREFIXES = [
         r"^思考[：:]\s*",
@@ -58,6 +69,61 @@ class AIResponseFilter:
         r"^最终答案[：:]\s*",
         r"^最终判断[：:]\s*",
     ]
+
+    @staticmethod
+    def strip_leaked_system_tags(response: str) -> str:
+        """Remove leaked <system ...> scaffolding blocks from a reply.
+
+        Args:
+            response: Raw model reply.
+
+        Returns:
+            The reply with system blocks and dangling closing tags removed.
+        """
+        if not response or not isinstance(response, str):
+            return response
+
+        cleaned = response
+        for pattern in AIResponseFilter.LEAKED_SYSTEM_TAG_PATTERNS:
+            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    @staticmethod
+    def sanitize_reply_text(response: str) -> str:
+        """Strip leaked markup and HTML entities from a reply.
+
+        Models sometimes wrap the answer in tags and escape spaces as
+        entities, which then leaks straight into the chat.
+
+        Args:
+            response: Raw reply text.
+
+        Returns:
+            The reply as plain chat text.
+        """
+        if not response or not isinstance(response, str):
+            return response
+
+        cleaned = html.unescape(response)
+        cleaned = re.sub(r"^\s*<[a-z_]+>\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*</[a-z_]+>\s*$", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"</?(?:reply|bubble|message|p|div|span)>", "", cleaned, flags=re.IGNORECASE)
+
+        # 整段被三反引号包住时，只保留里面的内容
+        fence = "```"
+        text = cleaned.strip()
+        if text.startswith(fence) and text.endswith(fence) and len(text) > 6:
+            inner = text[3:-3].strip()
+            head, _, rest = inner.partition(
+)
+            text = rest.strip() if head.strip().isalpha() and rest else inner
+        cleaned = text
+
+        cleaned = cleaned.replace("\u00a0", " ")
+        cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
 
     @staticmethod
     def filter_thinking_chain(response: str) -> str:

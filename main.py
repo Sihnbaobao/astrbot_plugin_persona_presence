@@ -37,8 +37,10 @@ import hashlib
 import json
 import math
 import os
+import random
 import re
 import time
+import types
 import uuid
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
@@ -57,6 +59,7 @@ from astrbot.core.provider.entities import ProviderRequest
 # 导入保留的工具模块
 from .utils import (
     EMOJI_MARKER,
+    AIResponseFilter,
     CommandMixin,
     ContextManager,
     DecisionAI,
@@ -74,17 +77,29 @@ from .utils import (
     SaveMixin,
     SmartConcurrentManager,
 )
+from .utils.cross_group_context import CrossGroupSight
 from .utils.image_description_cache import ImageDescriptionCache
+from .utils.jargon import (
+    build_extract_prompt,
+    build_meaning_prompts,
+    candidate_terms,
+    parse_json_block,
+)
 from .utils.message_cache_manager import MessageCacheManager
+from .utils.modules.curiosity import CuriosityModule
+from .utils.modules.notebook import Notebook
+from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
+
+PLUGIN_VERSION = "1.3.0"
 
 
 @register(
     "astrbot_plugin_persona_presence",
     "Sihnbaobao",
     "让当前 Persona 按兴趣、关系和当下意愿选择是否参与对话的增强插件",
-    "1.1.6",
+    PLUGIN_VERSION,
     "https://github.com/Sihnbaobao/astrbot_plugin_persona_presence",
 )
 class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
@@ -210,6 +225,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self.ambient_reply_max_per_window = self._cfg_int(
             "ambient_reply_max_per_window", 4, minimum=0, maximum=1000
         )
+        # 对谈疲劳：续接得越多，每一次愿意接的概率越低（按人格倾向缩放衰减速度）。
+        self.dialogue_fatigue_decay = self._cfg_float(
+            "dialogue_fatigue_decay", 0.75, minimum=0.3, maximum=1.0
+        )
+        # 硬上限，0 表示不启用（只靠疲劳概率自然衰减）。
+        self.dialogue_turn_cap = self._cfg_int(
+            "dialogue_turn_cap", 0, minimum=0, maximum=50
+        )
+        self.dialogue_turn_window_seconds = self._cfg_float(
+            "dialogue_turn_window_seconds", 600.0, minimum=60.0, maximum=7200.0
+        )
 
         # ========== 回复配置 ==========
         self.reply_ai_extra_prompt = self._cfg_str("reply_ai_extra_prompt", "")
@@ -253,9 +279,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self.image_description_cache_max_entries = self._cfg_int(
             "image_description_cache_max_entries", 500, minimum=10, maximum=10_000
-        )
-        self.gcp_clear_image_cache_allowed_user_ids = self._cfg_list(
-            "gcp_clear_image_cache_allowed_user_ids", []
         )
         self.platform_image_caption_max_wait = self._cfg_float(
             "platform_image_caption_max_wait", 2.0, minimum=0.0, maximum=30.0
@@ -357,6 +380,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # ========== 去重过滤配置 ==========
         self.enable_duplicate_filter = self._cfg_bool("enable_duplicate_filter", True)
+        self.enable_repeat_guard = self._cfg_bool("enable_repeat_guard", True)
+        self.repeat_guard_count = self._cfg_int(
+            "repeat_guard_count", 5, minimum=1, maximum=10
+        )
         self.duplicate_filter_check_count = 5
         self.enable_duplicate_time_limit = True
         self.duplicate_filter_time_limit = 1800
@@ -404,11 +431,20 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # ========== 数据目录 ==========
         try:
-            data_dir = Path(self.context.get_data_dir()) / "group_chat_plus"
+            data_dir = Path(self.context.get_data_dir()) / "persona_presence"
+            legacy_data_dir = Path(self.context.get_data_dir()) / "group_chat_plus"
         except Exception:
-            data_dir = Path.cwd() / "data" / "group_chat_plus"
+            data_dir = Path.cwd() / "data" / "persona_presence"
+            legacy_data_dir = Path.cwd() / "data" / "group_chat_plus"
+        if not data_dir.exists() and legacy_data_dir.exists():
+            # 旧目录沿用 Group Chat Plus 的名字，整体搬到新目录，见闻本/记忆本不丢。
+            legacy_data_dir.rename(data_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
         self.plugin_data_dir = str(data_dir)
+
+        # ========== 跨群见闻（Cross-group sight） ==========
+        # 依赖上面的 plugin_data_dir，见闻缓冲会落盘以便重启后仍记得最近的事。
+        self._apply_cross_group_config()
 
         # ========== 管理器初始化 ==========
         # 概率管理器
@@ -465,6 +501,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._duplicate_blocked_messages: dict[str, bool] = {}
         # 已保存消息标记 {message_id: timestamp}
         self._saved_messages: dict[str, float] = {}
+        # 每个会话的连续对谈计数：断了（不回/换人/超时）就重新计数。
+        self._dialogue_chains: dict[str, dict] = {}
         # 平台重复推送去重 {source_event_id: timestamp}
         self._seen_message_ids: dict[str, float] = {}
         # 戳一戳追踪记录 {chat_id: OrderedDict{user_id: expire_at}}
@@ -496,7 +534,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # 日志输出
         logger.info("=" * 50)
-        logger.info("Persona Presence 已加载 - 1.1.6（人格自主参与）")
+        logger.info(f"Persona Presence 已加载 - {PLUGIN_VERSION}（人格自主参与）")
         logger.info(
             f"🔘 群聊功能总开关: {'✓ 已启用' if self.enable_group_chat else '✗ 已禁用'}"
         )
@@ -524,13 +562,45 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self.smart_concurrent_max_batch_size
             )
             self._register_web_apis()
+            # 其它插件可能在我们之后才注册工具，延迟一点再看。
+            asyncio.create_task(self._log_tools_later())
         except Exception:
             if session_created:
                 await self._close_http_session()
             raise
 
+    async def _log_tools_later(self) -> None:
+        """Log the tool set once other plugins finished registering."""
+        await asyncio.sleep(15)
+        self._log_available_tools()
+
+    def _log_available_tools(self) -> None:
+        """Log which LLM tools the reply path can actually use."""
+        try:
+            manager = self.context.get_llm_tool_manager()
+            names = [tool.name for tool in getattr(manager, "func_list", []) or []]
+            recall = [n for n in names if "bili" in n.lower()]
+            logger.info(
+                f"[工具] 可用 {len(names)} 个，B站相关 {len(recall)} 个: "
+                + (", ".join(recall) if recall else "（无）")
+            )
+        except Exception as e:
+            logger.warning(f"[工具] 读取失败: {e}")
+
     async def terminate(self) -> None:
         """Release runtime resources when the plugin is disabled or reloaded."""
+        try:
+            self.cross_group_sight.flush()
+        except Exception as e:
+            logger.warning(f"[跨群见闻] 落盘失败: {e}")
+
+        proactive = getattr(self, "proactive_module", None)
+        if proactive is not None:
+            try:
+                await proactive.close()
+            except Exception as e:
+                logger.warning(f"[主动发言] 落盘失败: {e}")
+
         await self._close_http_session()
         self._web_apis_registered = False
 
@@ -836,6 +906,453 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         """Read and normalize a list configuration value."""
         return self._coerce_list(self._cfg(key, default), default)
 
+    def _apply_cross_group_config(self) -> None:
+        """Rebuild the cross-group sight layer from the current configuration."""
+        self.enable_cross_group_sight = self._cfg_bool(
+            "enable_cross_group_sight", False
+        )
+        self.enable_cross_group_memory_recall = self._cfg_bool(
+            "enable_cross_group_memory_recall", False
+        )
+        self.cross_group_sight = CrossGroupSight(
+            self.context,
+            enabled=self.enable_cross_group_sight,
+            enabled_groups=self.enabled_groups,
+            buffer_size=self._cfg_int(
+                "cross_group_sight_buffer_size", 200, minimum=10, maximum=2000
+            ),
+            window_seconds=self._cfg_int(
+                "cross_group_sight_window_minutes",
+                1440,
+                minimum=1,
+                maximum=10080,
+            )
+            * 60,
+            store_path=(
+                Path(self.plugin_data_dir) / "cross_group_sight.json"
+                if getattr(self, "plugin_data_dir", None)
+                else None
+            ),
+            max_groups=self._cfg_int(
+                "cross_group_sight_max_groups", 3, minimum=1, maximum=6
+            ),
+            always_on=self._cfg_bool("cross_group_sight_always_on", True),
+            baseline_per_group=self._cfg_int(
+                "cross_group_sight_baseline_per_group", 2, minimum=1, maximum=10
+            ),
+            max_per_group=self._cfg_int(
+                "cross_group_sight_max_per_group", 5, minimum=1, maximum=20
+            ),
+            denylist=self._cfg_list("cross_group_sight_denylist", []),
+        )
+
+        # ========== 真实状态（Life sight） ==========
+        # 只读伴侣插件写下的真实记录，读不到就写"最近没什么动静"，不做编造。
+
+        self._apply_dlc_config()
+
+    def _apply_dlc_config(self) -> None:
+        """（重新）按当前配置构建三个资料片对象。
+
+        页面上的开关保存后会调用这里，保证内存里的对象和配置一致。
+        """
+        self._build_notebook()
+        self._build_curiosity()
+        self._build_proactive()
+
+    def _build_notebook(self) -> None:
+        """构建记忆本（可能为 None）。"""
+        # ========== 资料片：记忆本 ==========
+        # 关掉时这里连对象都不建，回复流程也不会碰它。
+        self.notebook = None
+        if self._cfg_bool("enable_notebook", False):
+            self.notebook = Notebook(
+                self.plugin_data_dir,
+                enabled=True,
+                max_inject=self._cfg_int(
+                    "notebook_max_inject", 3, minimum=1, maximum=10
+                ),
+                decay_days=self._cfg_int(
+                    "notebook_decay_days", 30, minimum=1, maximum=365
+                ),
+            )
+            self.notebook_learn_enabled = self._cfg_bool("notebook_learn_enabled", True)
+            self.notebook_learn_min_messages = self._cfg_int(
+                "notebook_learn_min_messages", 20, minimum=5, maximum=200
+            )
+            self.notebook_learn_interval_hours = self._cfg_int(
+                "notebook_learn_interval_hours", 12, minimum=1, maximum=168
+            )
+            self.notebook_min_confidence = self._cfg_float(
+                "notebook_min_confidence", 0.6, minimum=0.0, maximum=1.0
+            )
+            self._notebook_last_reflect = 0.0
+            # 黑话学习：从这个群的日常对话里归纳只有群里人才懂的说法。
+            self.notebook_jargon_enabled = self._cfg_bool("notebook_learn_jargon", True)
+            self.notebook_jargon_min_messages = self._cfg_int(
+                "notebook_jargon_min_messages", 30, minimum=10, maximum=200
+            )
+            self._jargon_buffers = {}
+            self._jargon_last_run = 0.0
+            for raw in self._cfg_list("notebook_entries", []):
+                text = str(raw or "").strip()
+                if not text:
+                    continue
+                kind, _, value = text.partition("|")
+                if value:
+                    self.notebook.add(value.strip(), kind.strip() or "like")
+                else:
+                    self.notebook.add(text)
+            logger.info(f"[记忆本] 已启用，共 {len(self.notebook.entries)} 条")
+
+    def _build_curiosity(self) -> None:
+        """构建好奇心（依赖记忆本）。"""
+        # ========== 资料片：好奇心 ==========
+        # 依赖记忆本；两个都开时才工作。
+        self.curiosity_module = None
+        if (
+            self._cfg_bool("enable_curiosity", False)
+            and getattr(self, "notebook", None) is not None
+        ):
+            self.curiosity_module = CuriosityModule(
+                self.context,
+                self.notebook,
+                types.SimpleNamespace(
+                    daily_cap=self._cfg_int(
+                        "curiosity_daily_cap", 3, minimum=1, maximum=20
+                    ),
+                    quiet_hours=self._cfg_str("curiosity_quiet_hours", "01:00-07:00"),
+                    results=3,
+                    max_chars=self._cfg_int(
+                        "curiosity_max_chars", 120, minimum=20, maximum=400
+                    ),
+                    provider_id=self._cfg_str("curiosity_provider_id", ""),
+                    tavily_key=self._resolve_tavily_key(),
+                ),
+            )
+            logger.info("[好奇心] 已启用")
+
+    def _build_proactive(self) -> None:
+        """构建主动发言。"""
+        # ========== 资料片：主动发言 ==========
+        # 整套能力。关掉时这里连对象都不建，主流程也不会碰它。
+        self.proactive_module = None
+        if self._cfg_bool("enable_proactive", False):
+            configured_groups = [
+                str(item).strip()
+                for item in self._cfg_list("proactive_groups", [])
+                if str(item).strip()
+            ]
+            settings = ProactiveSettings(
+                groups=set(configured_groups or self.enabled_groups),
+                cooldown_minutes=self._cfg_int(
+                    "proactive_cooldown_minutes", 10, minimum=1, maximum=240
+                ),
+                min_gap_seconds=self._cfg_int(
+                    "proactive_min_gap_seconds", 90, minimum=10, maximum=3600
+                ),
+                daily_cap=self._cfg_int(
+                    "proactive_daily_cap", 20, minimum=1, maximum=200
+                ),
+                quiet_hours=self._cfg_str("proactive_quiet_hours", "01:00-07:00"),
+                min_messages=self._cfg_int(
+                    "proactive_min_messages", 3, minimum=1, maximum=20
+                ),
+                base_probability=self._cfg_float(
+                    "proactive_base_probability", 0.35, minimum=0.0, maximum=1.0
+                ),
+                max_chars=self._cfg_int(
+                    "proactive_max_chars", 30, minimum=1, maximum=200
+                ),
+                provider_id=self._cfg_str("proactive_provider_id", ""),
+            )
+            notebook_for_proactive = getattr(self, "notebook", None)
+            self.proactive_module = ProactiveModule(
+                self.context,
+                settings,
+                persona_provider=self._resolve_persona_prompt,
+                # 它在意什么，是"想不想说"的依据。
+                interest_provider=(
+                    notebook_for_proactive.all_lines
+                    if notebook_for_proactive is not None
+                    else None
+                ),
+                data_dir=self.plugin_data_dir,
+            )
+            logger.info(
+                "[主动发言] 已启用，群: "
+                + (", ".join(sorted(settings.groups)) or "（无）")
+            )
+
+    def _notebook_observe(self, event, reply_text: str) -> None:
+        """Queue one real exchange for the persona's notebook.
+
+        Args:
+            event: The message that was answered.
+            reply_text: What the persona actually said.
+        """
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return
+        try:
+            user_text = getattr(event, "message_str", "") or ""
+            notebook.observe(user_text, reply_text)
+            self._maybe_reflect_notebook(event)
+        except Exception as e:
+            logger.warning(f"[记忆本] 记录失败: {e}")
+
+    def _collect_jargon_line(self, event, text: str) -> None:
+        """Keep a rolling window of group chatter for slang mining.
+
+        Args:
+            event: The group message.
+            text: Its text content.
+        """
+        if not getattr(self, "notebook_jargon_enabled", False) or not text:
+            return
+        umo = str(getattr(event, "unified_msg_origin", "") or "")
+        if not umo:
+            return
+        buffer = self._jargon_buffers.setdefault(umo, [])
+        buffer.append(text[:120])
+        if len(buffer) > 40:
+            del buffer[:-40]
+        if len(buffer) < getattr(self, "notebook_jargon_min_messages", 30):
+            return
+        if time.time() - getattr(self, "_jargon_last_run", 0.0) < 2 * 3600:
+            return
+        self._jargon_last_run = time.time()
+        chunk = list(buffer)
+        buffer.clear()
+        try:
+            asyncio.create_task(self._learn_jargon(umo, chunk))
+        except Exception as e:
+            logger.warning(f"[黑话] 调度失败: {e}")
+
+    async def _learn_jargon(self, umo: str, lines: list[str]) -> None:
+        """Mine group slang: prefilter, validate, then infer its meaning.
+
+        Args:
+            umo: Unified message origin of the group.
+            lines: Recent messages used as evidence.
+        """
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return
+
+        candidates = candidate_terms(lines, min_count=2)
+        if not candidates:
+            logger.info(f"[黑话] {umo} 看了 {len(lines)} 条消息，没抽到候选词")
+            return
+
+        provider = await self.context.get_using_provider_async()
+        provider_id = str(provider.meta().id) if provider else ""
+        if not provider_id:
+            return
+
+        async def ask(prompt: str, max_tokens: int = 400) -> str:
+            response = await self.context.llm_generate(
+                chat_provider_id=provider_id, prompt=prompt, max_tokens=max_tokens
+            )
+            return str(getattr(response, "completion_text", "") or "")
+
+        try:
+            picked = parse_json_block(
+                await ask(build_extract_prompt(candidates, lines))
+            )
+        except Exception as e:
+            logger.warning(f"[黑话] 候选校验失败: {e}")
+            return
+        if not isinstance(picked, list):
+            return
+
+        added = 0
+        for item in picked[:2]:
+            if not isinstance(item, dict):
+                continue
+            term = str(item.get("term") or "").strip()
+            sample = str(item.get("sample") or "").strip()
+            if len(term) < 2:
+                continue
+            ctx_prompt, only_prompt, compare_tpl = build_meaning_prompts(
+                term, sample, lines
+            )
+            try:
+                with_ctx = parse_json_block(await ask(ctx_prompt, 260))
+                if isinstance(with_ctx, dict) and with_ctx.get("no_info"):
+                    continue
+                meaning_a = str((with_ctx or {}).get("meaning") or "").strip()
+                alt = str((with_ctx or {}).get("alt") or "").strip()
+                only = parse_json_block(await ask(only_prompt, 260))
+                if isinstance(only, dict) and not only.get("no_info"):
+                    meaning_b = str(only.get("meaning") or "").strip()
+                else:
+                    meaning_b = ""
+                verdict = parse_json_block(
+                    await ask(
+                        compare_tpl.format(
+                            term=term,
+                            a=meaning_a or "（无）",
+                            b=meaning_b or "（无）",
+                        ),
+                        260,
+                    )
+                )
+            except Exception as e:
+                logger.warning(f"[黑话] 推断「{term}」失败: {e}")
+                continue
+
+            if not isinstance(verdict, dict) or verdict.get("no_info"):
+                continue
+            meaning = str(verdict.get("meaning") or "").strip()
+            try:
+                confidence = float(verdict.get("confidence") or 0.0)
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if not meaning or confidence < 0.5:
+                continue
+            if notebook.add_jargon(term, meaning, group=umo, alt=alt):
+                added += 1
+
+        if added:
+            logger.info(f"[黑话] 学到 {added} 条：{umo}")
+        else:
+            logger.info(
+                f"[黑话] {umo} 候选 {len(candidates)} 个（{', '.join(candidates[:5])}），"
+                "本次没有确认的新词"
+            )
+
+    def _maybe_reflect_notebook(self, event) -> None:
+        """Start a reflection batch when enough real exchanges piled up.
+
+        Args:
+            event: A message event used to resolve the persona prompt.
+        """
+        if not getattr(self, "notebook_learn_enabled", False):
+            return
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return
+        if len(notebook.pending) < getattr(self, "notebook_learn_min_messages", 20):
+            return
+        interval = getattr(self, "notebook_learn_interval_hours", 12) * 3600
+        if time.time() - getattr(self, "_notebook_last_reflect", 0.0) < interval:
+            return
+        self._notebook_last_reflect = time.time()
+        try:
+            asyncio.create_task(self._reflect_notebook(event))
+        except Exception as e:
+            logger.warning(f"[记忆本] 整理调度失败: {e}")
+
+    async def _reflect_notebook(self, event) -> None:
+        """Ask the model what the persona revealed about itself, then merge it.
+
+        Args:
+            event: A message event used to resolve the persona prompt.
+        """
+        notebook = getattr(self, "notebook", None)
+        if notebook is None or not notebook.pending:
+            return
+        try:
+            persona = await self._resolve_persona_prompt(event.unified_msg_origin)
+            prompt = notebook.build_reflect_prompt(persona)
+            provider = await self.context.get_using_provider_async()
+            provider_id = str(provider.meta().id) if provider else ""
+            if not provider_id:
+                return
+            response = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt=prompt,
+                max_tokens=600,
+            )
+            text = str(getattr(response, "completion_text", "") or "")
+            new_count, strengthened = notebook.absorb_reflection(
+                text, min_confidence=getattr(self, "notebook_min_confidence", 0.6)
+            )
+            logger.info(
+                f"[记忆本] 整理完成：新增 {new_count} 条，强化 {strengthened} 条"
+            )
+        except Exception as e:
+            logger.warning(f"[记忆本] 整理失败: {e}")
+
+    def _schedule_curiosity(self, event) -> None:
+        """Hand one group message to the curiosity pack.
+
+        Args:
+            event: The group message to inspect.
+        """
+        module = getattr(self, "curiosity_module", None)
+        if module is None:
+            return
+        try:
+            asyncio.create_task(self._curiosity_step(event, module))
+        except Exception as exc:
+            logger.debug(f"[好奇心] 调度失败: {exc}")
+
+    async def _curiosity_step(self, event, module) -> None:
+        """Record unknown words, then look one of them up in the background.
+
+        Args:
+            event: The group message to inspect.
+            module: The curiosity pack.
+        """
+        try:
+            await module.on_message(event, False)
+            await module.research()
+        except Exception as exc:
+            logger.debug(f"[好奇心] 执行失败: {exc}")
+
+    def _schedule_proactive(self, event) -> None:
+        """Hand one unaddressed group message to the proactive pack.
+
+        The pack may call a model, so it runs in the background and never
+        delays the base reply flow.
+
+        Args:
+            event: The group message that was not addressed to the bot.
+        """
+        module = getattr(self, "proactive_module", None)
+        if module is None:
+            return
+        try:
+            asyncio.create_task(module.on_message(event, False))
+        except Exception as exc:
+            logger.debug(f"[主动发言] 调度失败: {exc}")
+
+    def _resolve_tavily_key(self) -> str:
+        """Read the Tavily key from AstrBot's provider settings.
+
+        Returns:
+            The API key, or an empty string when web search is not configured.
+        """
+        try:
+            config = self.context.get_config()
+        except Exception:
+            return ""
+        try:
+            settings = config.get("provider_settings") or {}
+        except Exception:
+            return ""
+        keys = settings.get("websearch_tavily_key") or []
+        if isinstance(keys, list):
+            return str(keys[0]) if keys else ""
+        return str(keys or "")
+
+    async def _resolve_persona_prompt(self, umo: str) -> str:
+        """Read the persona prompt for one session.
+
+        Args:
+            umo: Unified message origin of the session.
+
+        Returns:
+            The persona prompt, or an empty string.
+        """
+        try:
+            persona = await self.context.persona_manager.get_default_persona_v3(umo)
+            return str(persona.get("prompt") or "")
+        except Exception:
+            return ""
+
     def _set_cfg(self, key, value):
         """按分组结构写入配置；schema 外的键回退到平铺写入。"""
         try:
@@ -923,6 +1440,42 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 ["GET"],
                 "提示词预览（参与判断/回复生成）",
             )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/jargon/run",
+                self._api_jargon_run,
+                ["POST"],
+                "手动跑一次黑话挖掘",
+            )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/curiosity/run",
+                self._api_curiosity_run,
+                ["POST"],
+                "手动跑一次好奇心查询",
+            )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/proactive/dryrun",
+                self._api_proactive_dryrun,
+                ["POST"],
+                "主动发言试跑（不发送）",
+            )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/notebook",
+                self._api_notebook,
+                ["GET"],
+                "记忆本网络（条目、关联、待查问题）",
+            )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/notebook/delete",
+                self._api_notebook_delete,
+                ["POST"],
+                "删除一条记忆本条目",
+            )
+            self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/notebook/update",
+                self._api_notebook_update,
+                ["POST"],
+                "改写一条记忆本条目",
+            )
             self._web_apis_registered = True
             logger.info("✅ 插件页 Web API 已注册（Dashboard 插件页可用）")
         except Exception as e:
@@ -947,12 +1500,136 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         groups = self._schema_groups()
         return json_response(
             {
-                "version": "1.1.6",
+                "version": PLUGIN_VERSION,
                 "values": values,
                 "groups": groups,
                 "runtime": runtime,
             }
         )
+
+    async def _api_jargon_run(self):
+        """手动跑一次黑话挖掘，只用于验证效果。"""
+        from astrbot.api.web import error_response, json_response, request
+
+        if getattr(self, "notebook", None) is None:
+            return error_response("记忆本未启用")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        raw = str((payload or {}).get("text") or "").strip()
+        if not raw:
+            return error_response("请提供一段聊天记录，用换行分隔")
+        lines = [line.strip() for line in raw.splitlines() if line.strip()]
+        before = len(getattr(self.notebook, "entries", []))
+        await self._learn_jargon("manual", lines)
+        added = [
+            entry.text
+            for entry in self.notebook.entries[before:]
+            if entry.kind == "jargon"
+        ]
+        return json_response({"added": added, "lines": len(lines)})
+
+    async def _api_curiosity_run(self):
+        """真实跑一次好奇心查询，用于手动验证。"""
+        from astrbot.api.web import error_response, json_response, request
+
+        module = getattr(self, "curiosity_module", None)
+        if module is None:
+            return error_response("好奇心未启用（需要同时开启记忆本）")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        term = str((payload or {}).get("term") or "").strip()
+        if not term:
+            return error_response("请提供一个要查的词")
+        try:
+            summary = await module.research(force=True, term=term)
+        except TypeError:
+            # 兼容旧签名
+            self.notebook.add_curiosity(term)
+            summary = await module.research(force=True)
+        except Exception as e:
+            return error_response(f"查询失败: {e}")
+        if not summary:
+            return json_response({"ok": False, "term": term, "summary": ""})
+        return json_response({"ok": True, "term": term, "summary": summary})
+
+    async def _api_proactive_dryrun(self):
+        """让主动发言试跑一次：只生成不发送，用来观察它想说什么。"""
+        from astrbot.api.web import error_response, json_response, request
+
+        module = getattr(self, "proactive_module", None)
+        if module is None:
+            return error_response("主动发言未启用")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        group = str((payload or {}).get("group") or "").strip()
+        if not group:
+            groups = sorted(getattr(module.settings, "groups", set()) or [])
+            group = groups[0] if groups else ""
+        if not group:
+            return error_response("没有可用的群")
+        extra = str((payload or {}).get("text") or "").strip()
+        try:
+            result = await module.dry_run(group, extra_context=extra)
+        except Exception as e:
+            return error_response(f"试跑失败: {e}")
+        return json_response(result)
+
+    async def _api_notebook(self):
+        """Return the persona's notebook as a node/edge network."""
+        from astrbot.api.web import json_response
+
+        empty = {"enabled": False, "total": 0, "nodes": [], "edges": [], "counts": {}}
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return json_response(empty)
+        try:
+            return json_response(notebook.graph())
+        except Exception as e:
+            logger.warning(f"[记忆本] 网络数据生成失败: {e}")
+            return json_response(empty)
+
+    async def _api_notebook_delete(self):
+        """Delete one notebook entry."""
+        from astrbot.api.web import error_response, json_response, request
+
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return error_response("记忆本未启用")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        text = str((payload or {}).get("text") or "").strip()
+        if not text:
+            return error_response("缺少 text")
+        if not notebook.remove(text):
+            return error_response("没有找到这条记忆")
+        return json_response({"ok": True})
+
+    async def _api_notebook_update(self):
+        """Rewrite one notebook entry."""
+        from astrbot.api.web import error_response, json_response, request
+
+        notebook = getattr(self, "notebook", None)
+        if notebook is None:
+            return error_response("记忆本未启用")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        text = str((payload or {}).get("text") or "").strip()
+        new_text = str((payload or {}).get("new_text") or "").strip()
+        if not text or not new_text:
+            return error_response("缺少 text 或 new_text")
+        if not notebook.rename(text, new_text):
+            return error_response("没有找到这条记忆")
+        return json_response({"ok": True})
 
     async def _api_save_config(self):
         """保存插件页提交的配置变更（仅允许白名单内的键）。"""
@@ -1000,6 +1677,19 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         except (TypeError, ValueError):
             pass
 
+        # 跨群见闻参数需在保存后立即重建，否则要重载插件才生效
+        try:
+            self._apply_cross_group_config()
+        except Exception as e:
+            logger.warning(f"[跨群见闻] 重建配置失败: {e}")
+
+        # 资料片同理：开关一变就重建，页面状态和实际行为才对得上
+        try:
+            self._apply_dlc_config()
+        except Exception as e:
+            logger.warning(f"[资料片] 重建失败: {e}")
+
+        logger.info(f"[插件页] 配置已保存 applied={applied} skipped={skipped}")
         return json_response({"applied": applied, "skipped": skipped})
 
     def _page_tendency_prompt(
@@ -1427,6 +2117,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 return
             self._seen_message_ids[source_event_id] = current_time
 
+            # 跨群见闻：先记录这条消息，供其他群回复时参考（不改变本群处理流程）
+            if not is_private_chat:
+                await self.cross_group_sight.observe(event)
+
             # 指令消息跳过
             if msg_id in self.command_messages:
                 if self.debug_mode:
@@ -1802,12 +2496,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     0 < prompt_index <= len(records)
                 ):
                     return []
-                return records[:prompt_index]
+                # 只取紧邻当前消息的一小段：判断阶段不需要整份群聊缓冲，
+                # 取太多会和平台历史重复，还稀释对当前消息的注意力。
+                return records[max(0, prompt_index - 20) : prompt_index]
         except Exception as error:
             if self.debug_mode:
-                logger.debug(
-                    f"[DecisionAI] 读取 AstrBot 官方群聊上下文失败: {error}"
-                )
+                logger.debug(f"[DecisionAI] 读取 AstrBot 官方群聊上下文失败: {error}")
             return []
 
     async def _format_ai_context(
@@ -2037,20 +2731,24 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if isinstance(poke_info_for_probability, dict)
             else None
         )
-        is_poke_to_bot = bool(
-            isinstance(_poke_payload, dict) and _poke_payload.get("is_poke_bot")
-        )
         bot_id = str(event.get_self_id() or "")
         reply_target_id = MessageProcessor.get_reply_target_id(event)
         is_reply_to_bot = bool(bot_id and reply_target_id and reply_target_id == bot_id)
         is_reply_to_other = bool(reply_target_id and reply_target_id != bot_id)
-        is_explicitly_addressed = bool(
-            is_at_message or is_poke_to_bot or is_reply_to_bot
-        )
+        # 戳一戳不是命令，按普通消息处理，由参与判断自己决定理不理。
+        is_explicitly_addressed = bool(is_at_message or is_reply_to_bot)
         # Keyword matches enter the ambient decision flow but are not proof that
         # the sender is talking to the bot.
         is_direct_address = bool(is_explicitly_addressed or has_trigger_keyword)
         unaddressed_group_message = not is_private and not is_direct_address
+
+        # 资料片：好奇心不区分有没有被叫到，看到不懂的词就记下来。
+        if not is_private:
+            self._schedule_curiosity(event)
+
+        # 资料片：主动发言只看没被叫到的群消息，不插进正在进行的回答里。
+        if unaddressed_group_message:
+            self._schedule_proactive(event)
         group_reply_blocked = (
             unaddressed_group_message and self.group_reply_scope == "addressed"
         )
@@ -2403,6 +3101,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             cached_message_data,
             emoji_marker_applied,
         ) = result
+
+        # 黑话要从群里的全部消息里攒，而不是只从它回过的那几条里攒。
+        if not is_private:
+            self._collect_jargon_line(event, message_text)
 
         def _build_current_message_for_ai(current_text: str) -> str:
             _is_empty_at = MessageCleaner.is_empty_at_message(
@@ -2891,10 +3593,23 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
         else:
             decision_context = formatted_context
+            # 判断只需要最近的一段对话：完整历史留给回复阶段，
+            # 避免每次判断都把几百条记录塞进 prompt（稀释注意力且烧 token）。
+            if not is_private and history_messages and len(history_messages) > 30:
+                try:
+                    decision_context = await self._format_ai_context(
+                        history_messages[-30:],
+                        current_message_for_ai,
+                        event.get_self_id(),
+                    )
+                except Exception as _trim_err:
+                    logger.debug(
+                        f"[决策AI] 短上下文构建失败，保留完整上下文: {_trim_err}"
+                    )
             if use_smart_batch and smart_batch_messages:
                 try:
                     decision_context = await self._format_ai_context(
-                        history_messages,
+                        history_messages[-30:] if not is_private else history_messages,
                         current_message_for_ai,
                         event.get_self_id(),
                         window_msgs=smart_batch_messages,
@@ -2933,6 +3648,76 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         image_question_text += "\n" + batch_content
 
             decision_context_for_ai = decision_context + private_late_night_hint
+            if not is_private and history_messages:
+                # 群里没有@和引用时，每条消息都像"公开话题"，模型只能靠猜谁在跟谁说话。
+                # 这里把可计算的话轮事实摆到它面前：发言顺序、这段像谁在跟谁聊、它自己刚说过什么。
+                try:
+                    _bot_id = str(event.get_self_id() or "")
+                    _recent = [
+                        _m
+                        for _m in history_messages[-8:]
+                        if getattr(_m, "sender", None) is not None
+                    ]
+                    if _recent:
+                        _seq: list[str] = []
+                        _is_bot_seq: list[bool] = []
+                        _bot_lines: list[str] = []
+                        for _m in _recent:
+                            _sid = str(getattr(_m.sender, "user_id", "") or "")
+                            _ts = getattr(_m, "timestamp", None)
+                            if _sid and _sid == _bot_id:
+                                _seq.append("你")
+                                _is_bot_seq.append(True)
+                                _clock = (
+                                    time.strftime("%H:%M", time.localtime(_ts))
+                                    if _ts
+                                    else ""
+                                )
+                                _text = (
+                                    str(getattr(_m, "message_str", "") or "")
+                                    .strip()
+                                    .replace("\n", " ")[:18]
+                                )
+                                if _text:
+                                    _bot_lines.append(f"{_clock}「{_text}」".strip())
+                            else:
+                                _name = (
+                                    str(getattr(_m.sender, "nickname", "") or "")
+                                    or "群友"
+                                )[:8]
+                                _seq.append(_name)
+                                _is_bot_seq.append(False)
+                        _humans = [
+                            _name
+                            for _name, _flag in zip(_seq, _is_bot_seq)
+                            if not _flag
+                        ]
+                        _uniq = list(dict.fromkeys(_humans))
+                        _switches = sum(
+                            1 for _a, _b in zip(_seq, _seq[1:]) if _a != _b
+                        )
+                        if len(_uniq) == 2 and _switches >= len(_seq) - 2:
+                            _shape = f"{_uniq[0]} 和 {_uniq[1]} 在互相接话"
+                        elif len(_uniq) == 1 and any(_is_bot_seq):
+                            _shape = f"你正在和 {_uniq[0]} 一来一回"
+                        elif len(_uniq) == 1:
+                            _shape = f"只有 {_uniq[0]} 在说，你没参与"
+                        elif len(_uniq) == 0:
+                            _shape = "这几条都是你自己说的"
+                        else:
+                            _shape = "多个群友在聊，没有固定对象"
+                        _floor = (
+                            f"\n\n<话轮事实>\n最近 {len(_recent)} 条顺序："
+                            + " → ".join(_seq)
+                            + f"\n这段像：{_shape}"
+                        )
+                        if _bot_lines:
+                            _floor += "；你最后说过：" + " / ".join(_bot_lines[-2:])
+                        else:
+                            _floor += "；你最近没发过言"
+                        decision_context_for_ai += _floor + "\n</话轮事实>"
+                except Exception as _floor_err:
+                    logger.debug(f"[话轮事实] 构造失败: {_floor_err}")
             image_question_requested = bool(
                 self.image_read_mode == "lazy"
                 and merged_image_urls
@@ -3027,6 +3812,96 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     is_reply_to_other=is_reply_to_other,
                     has_at_others=has_at_others,
                 )
+            # 话轮节制硬底线：最近几条里已经说过话、又没被点名，就不再主动插进别人的对话。
+            # 提示词只能做到"多数时候遵守"，这里按事实兜底，去掉"有时候"。
+            if (
+                not is_private
+                and decision_result.reply
+                and decision_result.participation in {"open", "side"}
+                and not is_explicitly_addressed
+                and history_messages
+            ):
+                _self_id_str = str(event.get_self_id() or "")
+                _spoke_recently = any(
+                    str(getattr(getattr(_m, "sender", None), "user_id", "") or "")
+                    == _self_id_str
+                    for _m in history_messages[-3:]
+                )
+                # 公开提问值得接，不该被话轮护栏误伤；只有普通聊天才让话头。
+                _looks_like_question = bool(
+                    re.search(
+                        r"[?？]|吗|什么|怎么|哪个|哪儿|多少|有没有|是不是",
+                        original_message_text or "",
+                    )
+                )
+                if _spoke_recently and not _looks_like_question:
+                    decision_result = decision_result.with_reply(
+                        False, source="policy", reason_code="none"
+                    )
+                    logger.info(
+                        "[话轮节制] 最近 3 条内已经发过言且没被点名，放弃主动参与"
+                    )
+            # 对谈疲劳：一段连续对谈里回得越多，下次接话的概率越低；
+            # 一旦这条链断了（这次不回、换人、或者超出窗口），计数清零重新开始。
+            if not is_private:
+                _chain_key = ProbabilityManager.get_chat_key(
+                    platform_name, is_private, raw_chat_id
+                )
+                _chains = getattr(self, "_dialogue_chains", None)
+                if not isinstance(_chains, dict):
+                    self._dialogue_chains = _chains = {}
+                if not decision_result.reply:
+                    _chains.pop(_chain_key, None)
+                elif (
+                    not is_explicitly_addressed
+                    and decision_result.participation in {"direct", "side", "open"}
+                ):
+                    _now_ts = time.time()
+                    _sender_now = str(event.get_sender_id() or "")
+                    _previous = _chains.get(_chain_key) or {}
+                    # 按「会话」累计，而不是按人：群里几个人轮流叫它，也算同一次连续陪聊。
+                    _continues = (
+                        _now_ts - float(_previous.get("ts") or 0.0)
+                        <= float(
+                            getattr(self, "dialogue_turn_window_seconds", 600.0)
+                        )
+                    )
+                    _spoken = int(_previous.get("count") or 0) + 1 if _continues else 1
+                    _decay = float(getattr(self, "dialogue_fatigue_decay", 0.75))
+                    _tendency = str(
+                        getattr(self, "decision_ai_reply_tendency", "persona")
+                    )
+                    if _tendency == "reserved":
+                        _decay = max(0.3, _decay - 0.15)
+                    elif _tendency == "active":
+                        _decay = min(1.0, _decay + 0.1)
+                    _is_question_now = bool(
+                        re.search(
+                            r"[?？]|吗|什么|怎么|哪个|哪儿|多少|有没有|是不是",
+                            original_message_text or "",
+                        )
+                    )
+                    _stay_prob = (
+                        1.0 if _is_question_now else _decay ** max(0, _spoken - 1)
+                    )
+                    _hard_cap = int(getattr(self, "dialogue_turn_cap", 0))
+                    if _hard_cap and not _is_question_now and _spoken > _hard_cap:
+                        _stay_prob = 0.0
+                    if _stay_prob < 1.0 and random.random() > _stay_prob:
+                        decision_result = decision_result.with_reply(
+                            False, source="policy", reason_code="none"
+                        )
+                        _chains.pop(_chain_key, None)
+                        logger.info(
+                            f"[对谈疲劳] 连续第 {_spoken} 句，接话概率 "
+                            f"{_stay_prob:.2f}，这次不接（计数清零）"
+                        )
+                    else:
+                        _chains[_chain_key] = {
+                            "count": _spoken,
+                            "sender": _sender_now,
+                            "ts": _now_ts,
+                        }
             if (
                 is_private
                 and private_boundary
@@ -4351,6 +5226,65 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             emoji_marker_applied,
         )
 
+    async def _build_background_block(
+        self, event: AstrMessageEvent, is_private: bool
+    ) -> str:
+        """Assemble what the persona knows besides this conversation.
+
+        Runs inside the shared context preparation so the buffered speculative
+        draft and the formal reply see exactly the same background.
+
+        Args:
+            event: Message event being answered.
+            is_private: Whether the conversation is private.
+
+        Returns:
+            The assembled block, or an empty string when nothing applies.
+        """
+        blocks: list[str] = []
+
+        # 记忆本：只有当前消息碰到它在意的东西时才带。
+        try:
+            notebook = getattr(self, "notebook", None)
+            if notebook is not None:
+                notebook_block = notebook.block_for(
+                    getattr(event, "message_str", "") or ""
+                )
+                if notebook_block:
+                    blocks.append(notebook_block)
+        except Exception as e:
+            logger.warning(f"[记忆本] 注入失败: {e}")
+
+        # 跨群见闻：只对群聊生效。
+        if not is_private:
+            try:
+                sightings = await self.cross_group_sight.collect(event)
+                if sightings:
+                    blocks.append(self.cross_group_sight.render(sightings))
+                    if self.enable_cross_group_memory_recall:
+                        mode, version = MemoryInjector.resolve_mode(
+                            self.context,
+                            self.memory_plugin_mode,
+                            self.livingmemory_version,
+                        )
+                        if mode:
+                            memory_text = await self.cross_group_sight.recall_memories(
+                                event,
+                                sightings,
+                                mode=mode,
+                                version=version,
+                                top_k=self.livingmemory_top_k,
+                                persona_compat_mode=(
+                                    self.livingmemory_persona_compat_mode
+                                ),
+                            )
+                            if memory_text:
+                                blocks.append(memory_text)
+            except Exception as e:
+                logger.warning(f"[跨群见闻] 注入失败: {e}")
+
+        return "\n\n".join(blocks)
+
     async def _prepare_reply_context(
         self,
         event: AstrMessageEvent,
@@ -4417,6 +5351,42 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
             elif self.debug_mode:
                 logger.info("Memory plugin is unavailable; skipping memory injection")
+
+        try:
+            background = await self._build_background_block(event, is_private)
+            if background:
+                final_message = f"{final_message}\n\n{background}"
+                logger.info(f"[背景] 已注入 {len(background)} 字符")
+                if self.debug_mode:
+                    logger.info(f"[背景] 内容:\n{background}")
+        except Exception as e:
+            logger.warning(f"[背景注入] 失败: {e}")
+
+        # 人格里某个设定容易被说成口头禅（发呆/别吵/笨蛋），把最近几次摆出来。
+        if getattr(self, "enable_repeat_guard", False):
+            try:
+                limit = max(1, getattr(self, "repeat_guard_count", 5))
+                recent = [
+                    str(item.get("content") or "").strip()
+                    for item in self.recent_replies_cache.get(state_chat_id, [])[
+                        -limit:
+                    ]
+                ]
+                recent = [text for text in recent if text]
+                logger.info(
+                    "[口头禅抑制] 缓存 %d 条：%s",
+                    len(recent),
+                    " | ".join(recent)[:120],
+                )
+                if len(recent) >= 2:
+                    listed = "\n".join(f"- {text}" for text in recent)
+                    final_message = (
+                        f"{final_message}\n\n[你最近几次的回复]\n{listed}\n"
+                        "（上面是你最近几次的回复。如果这次要表达的意思和其中某句接近，"
+                        "换一种说法，不要沿用同样的措辞；同一个词不要连着反复出现。）"
+                    )
+            except Exception as e:
+                logger.warning(f"[口头禅抑制] 失败: {e}")
 
         return final_message, state_chat_id
 
@@ -4526,6 +5496,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     event.get_extra("_plugin_media_audio_urls", []) or []
                 )
 
+                # 背景（状态/生活/跨群）已在 _prepare_reply_context 里统一拼好，
+                # 这里不再重复注入。
+                cross_group_hint = ""
+
                 reply_result = await ReplyHandler.generate_reply(
                     event,
                     self.context,
@@ -4539,6 +5513,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     history_messages=history_messages,
                     smart_batch_reply_hint=smart_batch_reply_hint,
                     reply_context_hint=reply_context_hint,
+                    cross_group_hint=cross_group_hint,
                 )
         except Exception as e:
             ai_error_flag = True
@@ -4547,7 +5522,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         try:
             ai_error_flag = ai_error_flag or bool(
-                event.get_extra("_group_chat_plus_reply_error", False)
+                event.get_extra("_persona_presence_reply_error", False)
             )
         except Exception:
             pass
@@ -4839,6 +5814,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         # 记录已发送的回复（用于后续去重检查）
         if reply_text and not is_provider_request and not is_duplicate_blocked:
+            self._notebook_observe(event, reply_text)
             if state_chat_id not in self.recent_replies_cache:
                 self.recent_replies_cache[state_chat_id] = []
             self.recent_replies_cache[state_chat_id].append(
@@ -5005,6 +5981,38 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return False
 
     # ============================================================
+    # 消息发送后钩子（保存本轮对话）
+    # ============================================================
+
+    @filter.after_message_sent()
+    async def after_message_sent(self, event: AstrMessageEvent):
+        """消息发送后把本轮对话写入官方历史。
+
+        必须定义在 main.py：AstrBot 只把 handler_module_path 等于插件主模块的
+        handler 绑定到插件实例并派发；写在 utils 模块里的同名钩子会被
+        「未激活插件」过滤掉，导致 AI 回复永远不入库。
+
+        Args:
+            event: 已完成发送的消息事件。
+        """
+        await SaveMixin.after_message_sent(self, event)
+
+    @filter.command("persona_clear_image_cache")
+    async def persona_clear_image_cache(self, event: AstrMessageEvent):
+        """清除本地图片描述缓存并重启 AstrBot。
+
+        与 after_message_sent 同理，指令必须注册在 main.py 才能被 AstrBot 派发。
+
+        Args:
+            event: 触发指令的消息事件。
+
+        Yields:
+            执行过程中的提示消息。
+        """
+        async for result in CommandMixin.persona_clear_image_cache(self, event):
+            yield result
+
+    # ============================================================
     # LLM 请求钩子（恢复插件内容，保留第三方注入）
     # ============================================================
 
@@ -5166,6 +6174,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         agent完成信号：当agent真正完成时（所有工具调用结束），
         设置完成标志，告知 after_message_sent 可以最终保存所有累积的回复。
         """
+        # 模型偶尔会把 <reply> 标签、&nbsp; 或代码块带进正文，发出去就是乱码。
+        try:
+            raw = str(getattr(response, "completion_text", "") or "")
+            if raw:
+                cleaned = AIResponseFilter.sanitize_reply_text(raw)
+                if cleaned != raw:
+                    # completion_text 的 setter 会同步替换 result_chain 里的纯文本段
+                    response.completion_text = cleaned
+                    logger.info("[回复清洗] 去掉了模型带出的标签或转义符")
+        except Exception as e:
+            logger.warning(f"[回复清洗] 失败: {e}")
+
         try:
             message_id = self._get_processing_id(event)
 
@@ -5239,19 +6259,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
             # Models occasionally echo the request scaffolding back into the
             # reply. AstrBot injects <system_reminder> blocks carrying user,
-            # group and datetime info, so a leaked block must never reach the
-            # chat; drop it (and any dangling closing tag) before anything else.
-            stripped_reply_text = re.sub(
-                r"<\s*system[\s_-]*reminder\s*>[\s\S]*?"
-                r"(?:<\s*/\s*system[\s_-]*reminder\s*>|$)"
-                r"|<\s*/\s*system[\s_-]*reminder\s*>",
-                "",
-                reply_text,
-                flags=re.IGNORECASE,
-            ).strip()
+            # group and datetime info, and components use system_internal style
+            # wrappers, so a leaked block must never reach the chat; drop it
+            # (and any dangling closing tag) before anything else.
+            stripped_reply_text = AIResponseFilter.strip_leaked_system_tags(reply_text)
             if stripped_reply_text != reply_text:
                 logger.info(
-                    f"[Output filter] Removed leaked system reminder: "
+                    f"[Output filter] Removed leaked system tag: "
                     f"{len(reply_text)} -> {len(stripped_reply_text)} characters"
                 )
                 text_components = [
@@ -5418,9 +6432,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 late_night_candidate == state_chat_id
                 or late_night_active_until > time.time()
             ):
-                self._private_late_night_active_until[
-                    state_chat_id
-                ] = time.time() + self._PRIVATE_LATE_NIGHT_ACTIVE_SECONDS
+                self._private_late_night_active_until[state_chat_id] = (
+                    time.time() + self._PRIVATE_LATE_NIGHT_ACTIVE_SECONDS
+                )
                 event.set_extra("_persona_late_night_session_candidate", "")
                 logger.info(
                     "[Private late-night] Reply succeeded; awake session extended "

@@ -2,15 +2,14 @@
 指令过滤与缓存清理域（CommandMixin）。
 
 从主插件类拆出的独立功能域：指令过滤器和图片缓存清理。
-装饰器（@filter.command / @filter.event_message_type）由 AstrBot 以
-functools.partial(方法, 实例) 显式绑定，故迁移到 mixin 后注册与分发不受影响。
+注意：AstrBot 只绑定 handler_module_path 等于插件主模块的 handler，
+因此带 @filter 装饰器的方法必须定义在 main.py，本模块只放普通方法。
 """
 
 import time
 
 from astrbot.api import logger
 from astrbot.api.all import *
-from astrbot.api.event import filter
 
 
 class CommandMixin:
@@ -125,8 +124,7 @@ class CommandMixin:
             logger.error(f"[指令检测] 发生错误: {e}", exc_info=True)
             return False
 
-    @filter.command("gcp_clear_image_cache")
-    async def gcp_clear_image_cache(self, event: AstrMessageEvent):
+    async def persona_clear_image_cache(self, event: AstrMessageEvent):
         """清除本地图片描述缓存并重启AstrBot。"""
         try:
             if event.is_private_chat():
@@ -140,13 +138,11 @@ class CommandMixin:
                 return
             if not all(isinstance(c, (Plain, At, AtAll)) for c in components):
                 return
-            whitelist = self.gcp_clear_image_cache_allowed_user_ids
-            allow_all = not whitelist or len(whitelist) == 0
-            sender_id = str(event.get_sender_id())
-            allowed = allow_all or (str(sender_id) in {str(x) for x in whitelist})
-            if not allowed:
+            # 该指令会重启整个 AstrBot，只允许管理员触发。
+            if not event.is_admin():
                 logger.info(
-                    "【图片缓存清除】用户 %s 未在白名单中，指令被忽略", sender_id
+                    "【图片缓存清除】用户 %s 不是管理员，指令被忽略",
+                    event.get_sender_id(),
                 )
                 return
             try:

@@ -1,45 +1,122 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Persona Presence · 管理控制台</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Persona Presence · 控制台</title>
+  <link rel="stylesheet" href="./style.css?v=3" />
 </head>
 <body>
-  <header class="hero">
-    <div>
-      <h1>⚡ Persona Presence <span class="ver" id="ver">…</span></h1>
-      <p class="sub">Persona 自主参与 · 群聊增强 · 管理控制台</p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-mark">璃</span>
+        <span class="brand-copy">
+          <strong>Persona Presence</strong>
+          <em class="brand-ver" id="ver">…</em>
+        </span>
+      </div>
+
+      <nav class="sidebar-nav" id="nav">
+        <p class="nav-label">运行</p>
+        <button class="nav-item is-active" data-view="overview">
+          <span class="nav-icon">◍</span><span>概览</span>
+        </button>
+        <button class="nav-item" data-view="config">
+          <span class="nav-icon">⚙</span><span>配置</span>
+        </button>
+
+        <p class="nav-label">能力</p>
+        <button class="nav-item" data-view="dlc">
+          <span class="nav-icon">❖</span><span>资料片</span>
+        </button>
+        <button class="nav-item" data-view="network">
+          <span class="nav-icon">◎</span><span>记忆网络</span>
+        </button>
+        <button class="nav-item" data-view="prompt">
+          <span class="nav-icon">✎</span><span>提示词</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="foot-row">
+          <span class="dot" id="dotMain"></span>
+          <span id="mainSwitch">加载中…</span>
+        </div>
+        <div class="foot-note" id="tendencyPill">倾向：…</div>
+        <div class="foot-note" id="smartPill">并发：…</div>
+      </div>
+    </aside>
+
+    <div class="main-stage">
+      <header class="topbar">
+        <div class="crumb">
+          <span>Persona Presence</span><i>/</i><strong id="crumb">概览</strong>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="refreshBtn" title="刷新数据">⟳</button>
+          <button class="icon-btn" id="themeBtn" title="切换深浅色">◐</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="view is-active" id="view-overview">
+          <div class="view-head">
+            <h1>概览</h1>
+            <p>它现在以什么状态存在，哪些能力已经装上。</p>
+          </div>
+          <div class="stat-grid" id="overviewCards"></div>
+        </section>
+
+        <section class="view" id="view-dlc">
+          <div class="view-head">
+            <h1>资料片</h1>
+            <p>每一套是独立能力。关掉之后，本体的私聊群聊回复照常运行。</p>
+          </div>
+          <div class="dlc-grid" id="dlcGrid"></div>
+        </section>
+
+        <section class="view" id="view-config">
+          <div class="view-head">
+            <h1>配置</h1>
+            <p>一次只改一组，改完点保存。</p>
+          </div>
+          <div class="settings">
+            <aside class="settings-rail" id="tabs"></aside>
+            <div class="panel" id="configPanel"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-network">
+          <div class="view-head">
+            <h1>记忆网络</h1>
+            <p>每个点是一条它记着的事。点开可以看到它会以什么形式进入上下文。</p>
+          </div>
+          <div class="net-layout">
+            <div class="net-canvas">
+              <svg id="netSvg" viewBox="0 0 900 500" preserveAspectRatio="xMidYMid meet"></svg>
+              <div class="net-legend" id="netLegend"></div>
+            </div>
+            <aside class="net-panel" id="netSide">
+              <div class="net-empty">选择左侧任意一个节点</div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-prompt">
+          <div class="view-head">
+            <h1>提示词</h1>
+            <p>参与判断与回复生成时，实际拼接进模型的内容。</p>
+          </div>
+          <div class="prompt-grid" id="promptGrid"></div>
+        </section>
+      </main>
     </div>
-    <div class="hero-pills">
-      <div class="pill"><span class="dot" id="dotMain"></span><span id="mainSwitch">群聊回复：…</span></div>
-      <div class="pill" id="tendencyPill">倾向：…</div>
-      <div class="pill" id="smartPill">并发：…</div>
-    </div>
-  </header>
-
-  <!-- 配置：分组 tab + 分页浏览 -->
-  <section class="section" id="configSection">
-    <h2 class="section-title">🃏 配置 <span class="tip">一次一组 · 点击 ⓘ 看字段说明 · 底部切组</span></h2>
-    <div class="tabs" id="tabs"></div>
-    <div class="panel" id="configPanel"></div>
-
-  </section>
-
-  <!-- 提示词预览 -->
-  <section class="section">
-    <h2 class="section-title">📜 提示词预览 <span class="tip">与真实拼接逻辑一致（不含运行时人格注入）</span></h2>
-    <div class="prompt-grid" id="promptGrid"></div>
-  </section>
-
-  <div class="footer-note">
-    保存的配置即时写入插件配置并生效。<br />
-    自定义提示词可在下方“提示词预览”中编辑保存；其余高级项已并入对应分组。
   </div>
 
   <div id="tipBox"></div>
   <div id="toast"></div>
-  <script type="module" src="./app.js"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>

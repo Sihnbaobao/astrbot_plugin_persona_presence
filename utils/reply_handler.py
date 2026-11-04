@@ -27,19 +27,19 @@ from .ai_error_formatter import format_ai_error
 DEBUG_MODE: bool = False
 
 # 标记键名，用于标识请求来自本插件
-PLUGIN_REQUEST_MARKER = "_group_chat_plus_request"
+PLUGIN_REQUEST_MARKER = "_persona_presence_request"
 # 存储插件自定义上下文的键名（供 on_llm_request 恢复）
-PLUGIN_CUSTOM_CONTEXTS = "_group_chat_plus_contexts"
+PLUGIN_CUSTOM_CONTEXTS = "_persona_presence_contexts"
 # 存储插件自定义系统提示词（人格）的键名
-PLUGIN_CUSTOM_SYSTEM_PROMPT = "_group_chat_plus_system_prompt"
+PLUGIN_CUSTOM_SYSTEM_PROMPT = "_persona_presence_system_prompt"
 # 存储插件自定义完整 prompt 的键名（供 on_llm_request 恢复）
-PLUGIN_CUSTOM_PROMPT = "_group_chat_plus_prompt"
+PLUGIN_CUSTOM_PROMPT = "_persona_presence_prompt"
 # 存储图片 URL 列表的键名
-PLUGIN_IMAGE_URLS = "_group_chat_plus_image_urls"
+PLUGIN_IMAGE_URLS = "_persona_presence_image_urls"
 # 存储插件自身工具集（ToolSet）的键名，用于在 on_llm_request 钩子中合并
-PLUGIN_FUNC_TOOL = "_group_chat_plus_func_tool"
+PLUGIN_FUNC_TOOL = "_persona_presence_func_tool"
 # 存储当前用户消息原文（短字符串），供向量检索类插件（livingmemory）的记忆召回
-PLUGIN_CURRENT_MESSAGE = "_group_chat_plus_current_message"
+PLUGIN_CURRENT_MESSAGE = "_persona_presence_current_message"
 
 
 class ReplyHandler:
@@ -110,6 +110,7 @@ class ReplyHandler:
         history_messages: list = None,
         smart_batch_reply_hint: str = "",
         reply_context_hint: str = "",
+        cross_group_hint: str = "",
         allow_tools: bool = True,
     ) -> ProviderRequest:
         """
@@ -163,6 +164,7 @@ class ReplyHandler:
 
             smart_hint_text = (smart_batch_reply_hint or "").strip()
             reply_context_hint_text = (reply_context_hint or "").strip()
+            cross_group_hint_text = (cross_group_hint or "").strip()
 
             if prompt_mode == "override" and extra_prompt and extra_prompt.strip():
                 # 覆盖模式：用户自定义提示词完全替代默认内容
@@ -172,6 +174,11 @@ class ReplyHandler:
                     + sender_emphasis
                     + "\n"
                     + formatted_message
+                    + (
+                        ("\n\n" + cross_group_hint_text)
+                        if cross_group_hint_text
+                        else ""
+                    )
                     + (
                         ("\n" + reply_context_hint_text)
                         if reply_context_hint_text
@@ -186,6 +193,11 @@ class ReplyHandler:
                     sender_emphasis
                     + "\n"
                     + formatted_message
+                    + (
+                        ("\n\n" + cross_group_hint_text)
+                        if cross_group_hint_text
+                        else ""
+                    )
                     + (
                         ("\n" + reply_context_hint_text)
                         if reply_context_hint_text
@@ -338,7 +350,7 @@ class ReplyHandler:
         except Exception as e:
             logger.error(f"{format_ai_error(e, '生成AI回复')}")
             try:
-                event.set_extra("_group_chat_plus_reply_error", True)
+                event.set_extra("_persona_presence_reply_error", True)
             except Exception:
                 pass
             return event.plain_result(
@@ -389,7 +401,7 @@ class ReplyHandler:
             allow_tools=True,
         )
         if not isinstance(request, ProviderRequest):
-            event.set_extra("_group_chat_plus_reply_error", False)
+            event.set_extra("_persona_presence_reply_error", False)
             return None
 
         prompt = event.get_extra(PLUGIN_CUSTOM_PROMPT) or request.prompt or ""
