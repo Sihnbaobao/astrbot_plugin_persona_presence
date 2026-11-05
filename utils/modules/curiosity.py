@@ -1,6 +1,7 @@
 """Curiosity: looking things up because the persona wants to know.
 
-An unknown word in a group chat becomes a question worth answering. When the
+Curiosity only records things the persona itself becomes interested in during
+reflection; group questions are answered by the normal reply/tool path. When the
 caps allow, the pack searches the web for it, asks the model to summarise what
 it found in its own words, and writes that into the notebook as knowledge.
 
@@ -50,10 +51,12 @@ _REFLECT_PROMPT = """你是这个人格本人：
 {lines}
 
 这里面有没有让你自己真的好奇、想弄明白的词、名称或事？
-- 不是“别人问了所以我要查”，而是“我自己想知道”。
+- 不是“别人问了所以我要查”，而是“我自己想知道”。如果只是群友在问、你本人没兴趣，就留空。
 - 可以是一个词、一个作品、一个说法，也可以是一件刚听到的事。
+- 不要选代词、称谓、时间词、半句话或没有明确指代的名词；topic 必须是一个能独立搜索的完整名词/事件。
+- query 要带上作品名、群名或前后语境，不要只丢一个容易搜成普通词的名字。
 - 不感兴趣就留空，不要勉强找东西来查；但既然你平时会在意这些，真的碰到就不要装作没看见。
-只输出 JSON：{{"topic": "你好奇的东西，没有就留空", "query": "你会输入搜索框的话", "why": "为什么好奇，一句话"}}"""
+只输出 JSON：{{"topic": "你好奇的东西，没有就留空", "query": "你会输入搜索框的话，带上下文", "why": "为什么好奇，一句话"}}"""
 
 _SUMMARISE_PROMPT = """你是这个人格本人：
 <persona>
@@ -235,7 +238,7 @@ class CuriosityModule(PluginModule):
     def _can_admit(self, source: str, now: datetime | None = None) -> bool:
         """Tell whether a new topic may enter the queue.
 
-        Explicit questions may bypass the backlog soft limit, but not the
+        Self-generated interest topics obey the backlog soft limit and the
         daily admission budget. Manual page queries bypass both.
 
         Args:
@@ -310,21 +313,9 @@ class CuriosityModule(PluginModule):
         if not text:
             return
 
-        # Explicit questions are a fast path: queue the named term now instead
-        # of waiting for the next 25-message reflection batch. These lookups
-        # skip the "is this slang?" classifier; the user already asked.
-        for term in self._detect(text)[:2]:
-            if not self._can_admit("question"):
-                break
-            if self.store.add(
-                term,
-                source="question",
-                query=term,
-                umo=str(getattr(ctx, "umo", "") or ""),
-            ):
-                self._note_added()
-                self._attempts.pop(term, None)
-                logger.info(f"[好奇心] 记下明确问题：{term}")
+        # Group questions are answered by the normal reply/tool path. Curiosity
+        # only records things the persona itself becomes curious about during
+        # reflection; otherwise every "X是什么" becomes a lookup task.
 
         soft = int(getattr(self.settings, "pending_soft_limit", 0) or 0)
         if soft > 0 and len(self.store.pending(1000)) >= soft:

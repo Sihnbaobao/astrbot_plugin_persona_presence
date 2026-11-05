@@ -169,7 +169,7 @@ def test_similar_topics_are_deduplicated(monkeypatch, tmp_path):
     assert not store.add("蓝色星原开服", source="interest")
 
 
-def test_daily_admission_cap_limits_new_topics(monkeypatch, tmp_path):
+def test_group_questions_do_not_auto_queue_curiosity(monkeypatch, tmp_path):
     notebook_mod, curiosity = _load_modules(monkeypatch)
     book = notebook_mod.Notebook(tmp_path, enabled=True)
     pack = curiosity.CuriosityModule(
@@ -182,7 +182,7 @@ def test_daily_admission_cap_limits_new_topics(monkeypatch, tmp_path):
     asyncio.run(pack.on_message(_Event("提瓦特是什么"), False))
     asyncio.run(pack.on_message(_Event("洛天依是什么"), False))
 
-    assert [entry.text for entry in pack.store.pending()] == ["提瓦特"]
+    assert pack.store.pending() == []
 
 
 def test_backlog_soft_limit_blocks_ambient_not_questions(monkeypatch, tmp_path):
@@ -200,7 +200,7 @@ def test_backlog_soft_limit_blocks_ambient_not_questions(monkeypatch, tmp_path):
     assert pack._can_admit("question") is True
 
 
-def test_explicit_questions_are_queued(monkeypatch, tmp_path):
+def test_explicit_questions_are_not_auto_queued(monkeypatch, tmp_path):
     notebook_mod, curiosity = _load_modules(monkeypatch)
     book = notebook_mod.Notebook(tmp_path, enabled=True)
     pack = curiosity.CuriosityModule(
@@ -212,7 +212,7 @@ def test_explicit_questions_are_queued(monkeypatch, tmp_path):
 
     asyncio.run(pack.on_message(_Event("有谁知道提瓦特是什么"), False))
 
-    assert [entry.text for entry in pack.store.pending()] == ["提瓦特"]
+    assert pack.store.pending() == []
     assert len(pack._buffers[""]) == 1
 
 

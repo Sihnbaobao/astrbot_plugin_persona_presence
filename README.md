@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.5.1。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.5.2。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -39,7 +39,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 
 ## 好奇心
 
-开启好奇心资料片后，Persona 会在群里读到让它自己好奇的词、名称或事时，决定要不要去查。可以在 `curiosity_persona_id` 固定一个好奇心人格；留空时使用当前会话的人格，查到的笔记也会用这个人格的性格和语气来写，而不是助手口吻。它按群攒一段对话，每 15 条消息或 45 分钟反思一次，结合记忆本里在意的东西判断“我到底想弄明白什么”，然后搜索、总结并写进独立的 `curiosity.json` 知识库，不占用记忆网络。记忆本只负责提供它平时在意的东西，两者可以分开开关。明确问“X 是什么”会直接入队。每天最多成功查 `curiosity_daily_cap` 条（默认 5），两次至少隔 `curiosity_min_gap_minutes`（默认 10 分钟），凌晨静默时段不查；后台会按这个预算慢慢清待查，不依赖群里是否来了新消息，明确问题优先；结果默认只作为知识保存，不会自动在群里播报；聊天里是否提起仍由正式回复链决定。插件页新增「好奇心」页，可以看到当前待查的话题、搜索词、为什么好奇，以及已经查到的摘要，也可以手动查一个词、编辑搜索词/摘要或删除单条。待查默认保留 7 天；知识不再按固定 30 天硬删，而是像自主学习插件的黑话模块一样做三阶段遗忘：新知识有 14 天宽限期，之后每 7 天检查一次，连续三个周期没被再次用到才删除；被注入回复或主动发言用过会重置为新鲜。仍可手动编辑/删除单条，两个列表都按固定高度分页。
+开启好奇心资料片后，Persona 会在群里读到让它自己好奇的词、名称或事时，决定要不要去查。可以在 `curiosity_persona_id` 固定一个好奇心人格；留空时使用当前会话的人格，查到的笔记也会用这个人格的性格和语气来写，而不是助手口吻。它按群攒一段对话，每 15 条消息或 45 分钟反思一次，结合记忆本里在意的东西判断“我到底想弄明白什么”，然后搜索、总结并写进独立的 `curiosity.json` 知识库，不占用记忆网络。记忆本只负责提供它平时在意的东西，两者可以分开开关。群友问“X 是什么”不再自动算作它的好奇心，直接走正常回复和 `web_lookup`；只有它自己在反思时真的想弄明白，才入队。每天最多成功查 `curiosity_daily_cap` 条（默认 5），两次至少隔 `curiosity_min_gap_minutes`（默认 10 分钟），凌晨静默时段不查；后台会按这个预算慢慢清待查，不依赖群里是否来了新消息，手动查询优先；结果默认只作为知识保存，不会自动在群里播报；聊天里是否提起仍由正式回复链决定。插件页新增「好奇心」页，可以看到当前待查的话题、搜索词、为什么好奇，以及已经查到的摘要，也可以手动查一个词、编辑搜索词/摘要或删除单条。待查默认保留 7 天；知识不再按固定 30 天硬删，而是像自主学习插件的黑话模块一样做三阶段遗忘：新知识有 14 天宽限期，之后每 7 天检查一次，连续三个周期没被再次用到才删除；被注入回复或主动发言用过会重置为新鲜。仍可手动编辑/删除单条，两个列表都按固定高度分页。
 
 ## 主动发言
 

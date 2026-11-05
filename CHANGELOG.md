@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.5.2
+
+- **Curiosity is self-only again**: group questions are no longer auto-queued as curiosity topics. They go through the normal reply and `web_lookup` path; curiosity now only records what the persona itself becomes interested in during reflection.
+- **Better reflection filters**: reflection rejects fragments/pronouns/time words, requires a standalone searchable topic, and asks the query to carry work/group context instead of searching an ambiguous bare name. Removed stale entries such as `红宝石`, `红宝石笑话`, and fragment topics.
+
 ## 1.5.1
 
 - **Natural lookup wording**: the lookup hint no longer tells the persona to announce “I don't know”; it now says to check quietly when unsure, then answer in her own voice without narrating the tool. Fallback tool output is neutral data instead of an instruction to say she is uncertain.
