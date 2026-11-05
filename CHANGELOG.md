@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.5.5
+
+- **Removed the old group-question path entirely**: deleted the explicit-question regex detector, question-specific soft-limit bypass, question urgency, and their tests. Group questions no longer create curiosity entries at any layer; only persona reflection can queue a topic.
+
 ## 1.5.4
 
 - **Curiosity reflection prompt simplified**: removed the assistant-like checklist (“不是别人问了…”, “不感兴趣就留空…”, “不要装作没看见…”). It now asks one natural question, keeps the complete/searchable-topic and context-query guard, and leaves what the persona cares about to the persona.

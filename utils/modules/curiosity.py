@@ -25,19 +25,6 @@ from .curiosity_store import CuriosityStore
 
 _TAVILY_ENDPOINT = "https://api.tavily.com/search"
 
-# "X 是什么" / "X 什么意思" / "X 是啥意思"
-_QUESTION_PATTERN = re.compile(
-    r"(?:^|[\s，。！？,.!?~])"
-    r"([A-Za-z][A-Za-z0-9 .\-]{1,24}|[\u4e00-\u9fffA-Za-z0-9]{2,12})"
-    r"\s*(?:是什么|什么意思|是啥意思|啥意思|是谁)"
-)
-# 引号里的词：「X」 “X” "X"
-_QUOTE_PATTERN = re.compile(r"[「“]([\u4e00-\u9fffA-Za-z0-9]{2,12})[」”]")
-# 「有谁/有人知道 X 吗」这种问法
-_ASK_PATTERN = re.compile(
-    r"(?:有(?:人|谁)知道|请问一下|问一下)\s*([^\s，。！？?是]{2,12}?)\s*(?:吗|嘛|呢|[？?]|$)"
-)
-_ASK_STOP_PREFIXES = ("怎么", "什么", "哪", "为什么", "如何", "咋", "谁")
 _REFLECT_MIN_MESSAGES = 15
 _REFLECT_INTERVAL_SECONDS = 45 * 60
 
@@ -74,24 +61,6 @@ _SUMMARISE_PROMPT = """你是这个人格本人：
 5. 不要说“作为助手”“为您查询”“以下是资料”这种助手口吻；这就是你自己看完之后在心里记下的一笔，用第一人称，可以带自己的偏好和感受。"""
 
 
-_FILLER_PREFIXES = (
-    "有没有人知道",
-    "有谁知道",
-    "想问一下",
-    "请问一下",
-    "一下",
-    "大家知道",
-    "有人知道",
-    "谁知道",
-    "请问",
-    "问一下",
-    "知道",
-    "这个",
-    "那个",
-    "你们",
-    "懂不懂",
-)
-_FILLER_SUFFIXES = ("吗", "呢", "啊", "呀", "的", "嘛", "是", "到底")
 _BAD_TERM_FRAGMENTS = (
     "什么",
     "怎么",
@@ -125,30 +94,6 @@ _BAD_TERM_FRAGMENTS = (
     "可实际",
     "好的好",
 )
-
-
-def _strip_filler(term: str) -> str:
-    """Remove conversational padding around a term.
-
-    Args:
-        term: Raw captured term.
-
-    Returns:
-        The bare term.
-    """
-    cleaned = str(term or "").strip()
-    changed = True
-    while changed:
-        changed = False
-        for prefix in _FILLER_PREFIXES:
-            if cleaned.startswith(prefix) and len(cleaned) > len(prefix):
-                cleaned = cleaned[len(prefix) :].strip()
-                changed = True
-        for suffix in _FILLER_SUFFIXES:
-            if cleaned.endswith(suffix) and len(cleaned) > len(suffix):
-                cleaned = cleaned[: -len(suffix)].strip()
-                changed = True
-    return cleaned
 
 
 def _usable_term(term: str) -> bool:
@@ -253,9 +198,8 @@ class CuriosityModule(PluginModule):
         if daily > 0 and self._today_add_count(now) >= daily:
             return False
         soft = int(getattr(self.settings, "pending_soft_limit", 0) or 0)
-        if source != "question" and soft > 0:
-            if len(self.store.pending(1000)) >= soft:
-                return False
+        if soft > 0 and len(self.store.pending(1000)) >= soft:
+            return False
         return True
 
     def _note_added(self, now: datetime | None = None) -> None:
@@ -440,28 +384,6 @@ class CuriosityModule(PluginModule):
             return None
 
     @staticmethod
-    def _detect(text: str) -> list[str]:
-        """Extract terms worth looking up from one message.
-
-        Args:
-            text: Message text.
-
-        Returns:
-            Distinct terms, most explicit first.
-        """
-        found: list[str] = []
-        for pattern in (_QUESTION_PATTERN, _QUOTE_PATTERN, _ASK_PATTERN):
-            for match in pattern.finditer(text or ""):
-                term = _strip_filler(match.group(1))
-                if term.startswith(_ASK_STOP_PREFIXES):
-                    continue
-                if any(word in term for word in ("是什么", "什么意思", "啥意思")):
-                    continue
-                if _usable_term(term) and term not in found:
-                    found.append(term)
-        return found[:2]
-
-    @staticmethod
     def _useless_summary(summary: str) -> bool:
         """Tell whether a search summary contains no actual answer.
 
@@ -532,7 +454,7 @@ class CuriosityModule(PluginModule):
                 return ""
             entry = pending[0]
             target = entry.text
-            urgent = entry.source in {"question", "manual"}
+            urgent = entry.source == "manual"
             search_query = str(entry.query or target).strip()
             research_umo = str(entry.umo or "")
 

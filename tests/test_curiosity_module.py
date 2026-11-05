@@ -97,23 +97,6 @@ def _settings(curiosity, **overrides):
     return types.SimpleNamespace(**values)
 
 
-def test_question_marks_are_detected(monkeypatch):
-    _notebook, curiosity = _load_modules(monkeypatch)
-
-    assert curiosity.CuriosityModule._detect("有人知道洛天依是什么吗") == ["洛天依"]
-    assert curiosity.CuriosityModule._detect("今天吃了饭") == []
-
-
-def test_filler_words_are_stripped(monkeypatch):
-    _notebook, curiosity = _load_modules(monkeypatch)
-
-    assert curiosity.CuriosityModule._detect("请问蓝原是什么") == ["蓝原"]
-    assert curiosity.CuriosityModule._detect("有谁知道提瓦特是什么") == ["提瓦特"]
-    assert curiosity.CuriosityModule._detect("这个「提瓦特」啥意思") == ["提瓦特"]
-    assert curiosity.CuriosityModule._detect("红果短剧到底是什么") == ["红果短剧"]
-    assert curiosity.CuriosityModule._detect("你从来都不喜欢我是什么") == []
-
-
 def test_reflection_queues_what_the_persona_wants(monkeypatch, tmp_path):
     notebook_mod, curiosity = _load_modules(monkeypatch)
     book = notebook_mod.Notebook(tmp_path, enabled=True)
@@ -185,7 +168,7 @@ def test_group_questions_do_not_auto_queue_curiosity(monkeypatch, tmp_path):
     assert pack.store.pending() == []
 
 
-def test_backlog_soft_limit_blocks_ambient_not_questions(monkeypatch, tmp_path):
+def test_backlog_soft_limit_blocks_ambient(monkeypatch, tmp_path):
     notebook_mod, curiosity = _load_modules(monkeypatch)
     book = notebook_mod.Notebook(tmp_path, enabled=True)
     pack = curiosity.CuriosityModule(
@@ -197,7 +180,6 @@ def test_backlog_soft_limit_blocks_ambient_not_questions(monkeypatch, tmp_path):
     pack.store.add("已有话题", source="interest")
 
     assert pack._can_admit("interest") is False
-    assert pack._can_admit("question") is True
 
 
 def test_explicit_questions_are_not_auto_queued(monkeypatch, tmp_path):
@@ -311,26 +293,6 @@ def test_quiet_hours_block_research(monkeypatch, tmp_path):
     pack._search = fake_search
 
     assert asyncio.run(pack.research()) == ""
-
-
-def test_explicit_question_skips_the_classifier(monkeypatch, tmp_path):
-    notebook_mod, curiosity = _load_modules(monkeypatch)
-    book = notebook_mod.Notebook(tmp_path, enabled=True)
-    context = _Context("结论：一个游戏世界")
-    pack = curiosity.CuriosityModule(
-        context,
-        book,
-        _settings(curiosity),
-        store=curiosity.CuriosityStore(tmp_path),
-    )
-    pack.store.add("提瓦特", source="question", query="提瓦特是什么")
-
-    async def fake_search(term):
-        return "某百科：提瓦特是游戏中的世界"
-
-    pack._search = fake_search
-    assert asyncio.run(pack.research(force=True))
-    assert context.calls == 1
 
 
 def test_research_without_tavily_key_does_not_call_the_model(monkeypatch, tmp_path):
