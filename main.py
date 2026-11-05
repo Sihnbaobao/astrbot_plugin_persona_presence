@@ -1432,10 +1432,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="web_lookup",
                 description=(
-                    "查证你拿不准的作品、角色、梗或专有名词。用户提到一个"
-                    "你可能不认识的名字时，可以自己查；query 要带上作品名和上下文，"
-                    "例如“蓝色星原 红宝石 角色”。结果只当资料，用你自己的语气接话，"
-                    "不要提工具。"
+                    "搜索作品、角色、梗或专有名词，返回搜索摘要和来源片段。"
+                    "query 可以带上作品名或上下文。搜索结果只是资料。"
                 ),
                 parameters={
                     "type": "object",
@@ -1539,9 +1537,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="search_saved_images",
                 description=(
-                    "Search images previously saved from this conversation. "
-                    "Use when the user asks about a picture from earlier, "
-                    "wants to find one, or asks what pictures you remember."
+                    "Search this conversation's saved images by description or "
+                    "tags; returns descriptions, tags, scores and image_id. "
+                    "Does not send."
                 ),
                 parameters={
                     "type": "object",
@@ -1568,8 +1566,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="send_saved_image",
                 description=(
-                    "Send one saved image to the current chat by image_id. "
-                    "Only use ids returned by search_saved_images."
+                    "Send a saved image to the current chat. "
+                    "image_id must come from search_saved_images."
                 ),
                 parameters={
                     "type": "object",
@@ -1586,10 +1584,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="send_current_image",
                 description=(
-                    "Send an image attached to the current turn by 1-based "
-                    "index. The turn may include a recent image the user just "
-                    "sent, even if it is not repeated in this text message. Use "
-                    "when the user asks to resend or forward that picture."
+                    "Send an image from the current turn by 1-based index. "
+                    "The turn may include a recent image even if it is not "
+                    "repeated in this text message."
                 ),
                 parameters={
                     "type": "object",

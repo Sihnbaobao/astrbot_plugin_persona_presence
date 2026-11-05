@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.5.3
+
+- **Tool descriptions audited**: image and web-lookup tools now describe only what they do (`search saved images`, `send a saved image`, `send a current-turn image`, `search a work/character/meme`) instead of telling the model when it should use them. Removed the `[工具提示]` block from the reply prompt; tool choice is left to the persona.
+
 ## 1.5.2
 
 - **Curiosity is self-only again**: group questions are no longer auto-queued as curiosity topics. They go through the normal reply and `web_lookup` path; curiosity now only records what the persona itself becomes interested in during reflection.
