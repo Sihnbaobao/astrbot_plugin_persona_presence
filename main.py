@@ -1286,8 +1286,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         f"[图片库] 跳过 {size_kb}KB 小图（阈值 {self.image_archive_min_kb}KB）"
                     )
                     continue
-                if archive.find_duplicate(chat_id, local_path) is not None:
-                    logger.debug("[图片库] 跳过重复图片")
+                existing = archive.find_by_hash(local_path)
+                if existing is not None:
+                    bound = archive.bind_chat(existing, str(chat_id))
+                    logger.info(
+                        f"[图片库] 重复图片 {existing.id} 已存在"
+                        + ("，绑定到当前会话" if bound else "，当前会话已绑定")
+                    )
                     continue
                 rating = await self._rate_archive_image(
                     provider, local_path, persona_prompt
@@ -1413,9 +1418,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     for item in archive.entries
                     if item.id == str(image_id).strip()
                     and item.status == "active"
-                    and archive.matches_chat(
-                        item.chat_id, self._archive_chat_key(event)
-                    )
+                    and archive.matches_entry(item, self._archive_chat_key(event))
                 ),
                 None,
             )
@@ -1579,9 +1582,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "0.15-0.39 = 不太想留；\n"
             "0.00-0.14 = 反感或完全无价值。\n"
             "favorite 和 score 一致：0.60 及以上收藏，低于 0.60 不收藏。\n"
-            "description 写客观内容；tags 写你注意到的标签。\n"
-            '只输出 JSON：{"description":"一句话描述",'
-            '"tags":["最多5个短标签"],"score":0.0,'
+            "description：一到两句自然中文，写清主体、动作/表情、画面文字或梗、"
+            "以及这张图可能被拿来做什么；不要只写“一个女孩”。\n"
+            "tags：6 到 10 个细粒度中文标签，覆盖主体、动作/表情、文字或梗、"
+            "风格/用途和情绪；按你的关注点写，不要只堆“二次元/插画”。\n"
+            '只输出 JSON：{"description":"一到两句描述",'
+            '"tags":["6到10个标签"],"score":0.0,'
             '"favorite":true/false}'
         )
         try:
@@ -2944,7 +2950,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     "created": datetime.fromtimestamp(entry.created_at).strftime(
                         "%m-%d %H:%M"
                     ),
-                    "chat": ("群 " if entry.is_group else "私聊 ") + entry.chat_id,
+                    "chat": ("群 " if entry.is_group else "私聊 ")
+                    + " / ".join(entry.chat_ids or [entry.chat_id]),
                     "sender": entry.sender_name or entry.sender_id,
                 }
             )

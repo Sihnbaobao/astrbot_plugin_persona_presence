@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.4.1
+
+- **Content-addressed cross-chat dedupe**: the same image bytes are now one archive entry even when sent in private and group chats. Each conversation is stored as a chat binding, so both can find/send it, but the file and vision analysis are not duplicated. Legacy duplicate entries are merged on load.
+- **Richer image semantics**: descriptions now include subject, action/expression, visible text or meme meaning, and likely chat use (one to two sentences); tags expand to 6–10 fine-grained labels. This is still lighter than the meme manager's full reply-semantics analyzer, but is no longer a one-line caption plus five generic tags.
+
 ## 1.4.0
 
 - **DLC contract**: feature packs now receive a read-only `FeatureContext`; they may contribute context or propose a line, while the base owns delivery, filters, history and duplicate checks. See `docs/DLC_CONTRACT.md`.

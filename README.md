@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.4.0。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.4.1。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -132,7 +132,9 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 
 `enable_image_archive` 打开后，收到的图片会复制到 `data/persona_presence/images/`，并由识图模型写入描述、标签、评分和“值不值得留”的判断：
 
-- 默认只收“模型实际参与回复”的消息里的图（`image_archive_scope=replied`），并跳过小于 8KB 的小图和重复图；识图评分只在通过筛选后才调用，避免群友随手发图全部入库、白白消耗 token；
+- 默认只收“模型实际参与回复”的消息里的图（`image_archive_scope=replied`），并跳过小于 8KB 的小图；识图评分只在通过筛选后才调用，避免群友随手发图全部入库、白白消耗 token；
+- 每张图用 SHA-256 做内容标识。同一张图从私聊发到群聊会复用同一条目、同一份文件和同一次识图，只增加会话绑定，不会重复占容量或重复分析；
+- 描述是 1～2 句语义化中文（主体、动作/表情、文字/梗、典型聊天用途），标签 6～10 个，比表情包管理轻，但不再是一句图注 + 五个泛标签；
 - 识图评分以人格本人为准，不分维度：0.90–1.00 本命级、会反复看，0.70–0.89 喜欢愿留，0.40–0.69 一般，0.15–0.39 不太想留，0.00–0.14 反感/无价值；0.60 以上收藏；
 - 识图失败的图仍会入库，默认只再自动重试 1 次（`image_archive_max_analysis_retries=1`）；仍失败就停止自动重试，保留图片和失败原因，可在图片库手动“重新识图”；
 - 普通图默认 7 天后清理，收藏图默认 30 天后由模型自己回看，喜欢就续期，不喜欢就删除；

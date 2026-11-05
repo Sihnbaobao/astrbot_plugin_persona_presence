@@ -58,6 +58,7 @@ class ArchiveEntry:
     sender_name: str
     message_id: str
     created_at: float
+    chat_ids: list = field(default_factory=list)
     umo: str = ""
     description: str = ""
     tags: list = field(default_factory=list)
@@ -70,6 +71,14 @@ class ArchiveEntry:
     status: str = "active"
     review_at: float = 0.0
     reviewed_at: float = 0.0
+
+    def __post_init__(self) -> None:
+        """Keep the legacy single chat id and the chat binding list in sync."""
+        chats = [str(item) for item in (self.chat_ids or []) if str(item)]
+        primary = str(self.chat_id or "")
+        if primary and primary not in chats:
+            chats.insert(0, primary)
+        self.chat_ids = chats
 
 
 class ImageArchive:
@@ -106,6 +115,7 @@ class ImageArchive:
         self.min_score = max(0.0, min(1.0, float(min_score)))
         self.entries: list = []
         self._load()
+        self._merge_duplicate_entries()
         self.prune()
 
     def ingest(
@@ -153,11 +163,8 @@ class ImageArchive:
         except OSError:
             return None
         for entry in self.entries:
-            if (
-                entry.status == "active"
-                and self.matches_chat(entry.chat_id, str(chat_id))
-                and entry.sha == got
-            ):
+            if entry.status == "active" and entry.sha == got:
+                self.bind_chat(entry, str(chat_id))
                 return entry
         if path.stat().st_size > self.max_bytes:
             return None
@@ -181,6 +188,7 @@ class ImageArchive:
             sha=got,
             size=target.stat().st_size,
             chat_id=str(chat_id),
+            chat_ids=[str(chat_id)],
             is_group=bool(is_group),
             sender_id=str(sender_id),
             sender_name=str(sender_name)[:80],
@@ -216,30 +224,44 @@ class ImageArchive:
             return False
         return left == right or right.endswith("_" + left) or left.endswith("_" + right)
 
-    def find_duplicate(
-        self, chat_id: str, source: "Path | str"
-    ) -> "ArchiveEntry | None":
-        """Return an existing entry for the same image in one chat.
+    @classmethod
+    def matches_entry(cls, entry: "ArchiveEntry", requested: str) -> bool:
+        """Tell whether an entry was received in the requested conversation."""
+        chats = list(entry.chat_ids or []) + ([entry.chat_id] if entry.chat_id else [])
+        return any(cls.matches_chat(chat, requested) for chat in chats)
 
-        Args:
-            chat_id: Conversation scope.
-            source: Candidate image file.
+    def bind_chat(self, entry: "ArchiveEntry", chat_id: str) -> bool:
+        """Bind an existing image to another conversation without duplicating it."""
+        if not chat_id or self.matches_entry(entry, chat_id):
+            return False
+        entry.chat_ids.append(str(chat_id))
+        self._save()
+        return True
 
-        Returns:
-            The matching entry, or None.
-        """
+    def find_by_hash(self, source: "Path | str") -> "ArchiveEntry | None":
+        """Return the active entry for the same image bytes, in any chat."""
         try:
             got = hashlib.sha256(Path(source).read_bytes()).hexdigest()
         except OSError:
             return None
         for entry in self.entries:
-            if (
-                entry.status == "active"
-                and self.matches_chat(entry.chat_id, str(chat_id))
-                and entry.sha == got
-            ):
+            if entry.status == "active" and entry.sha == got:
                 return entry
         return None
+
+    def find_duplicate(
+        self, chat_id: str, source: "Path | str"
+    ) -> "ArchiveEntry | None":
+        """Return an existing entry for the same image bytes in any chat.
+
+        Args:
+            chat_id: Conversation scope; kept for call compatibility.
+            source: Candidate image file.
+
+        Returns:
+            The matching entry, or None.
+        """
+        return self.find_by_hash(source)
 
     def pending_analysis(
         self,
@@ -353,9 +375,7 @@ class ImageArchive:
         }
         found: list = []
         for entry in self.entries:
-            if entry.status != "active" or not self.matches_chat(
-                entry.chat_id, str(chat_id)
-            ):
+            if entry.status != "active" or not self.matches_entry(entry, str(chat_id)):
                 continue
             if entry.created_at < cutoff:
                 continue
@@ -567,6 +587,38 @@ class ImageArchive:
                 continue
             if entry.status == "active":
                 self.entries.append(entry)
+
+    def _merge_duplicate_entries(self) -> None:
+        """Collapse legacy cross-chat copies into one content-addressed entry."""
+        seen: dict[str, "ArchiveEntry"] = {}
+        merged: list = []
+        changed = False
+        for entry in self.entries:
+            first = seen.get(entry.sha)
+            if first is None:
+                seen[entry.sha] = entry
+                merged.append(entry)
+                continue
+            changed = True
+            for chat in entry.chat_ids or [entry.chat_id]:
+                if not self.matches_entry(first, chat):
+                    first.chat_ids.append(chat)
+            if not first.description and entry.description:
+                first.description = entry.description
+                first.tags = list(entry.tags)
+                first.score = entry.score
+                first.favorite = entry.favorite
+                first.analysis_pending = entry.analysis_pending
+                first.analysis_error = entry.analysis_error
+                first.review_at = entry.review_at
+            if entry.file != first.file:
+                try:
+                    (self.root / entry.file).unlink(missing_ok=True)
+                except OSError:
+                    pass
+        if changed:
+            self.entries = merged
+            self._save()
 
     def _save(self) -> None:
         try:

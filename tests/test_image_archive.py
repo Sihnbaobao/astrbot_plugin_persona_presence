@@ -173,3 +173,32 @@ def test_failed_analysis_stops_after_retry_budget(monkeypatch, tmp_path):
     assert archive.mark_analysis_failed(entry.id, reason="timeout") == 1
     assert archive.pending_analysis(retry_seconds=0, max_attempts=1) == []
     assert entry.analysis_error == "timeout"
+
+
+def test_same_image_in_another_chat_reuses_entry(monkeypatch, tmp_path):
+    module = _load_module(monkeypatch)
+    archive = module.ImageArchive(tmp_path, enabled=True)
+    source = _image(tmp_path, "shared.png", size=128)
+
+    first = archive.ingest(
+        source,
+        chat_id="100",
+        is_group=False,
+        description="一张共享的图",
+        tags=["共享"],
+        score=0.7,
+    )
+    second = archive.ingest(
+        source,
+        chat_id="200",
+        is_group=True,
+        description="不该重复分析",
+        tags=["重复"],
+        score=0.1,
+    )
+
+    assert second.id == first.id
+    assert len(archive.entries) == 1
+    assert archive.search("100", "共享") == [first]
+    assert archive.search("200", "共享") == [first]
+    assert archive.matches_entry(first, "200")
