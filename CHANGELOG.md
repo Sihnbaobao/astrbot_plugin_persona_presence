@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.5.4
+
+- **Curiosity reflection prompt simplified**: removed the assistant-like checklist (“不是别人问了…”, “不感兴趣就留空…”, “不要装作没看见…”). It now asks one natural question, keeps the complete/searchable-topic and context-query guard, and leaves what the persona cares about to the persona.
+
 ## 1.5.3
 
 - **Tool descriptions audited**: image and web-lookup tools now describe only what they do (`search saved images`, `send a saved image`, `send a current-turn image`, `search a work/character/meme`) instead of telling the model when it should use them. Removed the `[工具提示]` block from the reply prompt; tool choice is left to the persona.
