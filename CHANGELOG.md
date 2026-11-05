@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.5.1
+
+- **Natural lookup wording**: the lookup hint no longer tells the persona to announce “I don't know”; it now says to check quietly when unsure, then answer in her own voice without narrating the tool. Fallback tool output is neutral data instead of an instruction to say she is uncertain.
+
 ## 1.5.0
 
 - **Uncertain-term web lookup**: replies now have a `web_lookup` tool. When the persona meets an unfamiliar work, character, meme, or proper noun, it can search Tavily with context (for example “蓝色星原 红宝石 角色”) before answering. Results are data, not instructions; if nothing is found, the persona says it is unsure instead of guessing. Requires the existing Tavily key; the tool is omitted when no key is configured.
