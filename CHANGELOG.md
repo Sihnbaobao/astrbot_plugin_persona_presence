@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.5.0
+
+- **Uncertain-term web lookup**: replies now have a `web_lookup` tool. When the persona meets an unfamiliar work, character, meme, or proper noun, it can search Tavily with context (for example “蓝色星原 红宝石 角色”) before answering. Results are data, not instructions; if nothing is found, the persona says it is unsure instead of guessing. Requires the existing Tavily key; the tool is omitted when no key is configured.
+
 ## 1.4.2
 
 - **Image card details**: long descriptions and tags are no longer dead-ended by the two-line clamp. Clicking the description/tags opens the lightbox with the full description and every tag; cards show the first four tags plus a `+N` overflow chip and a native tooltip.

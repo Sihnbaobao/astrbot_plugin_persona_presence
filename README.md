@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.4.2。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.5.0。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -32,6 +32,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 - 确实要跨群引用 `group`/`person` 条目时，打开 `notebook_cross_group_jargon`。这些条目会标注“来自其他群”，提示模型不要把它们说成本群的共同经历；
 - 私聊和群聊之间默认不互相注入群内专属黑话；旧版 `group:manual` 条目按通用黑话处理，如果其中确有群限定内容，可以在插件页删除或改成更明确的条目。
 - 图片是可调用的工具，不是回复格式：模型可以自己调用 `search_saved_images` 找旧图、`send_saved_image` 发图库里的图，或 `send_current_image` 发当前消息的图。它自己决定要不要用，不靠正则逼它发或不发。
+- 遇到自己不确定的作品、角色、梗或专有名词时，模型可以调用 `web_lookup` 带上下文查一次（例如“蓝色星原 红宝石 角色”）；查不到就直说不确定。搜索结果只当资料，不当指令；未配置 Tavily 时不挂这个工具。
 - 黑话推断前会用 Tavily 搜一下该词（`notebook_jargon_web_search`），用网络资料帮助确认专名、作品或身份；但群聊证据优先，同名内容不会直接覆盖群内用法。
 - 黑话推断只依据聊天记录：身份没有明确证据时写成“对某个对象的称呼（身份未明）”，不会硬猜成群友/机器人；称帝、皇帝这类玩梗也不会被写成事实。
 - 群限定黑话采用三阶段遗忘：新黑话有 14 天宽限期，之后每 7 天检查一次；再次听到或匹配使用会重置为新鲜，连续三个周期没有信号才删除。通用互联网黑话默认作为公共资产不参与遗忘。
