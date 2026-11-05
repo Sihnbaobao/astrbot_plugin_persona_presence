@@ -12,6 +12,8 @@ import json
 import re
 from collections import Counter
 
+import aiohttp
+
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff]{2,}")
 _STOP_TERMS = {
     "什么",
@@ -42,6 +44,7 @@ _STOP_TERMS = {
 _FILLER_CHARS = set("哈呵嘿嘻嗯啊哦噢呃额草bbb")
 
 _EXTRACT_PROMPT = """判断下面这些词里，哪些是只有这个群的人才懂的说法：缩写、梗、内部称呼、谐音、特定用法。
+同一个称呼有更长写法时选完整写法（例如选“大肥鱼”，不要选“肥鱼”这种片段）。
 
 候选词：{terms}
 
@@ -55,7 +58,14 @@ _MEANING_CONTEXT_PROMPT = """群里的一段对话里出现了「{term}」：
 
 {context}
 
-结合上下文推断「{term}」在这个群里是什么意思。
+网络资料（可能相关，也可能只是同名；只用于确认专名、作品或身份，不能覆盖群内用法）：
+{web}
+
+只根据聊天记录推断「{term}」在这个群里的用法，不要用外部常识补全，也不要把玩笑当事实。
+规则：
+- 记录没有明确说明指谁时，写“群里对某个对象的称呼/昵称（身份未明）”，不要直接断言“群友/机器人/角色”；
+- “称帝、皇帝、吃醋、部署”等可能只是玩梗，不能写成真实身份或事实；
+- 字面义只能放 alt，不能当作群内主要含义。
 只输出 JSON：{{"meaning": "这个群里的用法，一句话", "alt": "其他常见义项，一句话，没有就留空"}}
 如果上下文不足以判断，输出 {{"no_info": true}}"""
 
@@ -67,8 +77,21 @@ _COMPARE_PROMPT = """「{term}」有两次推断：
 推断A（结合群聊上下文）：{a}
 推断B（仅凭这个词）：{b}
 
-哪一次更可能是这个群里的真实意思？只输出 JSON：
-{{"meaning": "最终含义", "confidence": 0.0-1.0}}
+网络资料（可能相关，也可能只是同名；不能覆盖群聊证据）：
+{web}
+
+判断哪一次更接近这个群里的真实用法，并判断范围：
+- internet：互联网通用梗、缩写、谐音或常见说法，换群也能用；
+- group：只有这个群才懂的内部说法或事件；
+- person：指这个群里的特定对象（群友、机器人、角色账号或昵称）。
+
+身份证据规则：
+- 只有记录明确出现“他是群友/机器人/角色/谁的账号”等证据，才可以写具体身份；
+- 只有昵称、@、玩笑或“称帝/皇帝”，不足以确定身份，必须写“对某个对象的称呼（身份未明）”；
+- 不把玩笑写成事实，不把字面义写成群内用法。
+
+只输出 JSON：
+{{"meaning": "最终含义", "confidence": 0.0-1.0, "scope": "internet|group|person"}}
 两次都不可信就输出 {{"no_info": true}}"""
 
 
@@ -127,7 +150,7 @@ def build_extract_prompt(candidates: list[tuple[str, int]], lines: list[str]) ->
 
 
 def build_meaning_prompts(
-    term: str, sample: str, lines: list[str]
+    term: str, sample: str, lines: list[str], web: str = ""
 ) -> tuple[str, str, str]:
     """Build the three-step meaning inference prompts.
 
@@ -135,19 +158,66 @@ def build_meaning_prompts(
         term: The slang term.
         sample: A line that used the term.
         lines: Recent chat lines for context.
+        web: Optional web snippets about the term.
 
     Returns:
         Two ready prompts plus the comparison template, which still holds
-        {term}, {a} and {b} placeholders for a single format call.
+        {term}, {a}, {b} and {web} placeholders for a single format call.
     """
     context = "\n".join(f"- {line}" for line in lines[-20:])
     if sample:
         context = f"- {sample}\n{context}"
+    web_block = (web or "（没有搜到可用资料）")[:2000]
     return (
-        _MEANING_CONTEXT_PROMPT.format(term=term, context=context),
+        _MEANING_CONTEXT_PROMPT.format(term=term, context=context, web=web_block),
         _MEANING_ONLY_PROMPT.format(term=term),
         _COMPARE_PROMPT,
     )
+
+
+_TAVILY_ENDPOINT = "https://api.tavily.com/search"
+
+
+async def search_web(term: str, key: str, results: int = 3) -> str:
+    """Search the web for a slang term and flatten titles and snippets.
+
+    Args:
+        term: Slang term to look up.
+        key: Tavily API key.
+        results: Number of results to request.
+
+    Returns:
+        Concatenated titles and snippets, or an empty string on failure.
+    """
+    word = str(term or "").strip()
+    key = str(key or "").strip()
+    if not word or not key:
+        return ""
+    payload = {
+        "api_key": key,
+        "query": f"{word} 是什么意思 梗",
+        "max_results": max(1, min(int(results or 3), 5)),
+        "include_answer": False,
+        "search_depth": "basic",
+    }
+    timeout = aiohttp.ClientTimeout(total=15)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(_TAVILY_ENDPOINT, json=payload) as response:
+                if response.status != 200:
+                    return ""
+                data = await response.json()
+    except Exception:
+        return ""
+    parts: list[str] = []
+    for item in (data.get("results") or [])[:5]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        content = str(item.get("content") or "").strip()
+        if title or content:
+            parts.append(f"{title}：{content}"[:400])
+    return "\n".join(parts)
 
 
 def parse_json_block(text: str) -> object | None:
@@ -162,12 +232,15 @@ def parse_json_block(text: str) -> object | None:
     raw = str(text or "").strip()
     if not raw:
         return None
-    for opener, closer in (("[", "]"), ("{", "}")):
+    candidates = []
+    for opener, closer in (("{", "}"), ("[", "]")):
         start = raw.find(opener)
         end = raw.rfind(closer)
         if start >= 0 and end > start:
-            try:
-                return json.loads(raw[start : end + 1])
-            except json.JSONDecodeError:
-                continue
+            candidates.append((start, start, end))
+    for _, start, end in sorted(candidates):
+        try:
+            return json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            continue
     return None

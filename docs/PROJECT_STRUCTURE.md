@@ -59,6 +59,10 @@ main.py 不承担正式回复正文的人格生成，也不应重新引入随机
 | ai_error_formatter.py | 将 provider 错误转为日志和诊断文本。 |
 | probability_manager.py | 保留会话 key、reset/status 和旧接口兼容，不再作为当前群聊回复闸门。 |
 
+## 资料片
+
+`utils/modules/` 是可选的 feature pack。它们只接收本体解析好的 `FeatureContext`，通过 `contribute_context` 提供背景、通过 `propose` 提交一条待发送提议；发送、过滤、历史和去重仍由本体负责。接口和迁移状态见 [DLC_CONTRACT.md](DLC_CONTRACT.md)。
+
 ## 配置与插件页
 
 _conf_schema.json 的分组与字段由 AstrBot 配置页读取。pages/control/ 是内嵌插件页，不再启动独立 HTTP 面板。

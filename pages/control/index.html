@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>Persona Presence · 控制台</title>
-  <link rel="stylesheet" href="./style.css?v=3" />
+  <link rel="stylesheet" href="./style.css?v=31" />
 </head>
 <body>
   <div class="app-shell">
@@ -33,6 +33,15 @@
         </button>
         <button class="nav-item" data-view="network">
           <span class="nav-icon">◎</span><span>记忆网络</span>
+        </button>
+        <button class="nav-item" data-view="curiosity">
+          <span class="nav-icon">◇</span><span>好奇心</span>
+        </button>
+        <button class="nav-item" data-view="images">
+          <span class="nav-icon">▧</span><span>图片库</span>
+        </button>
+        <button class="nav-item" data-view="proactive">
+          <span class="nav-icon">✦</span><span>主动发言</span>
         </button>
         <button class="nav-item" data-view="prompt">
           <span class="nav-icon">✎</span><span>提示词</span>
@@ -102,6 +111,95 @@
               <div class="net-empty">选择左侧任意一个节点</div>
             </aside>
           </div>
+          <div class="net-test">
+            <div class="net-test-head">黑话学习试跑</div>
+            <textarea id="jargonTestText" rows="4" placeholder="每行一条聊天记录，例如：\n大肥鱼可以称帝了\n我要写一个皇帝肥鱼"></textarea>
+            <div class="net-test-actions">
+              <button class="btn" id="jargonTestRun">试跑一次</button>
+              <span class="net-status" id="jargonTestStatus"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-images">
+          <div class="view-head">
+            <h1>图片库</h1>
+            <p>按会话保存的图片，识图模型会写描述、标签和“值不值得留”。</p>
+          </div>
+          <div class="stat-grid" id="imageStats"></div>
+          <div class="image-toolbar">
+            <input id="imageSearch" type="text" placeholder="搜描述或标签，例如：猫 / 截图" />
+            <button class="btn" id="imageSearchBtn">搜索</button>
+            <button class="mini-btn" id="imageRefreshBtn">刷新</button>
+          </div>
+          <div class="image-grid" id="imageGrid"></div>
+          <div class="pager" id="imagePager"></div>
+        </section>
+
+        <div class="image-viewer" id="imageViewer" hidden>
+          <button class="image-viewer-close" id="imageViewerClose" aria-label="关闭">×</button>
+          <figure class="image-viewer-figure">
+            <img id="imageViewerImg" alt="" />
+            <figcaption id="imageViewerCaption"></figcaption>
+          </figure>
+        </div>
+
+        <section class="view" id="view-curiosity">
+          <div class="view-head">
+            <h1>好奇心</h1>
+            <p>它自己觉得好奇、跑去查了什么。待查和知识都在独立知识库里，不进记忆网络。</p>
+          </div>
+          <div class="stat-grid" id="curiosityStats"></div>
+          <div class="curiosity-tools">
+            <input id="curiosityTerm" type="text" placeholder="手动让它查一个词，例如：提瓦特是什么" />
+            <button class="btn" id="curiosityRun">查一下</button>
+            <span class="curiosity-note" id="curiosityNote"></span>
+          </div>
+          <div class="curiosity-grid">
+            <div class="curiosity-column">
+              <div class="curiosity-head">
+                <h3>待查</h3>
+                <span class="pill" id="curiosityPendingCount">0</span>
+              </div>
+              <div class="curiosity-list" id="curiosityPending"></div>
+              <div class="pager" id="curiosityPendingPager"></div>
+            </div>
+            <div class="curiosity-column">
+              <div class="curiosity-head">
+                <h3>查到的</h3>
+                <span class="pill" id="curiosityKnownCount">0</span>
+              </div>
+              <div class="curiosity-list" id="curiosityKnown"></div>
+              <div class="pager" id="curiosityKnownPager"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-proactive">
+          <div class="view-head">
+            <h1>主动发言</h1>
+            <p>没人叫它时，它会不会主动分享自己的事。这里能看到时机门槛、最近的生活/知识素材，也能试跑一次而不发送。</p>
+          </div>
+          <div class="stat-grid" id="proactiveStats"></div>
+          <div class="proactive-tools">
+            <input id="proactiveGroup" type="text" placeholder="群号，例如 1109877695" />
+            <button class="btn" id="proactiveDryRun">试跑一次</button>
+            <span class="proactive-note" id="proactiveNote"></span>
+          </div>
+          <textarea id="proactiveContext" class="proactive-context" rows="4" placeholder="可选：给它一个此刻的由头，比如刚发生的事；留空则用真实状态、好奇心知识。不要粘贴群聊内容。"></textarea>
+          <div class="proactive-result" id="proactiveResult"></div>
+          <div class="proactive-grid">
+            <div class="proactive-column">
+              <div class="proactive-head"><h3>群内状态</h3><span class="pill" id="proactiveGroupCount">0</span></div>
+              <div class="proactive-list" id="proactiveGroups"></div>
+              <div class="pager" id="proactiveGroupsPager"></div>
+            </div>
+            <div class="proactive-column">
+              <div class="proactive-head"><h3>最近动作</h3><span class="pill" id="proactiveHistoryCount">0</span></div>
+              <div class="proactive-list" id="proactiveHistory"></div>
+              <div class="pager" id="proactiveHistoryPager"></div>
+            </div>
+          </div>
         </section>
 
         <section class="view" id="view-prompt">
@@ -115,8 +213,21 @@
     </div>
   </div>
 
+  <div class="modal-mask" id="curiosityEditModal" hidden>
+    <div class="modal-card">
+      <h3>编辑好奇心</h3>
+      <label>话题<input id="curiosityEditText" type="text" /></label>
+      <label>搜索词<input id="curiosityEditQuery" type="text" /></label>
+      <label id="curiosityEditSummaryRow">摘要<textarea id="curiosityEditSummary" rows="4"></textarea></label>
+      <div class="modal-actions">
+        <button class="mini-btn" id="curiosityEditCancel">取消</button>
+        <button class="btn" id="curiosityEditSave">保存</button>
+      </div>
+    </div>
+  </div>
+
   <div id="tipBox"></div>
   <div id="toast"></div>
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=31"></script>
 </body>
 </html>

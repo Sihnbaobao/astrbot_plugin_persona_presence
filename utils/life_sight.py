@@ -31,6 +31,14 @@ _ACTIVITY_QUERY = re.compile(
     r"|(?:什么|啥)(?:视频|片子|番)"
     r"|刷(?:了|到)(?:什么|啥|视频)"
 )
+# Only these questions are allowed to surface the concrete video title.
+_CONTENT_QUERY = re.compile(
+    r"(?:什么|啥|哪个|哪些|哪部)(?:视频|片子|番|剧|内容|电影)"
+    r"|看了(?:什么|啥|哪些|哪个|哪部)"
+    r"|看的是(?:什么|啥|哪个|哪部)"
+    r"|看(?:了|过)?(?:什么|啥)"
+)
+
 # A record older than this is no longer "what I'm doing right now".
 _FRESH_MINUTES = 90
 _MAX_REVIEW_CHARS = 80
@@ -82,8 +90,27 @@ class LifeSight:
         """
         return bool(_ACTIVITY_QUERY.search(text or ""))
 
-    def state_lines(self) -> list[str]:
+    @staticmethod
+    def looks_like_content_question(text: str) -> bool:
+        """Tell whether the message asks for the concrete video/content.
+
+        Args:
+            text: The incoming message text.
+
+        Returns:
+            True when the sender asked what was watched, not just what the
+            persona has been up to.
+        """
+        return bool(_CONTENT_QUERY.search(text or ""))
+
+    def state_lines(
+        self, *, include_title: bool = True, fresh_only: bool = False
+    ) -> list[str]:
         """Collect the state lines the persona can answer from.
+
+        Args:
+            include_title: Include the concrete video title.
+            fresh_only: Omit watch records older than the freshness window.
 
         Returns:
             One line per available source, possibly empty.
@@ -98,19 +125,29 @@ class LifeSight:
         if recent:
             lines.append(recent)
         minutes, watch_text = self._last_watch()
-        if watch_text:
+        is_fresh = minutes is not None and minutes <= _FRESH_MINUTES
+        if watch_text and (not fresh_only or is_fresh):
             # 活动层级先说：人在刷视频，不是在"看某个具体视频"。
-            if minutes is not None and minutes <= _FRESH_MINUTES:
+            if is_fresh:
                 lines.append("· 刚刚（不到 90 分钟前）看过 B 站")
             else:
                 age = self._relative_age(minutes)
                 lines.append(f"· 最近一次看 B 站：{age}")
             # 标题只在被追问"什么视频"时才用得上。
-            lines.append(f"· 那次看的是：{watch_text}")
+            if include_title:
+                lines.append(f"· 那次看的是：{watch_text}")
         plan_text = self._plan_line()
         if plan_text:
             lines.append(plan_text)
         return lines
+
+    def proactive_lines(self) -> list[str]:
+        """Return a short, title-free view for proactive prompts.
+
+        Returns:
+            Fresh activity lines suitable for ambient interjections.
+        """
+        return self.state_lines(include_title=False, fresh_only=True)
 
     def _recent_done_line(self) -> str:
         """Describe a plan item finished within the last two hours.

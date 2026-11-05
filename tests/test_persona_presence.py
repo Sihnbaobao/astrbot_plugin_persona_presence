@@ -401,35 +401,23 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "continuation = yes | no" in prompt
     assert "participation = direct | side | open | none" in prompt
     assert "persona_willingness = yes | no" in prompt
-    assert "open 表示公开话题，不是自动邀请" in prompt
-    assert "open 表示公开话题，不是自动邀请，但也不是默认 no" in prompt
+    assert "open 表示公开话题：这话是丢给整个群的" in prompt
+    assert "不一定是在等你" in prompt
     assert "最终结果：reply = persona_willingness" in prompt
-    assert "九月有什么好看的番吗" in prompt
-    assert "ownership == other 只表示“直接对象是别人”" in prompt
-    assert "不能替被@或被回复的用户作答" in prompt
-    assert "当前 Persona 是第一决策主体，不是通用问答助手" in prompt
-    assert "[系统信息-当前人格名称] 中的正式名字" in prompt
-    assert "单纯提到名字不等于在对你说话" in prompt
-    assert "不能因名字出现就自动判为 bot" in prompt
-    assert "[当前人格名字]在做什么" in prompt
-    assert "璃月" not in prompt
-    assert "正常社交往往更倾向于接住" in prompt
-    assert "不要求必须有亲身经历" in prompt
-    assert "是否已有群友在回答" in prompt
+    assert "说话不是白说的" in prompt
+    assert "不说明你该应" in prompt
+    assert "安静就是最自然的答案" in prompt
+    assert "群里有人抛出话头" in prompt
+    assert "话头落在你这儿" in prompt
     assert "不要给所有 Persona 套用同一回复率" in prompt
+    assert "璃月" not in prompt
     assert "@当前人格名字，你知道这题怎么做吗" in prompt
     assert "有人知道这题怎么做吗" in prompt
     assert "平台没有检测到机器人信号" in prompt
-    assert "不等于消息不能开放参与" in prompt
     assert "关键词命中只是触发信号" in prompt
     assert "那是什么歌" in prompt
     assert "最近一条真实机器人回复" in prompt
-    assert "短暂的无关插话不自动结束续话" in prompt
     assert "【📦近期未回复】" in prompt
-    assert "地震了 / Miku好可爱" in prompt
-    assert "@小明这个游戏我也玩过" in prompt
-    assert "回复小明：哈哈" in prompt
-    assert "还是来吧 / 我听着睡觉" in prompt
     assert "图片占位符、关键词、记忆和泛泛的人格兴趣都不是单独的回复理由" in prompt
     assert "只输出一个 JSON 对象" in prompt
     assert "interest" in prompt
@@ -465,7 +453,7 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "当前现实时间" in private_prompt
     assert "与当前 Persona 的性格、心情、关系和边界一起判断" in private_prompt
     assert "时间只是背景因素" in private_prompt
-    assert "不要把“有内容”机械等同于 yes" in private_prompt
+    assert "本来就有内容" in private_prompt
     assert "boundary_interpretation" in private_prompt
 
     source = (UTILS_DIR / "decision_ai.py").read_text(encoding="utf-8")
@@ -479,13 +467,13 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert "请只基于当前消息判断是否回复" not in source
     assert "普通闲聊、寒暄、纯陈述一律不回复" not in source
     assert "不确定时倾向于回复（yes）" not in source
-    assert "被@、点名或可靠回复通常是更强的回应邀请" in source
-    assert "正文有效只说明值得评估，不等于当前人格现在愿意接话" in source
-    assert "即使是 direct，weak 或 none 也可以 no" in source
-    assert "明确指向 bot 的 direct 消息" in source
-    assert "@、点名和提问提高回应优先级，但不强制 yes" in source
+    assert "被@、点名或可靠回复只是一个召唤" in source
+    assert "哪怕判成 direct，没兴趣也照样可以 no" in source
+    assert "没兴趣也照样可以 no" in source
+    assert "对方是冲你来的：ownership=bot" in source
+    assert "不说明你该应" in source
     assert "ownership == open 时默认 no" not in source
-    assert "面向群体的问题若当前 Persona 能给出答案、时机合适" in source
+    assert "这话丢给一群人，不是在叫你" in source
     assert "continuation_context_available" not in source
 
     main_source = (REPO_ROOT / "main.py").read_text(encoding="utf-8")
@@ -493,6 +481,7 @@ def test_decision_prompt_has_no_removed_feature_references(monkeypatch):
     assert '@filter.command("gcp_reset")' not in command_source
     assert '@filter.command("gcp_reset_here")' not in command_source
     assert '@filter.command("persona_clear_image_cache")' in main_source
+    assert "self._is_command_message(event)" in main_source
     for preset in ("reserved", "active", "persona"):
         assert f"[persona_willingness preset: {preset}]" in main_source
     assert "仅回复直接@、明确提问、求助" not in main_source
@@ -848,8 +837,8 @@ def test_decision_evaluate_prompt_modes_and_malformed_output(monkeypatch):
         context.provider.last_system_prompt + context.provider.last_prompt
     )
     assert "[persona_willingness preset: persona]" in persona_group_prompt
-    assert "不要把安静、冷淡或话少自动理解成不参与群聊" in persona_group_prompt
-    assert "可以用符合其个性的简短回应" in persona_group_prompt
+    assert "安静、话少、懒得应声本来就是这个人格的一部分" in persona_group_prompt
+    assert "话题合不合适、要不要接，由它自己的状态和关系判断" in persona_group_prompt
 
 
 def test_global_datetime_setting_can_disable_decision_time(monkeypatch):

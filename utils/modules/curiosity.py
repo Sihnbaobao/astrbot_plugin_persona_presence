@@ -9,6 +9,7 @@ pending instead of being answered from memory.
 """
 
 import asyncio
+import json
 import re
 import time
 from datetime import datetime
@@ -18,7 +19,8 @@ import aiohttp
 
 from astrbot.api import logger
 
-from .base import ModuleManifest, PluginModule
+from .base import FeatureContext, ModuleManifest, PluginModule
+from .curiosity_store import CuriosityStore
 
 _TAVILY_ENDPOINT = "https://api.tavily.com/search"
 
@@ -35,39 +37,39 @@ _ASK_PATTERN = re.compile(
     r"(?:有(?:人|谁)知道|请问一下|问一下)\s*([^\s，。！？?是]{2,12}?)\s*(?:吗|嘛|呢|[？?]|$)"
 )
 _ASK_STOP_PREFIXES = ("怎么", "什么", "哪", "为什么", "如何", "咋", "谁")
+_REFLECT_MIN_MESSAGES = 15
+_REFLECT_INTERVAL_SECONDS = 45 * 60
 
 _REFLECT_PROMPT = """你是这个人格本人：
 {persona}
 
-刚才群里在聊这些：
+你平时在意这些：
+{interests}
+
+刚才群里在聊：
 {lines}
 
-这里有没有你其实不确定、或者根本不认识的名称？（番剧、游戏、品牌、角色、梗、缩写）
-- 你确定自己知道的名称不算，别人随口说的日常词也不算。
-- 只有真的存在知识缺口才写；没有就留空，不要勉强找东西来查。
-只输出 JSON：{{"gap": "那个名称，没有就留空"}}"""
+这里面有没有让你自己真的好奇、想弄明白的词、名称或事？
+- 不是“别人问了所以我要查”，而是“我自己想知道”。
+- 可以是一个词、一个作品、一个说法，也可以是一件刚听到的事。
+- 不感兴趣就留空，不要勉强找东西来查；但既然你平时会在意这些，真的碰到就不要装作没看见。
+只输出 JSON：{{"topic": "你好奇的东西，没有就留空", "query": "你会输入搜索框的话", "why": "为什么好奇，一句话"}}"""
 
-_CLASSIFY_PROMPT = """你是这个人格本人：
+_SUMMARISE_PROMPT = """你是这个人格本人：
+<persona>
 {persona}
+</persona>
 
-群里有人问起「{term}」。先判断它属于哪一类：
-- known：日常词、常见说法，或你本来就懂的东西；不需要记，也不该拿百科去解释。
-- slang：群里的黑话、谐音、内部称呼或梗；应该结合群里的说话语境理解，不能用百科词典义盖过群里的用法。
-- meh：跟你的兴趣和此刻处境都没关系，你并不想弄明白。
-- lookup：你确实不懂、而且真的想知道的名词、作品或术语；值得查一下。
-只输出 JSON：{{"kind": "known|slang|meh|lookup"}}"""
+你因为自己的兴趣去查了「{term}」。下面是从网上搜到的资料：
 
-_SUMMARISE_PROMPT = """你在查一个自己不懂的词。下面是从网上搜到的资料。
-
-词：{term}
-
-资料：
 {material}
 
-请用两三行说清楚它是什么。要求：
-1. 只写资料里能支持的内容，资料不足就直说没查到什么有用的。
-2. 不要编造、不要补充资料外的知识。
-3. 用第一人称的口气，像自己看完之后总结的。"""
+请用这个人的性格、语气和关注点，用三到五行完整地说清楚它是什么，不要写到一半就停。要求：
+1. 第一句必须直接给出结论：它是什么、指谁、怎么回事；不要先寒暄、不要只丢几个词。
+2. 只写资料里能支持的内容，资料不足就明确说“资料里没有明确说法”，不要硬凑。
+3. 不要编造、不要补充资料外的知识。
+4. 只输出一段连续的笔记，不要写成聊天对话、不要分行角色扮演、不要写“璃月：”“我：”这种说话人标签。
+5. 不要说“作为助手”“为您查询”“以下是资料”这种助手口吻；这就是你自己看完之后在心里记下的一笔，用第一人称，可以带自己的偏好和感受。"""
 
 
 _FILLER_PREFIXES = (
@@ -87,7 +89,40 @@ _FILLER_PREFIXES = (
     "你们",
     "懂不懂",
 )
-_FILLER_SUFFIXES = ("吗", "呢", "啊", "呀", "的", "嘛", "是")
+_FILLER_SUFFIXES = ("吗", "呢", "啊", "呀", "的", "嘛", "是", "到底")
+_BAD_TERM_FRAGMENTS = (
+    "什么",
+    "怎么",
+    "为什么",
+    "到底",
+    "反正",
+    "知道",
+    "觉得",
+    "你们",
+    "我们",
+    "他们",
+    "你",
+    "我",
+    "他",
+    "她",
+    "它",
+    "这",
+    "那",
+    "吗",
+    "呢",
+    "吧",
+    "啊",
+    "呀",
+    "求求",
+    "先问",
+    "有病",
+    "小说名",
+    "冷知识",
+    "出处",
+    "最忧郁",
+    "可实际",
+    "好的好",
+)
 
 
 def _strip_filler(term: str) -> str:
@@ -114,6 +149,23 @@ def _strip_filler(term: str) -> str:
     return cleaned
 
 
+def _usable_term(term: str) -> bool:
+    """Reject fragments that are not a searchable topic.
+
+    Args:
+        term: Candidate from an explicit question.
+
+    Returns:
+        True when it looks like a name or phrase, not a sentence fragment.
+    """
+    cleaned = str(term or "").strip()
+    if len(cleaned) < 2:
+        return False
+    if len(cleaned) > 16 and not re.search(r"[A-Za-z]", cleaned):
+        return False
+    return not any(fragment in cleaned for fragment in _BAD_TERM_FRAGMENTS)
+
+
 class CuriosityModule(PluginModule):
     """Turns unknown words into web lookups and stored knowledge.
 
@@ -129,27 +181,127 @@ class CuriosityModule(PluginModule):
         summary="看不懂的词会自己去查，查到的记下来。",
         config_group="dlc_curiosity",
         default_enabled=False,
-        depends=["notebook"],
     )
 
-    def __init__(self, context: Any = None, notebook: Any = None, settings: Any = None):
+    def __init__(
+        self,
+        context: Any = None,
+        notebook: Any = None,
+        settings: Any = None,
+        store: Any = None,
+    ):
         super().__init__(context)
         self.notebook = notebook
         self.settings = settings
+        self.store = store if store is not None else CuriosityStore(None)
         self._daily_key = ""
         self._daily_count = 0
+        self._last_lookup_at = 0.0
         self._running = False
-        self._buffer: list[str] = []
-        self._last_reflect = 0.0
+        self._buffers: dict[str, list[str]] = {}
+        self._last_reflect_at: dict[str, float] = {}
+        self._attempts: dict[str, int] = {}
+        self._no_key_warned = False
+        self._added_key = ""
+        self._added_count = 0
 
-    async def on_message(self, event: Any, is_private: bool) -> None:
+    def needs_attention(self) -> bool:
+        """Tell whether the next turn may need a resolved persona/provider.
+
+        Returns:
+            True when a lookup is pending or the reflection buffer is ready.
+        """
+        if self.store.pending(1):
+            return True
+        return any(
+            len(lines) >= _REFLECT_MIN_MESSAGES - 1 for lines in self._buffers.values()
+        )
+
+    def _today_add_count(self, now: datetime | None = None) -> int:
+        """Read how many new topics were admitted today.
+
+        Args:
+            now: Local time; defaults to now.
+
+        Returns:
+            Number of newly queued topics.
+        """
+        today = (now or datetime.now()).strftime("%Y-%m-%d")
+        if self._added_key != today:
+            self._added_key = today
+            self._added_count = 0
+        return self._added_count
+
+    def _can_admit(self, source: str, now: datetime | None = None) -> bool:
+        """Tell whether a new topic may enter the queue.
+
+        Explicit questions may bypass the backlog soft limit, but not the
+        daily admission budget. Manual page queries bypass both.
+
+        Args:
+            source: Where the topic came from.
+            now: Local time; defaults to now.
+
+        Returns:
+            True when a new topic may be queued.
+        """
+        if source == "manual":
+            return True
+        daily = int(getattr(self.settings, "new_topics_per_day", 0) or 0)
+        if daily > 0 and self._today_add_count(now) >= daily:
+            return False
+        soft = int(getattr(self.settings, "pending_soft_limit", 0) or 0)
+        if source != "question" and soft > 0:
+            if len(self.store.pending(1000)) >= soft:
+                return False
+        return True
+
+    def _note_added(self, now: datetime | None = None) -> None:
+        """Count one newly admitted topic.
+
+        Args:
+            now: Local time; defaults to now.
+        """
+        self._today_add_count(now)
+        self._added_count += 1
+
+    def cleanup_pending(self) -> int:
+        """Drop queued topics that are sentence fragments rather than topics.
+
+        Returns:
+            Number of removed entries.
+        """
+        removed = 0
+        for entry in list(self.store.entries):
+            if entry.kind != "curious":
+                continue
+            if not _usable_term(entry.text):
+                if self.store.drop(entry.text):
+                    removed += 1
+        return removed
+
+    def knowledge_block(self, text: str) -> str:
+        """Render curiosity knowledge relevant to one message.
+
+        Args:
+            text: Current message text.
+
+        Returns:
+            A prompt block, or an empty string.
+        """
+        return self.store.knowledge_block(text)
+
+    async def on_message(
+        self, event: Any, is_private: bool, ctx: FeatureContext | None = None
+    ) -> None:
         """Collect group chatter and let the persona reflect on it later.
 
         Args:
             event: The AstrBot message event.
             is_private: Whether the message came from a private chat.
+            ctx: Optional base-resolved turn context.
         """
-        if is_private or self.notebook is None:
+        if is_private:
             return
         try:
             text = str(event.get_message_str() or "").strip()
@@ -157,22 +309,65 @@ class CuriosityModule(PluginModule):
             text = str(getattr(event, "message_str", "") or "").strip()
         if not text:
             return
-        self._buffer.append(text[:120])
-        if len(self._buffer) > 40:
-            del self._buffer[:-40]
-        if len(self._buffer) < 25:
+
+        # Explicit questions are a fast path: queue the named term now instead
+        # of waiting for the next 25-message reflection batch. These lookups
+        # skip the "is this slang?" classifier; the user already asked.
+        for term in self._detect(text)[:2]:
+            if not self._can_admit("question"):
+                break
+            if self.store.add(
+                term,
+                source="question",
+                query=term,
+                umo=str(getattr(ctx, "umo", "") or ""),
+            ):
+                self._note_added()
+                self._attempts.pop(term, None)
+                logger.info(f"[好奇心] 记下明确问题：{term}")
+
+        soft = int(getattr(self.settings, "pending_soft_limit", 0) or 0)
+        if soft > 0 and len(self.store.pending(1000)) >= soft:
             return
-        if time.time() - self._last_reflect < 2 * 3600:
+
+        group_key = str(ctx.group_id or "") if ctx is not None else ""
+        buffer = self._buffers.setdefault(group_key, [])
+        buffer.append(text[:120])
+        if len(buffer) > 40:
+            del buffer[:-40]
+        if len(buffer) < _REFLECT_MIN_MESSAGES:
             return
-        self._last_reflect = time.time()
-        chunk = list(self._buffer)
-        self._buffer.clear()
+        if (
+            time.time() - self._last_reflect_at.get(group_key, 0.0)
+            < _REFLECT_INTERVAL_SECONDS
+        ):
+            return
+        self._last_reflect_at[group_key] = time.time()
+        chunk = list(buffer)
+        buffer.clear()
         try:
-            asyncio.create_task(self.reflect(chunk))
+            asyncio.create_task(self._reflect_and_research(chunk, ctx))
         except Exception as exc:
             logger.warning(f"[好奇心] 反思调度失败: {exc}")
 
-    async def reflect(self, lines: list[str]) -> str:
+    async def _reflect_and_research(
+        self, lines: list[str], ctx: FeatureContext | None = None
+    ) -> None:
+        """Reflect on a batch, then look up whatever it became curious about.
+
+        Args:
+            lines: Recent group messages.
+            ctx: Optional base-resolved turn context.
+        """
+        try:
+            await self.reflect(lines, ctx=ctx)
+        finally:
+            try:
+                await self.research(ctx=ctx)
+            except Exception as exc:
+                logger.debug(f"[好奇心] 反思后查询失败: {exc}")
+
+    async def reflect(self, lines: list[str], ctx: FeatureContext | None = None) -> str:
         """Let the persona say whether anything made it genuinely curious.
 
         Args:
@@ -181,36 +376,78 @@ class CuriosityModule(PluginModule):
         Returns:
             The term it wants to understand, or an empty string.
         """
-        provider_id = await self._resolve_provider_id()
+        if not self._can_admit("interest"):
+            return ""
+        provider_id = await self._resolve_provider_id(ctx)
         if not provider_id or not lines:
             return ""
-        persona_text = ""
-        try:
-            persona = await self.context.persona_manager.get_default_persona_v3()
-            persona_text = str(persona.get("prompt", "") or "")[:600]
-        except Exception as exc:
-            logger.debug(f"[好奇心] 读取人格失败: {exc}")
+        persona_text = await self._persona_text(ctx)
+        group_id = str(ctx.group_id or "") if ctx is not None else ""
+        interests = self.notebook.all_lines(group_id)[:8] if self.notebook else []
+        interest_text = (
+            "\n".join("- " + line for line in interests)
+            if interests
+            else "（还没记下特别在意的东西）"
+        )
         prompt = _REFLECT_PROMPT.format(
-            persona=persona_text, lines="\n".join(lines[-20:])
+            persona=persona_text,
+            interests=interest_text,
+            lines="\n".join(lines[-20:]),
         )
         try:
             response = await self.context.llm_generate(
                 chat_provider_id=provider_id,
                 prompt=prompt,
-                max_tokens=200,
+                max_tokens=240,
             )
             text = str(getattr(response, "completion_text", "") or "")
         except Exception as exc:
             logger.debug(f"[好奇心] 反思失败: {exc}")
             return ""
-        match = re.search(r'"gap"\s*:\s*"([^"]{1,24})"', text)
-        term = match.group(1).strip() if match else ""
-        if term in ("", "无", "没有", "none", "None"):
+
+        payload = self._parse_json(text)
+        if not isinstance(payload, dict):
             return ""
-        if self.notebook.add_curiosity(term):
-            logger.info(f"[好奇心] 发现自己不太懂：{term}")
-            return term
+        topic = str(payload.get("topic") or "").strip()
+        query = str(payload.get("query") or topic).strip()
+        why = str(payload.get("why") or "").strip()
+        if topic in ("", "无", "没有", "none", "None"):
+            return ""
+        if self.store.add(
+            topic,
+            source="interest",
+            query=query,
+            why=why,
+            umo=str(getattr(ctx, "umo", "") or ""),
+        ):
+            self._note_added()
+            self._attempts.pop(topic, None)
+            logger.info(
+                f"[好奇心] 对「{topic}」产生兴趣：{why or '说不清，就是想知道'}；"
+                f"搜索词：{query}"
+            )
+            return topic
         return ""
+
+    @staticmethod
+    def _parse_json(text: str) -> object | None:
+        """Parse the first JSON object from a model reply.
+
+        Args:
+            text: Raw model output.
+
+        Returns:
+            The parsed object, or None.
+        """
+        raw = str(text or "").strip()
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            return json.loads(raw[start : end + 1])
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _detect(text: str) -> list[str]:
@@ -230,57 +467,129 @@ class CuriosityModule(PluginModule):
                     continue
                 if any(word in term for word in ("是什么", "什么意思", "啥意思")):
                     continue
-                if len(term) >= 2 and term not in found:
+                if _usable_term(term) and term not in found:
                     found.append(term)
         return found[:2]
 
-    async def research(self, force: bool = False, term: str = "") -> str:
+    @staticmethod
+    def _useless_summary(summary: str) -> bool:
+        """Tell whether a search summary contains no actual answer.
+
+        Args:
+            summary: Model-written summary.
+
+        Returns:
+            True when it only says the material was insufficient.
+        """
+        text = str(summary or "").strip()
+        if len(text) < 6:
+            return True
+        # Roleplay fragments such as "璃月：蓝原？" are not a note; a
+        # legitimate note may still start with "结论：" and end in a period.
+        if (
+            re.search(r"(?m)^[^\n：]{1,12}：", text)
+            and "\n" in text
+            and "。" not in text
+        ):
+            return True
+        if re.match(r"^[?？]", text):
+            return True
+        markers = (
+            "没查到",
+            "没有查到",
+            "没有找到",
+            "资料不足",
+            "无法确定",
+            "不能确定",
+            "无法回答",
+            "没查明白",
+            "没弄明白",
+            "资料里没有明确",
+        )
+        return any(marker in text for marker in markers)
+
+    async def research(
+        self,
+        force: bool = False,
+        term: str = "",
+        ctx: FeatureContext | None = None,
+    ) -> str:
         """Look up one pending curiosity and store the answer.
 
         Args:
             force: Ignore the daily cap and quiet hours (used for verification).
             term: Look this word up instead of the queued curiosity.
+            ctx: Optional base-resolved turn context.
 
         Returns:
             A short result description, or an empty string when nothing ran.
         """
-        if self.notebook is None or self._running:
+        if self._running:
             return ""
+        urgent = bool(term)
         if term:
             target = str(term).strip()
             if not target:
                 return ""
             # 手动查询的词先入队，查完才能改成「知道」
-            self.notebook.add_curiosity(target)
+            self.store.add(target, source="manual", query=target)
+            search_query = target
+            research_umo = ""
+            self._attempts.pop(target, None)
         else:
-            pending = self.notebook.pending_curiosities(1)
+            pending = self.store.pending(1)
             if not pending:
                 return ""
-            target = pending[0].text
+            entry = pending[0]
+            target = entry.text
+            urgent = entry.source in {"question", "manual"}
+            search_query = str(entry.query or target).strip()
+            research_umo = str(entry.umo or "")
+
+        now = ctx.now if ctx is not None else datetime.now()
         if not force:
-            if self._today_count() >= self.settings.daily_cap:
+            if self._today_count(now) >= self.settings.daily_cap:
                 return ""
-            if self._in_quiet_hours():
+            if self._in_quiet_hours(now):
+                return ""
+            gap = int(getattr(self.settings, "min_gap_minutes", 0) or 0)
+            if (
+                not urgent
+                and gap > 0
+                and self._last_lookup_at
+                and time.time() - self._last_lookup_at < gap * 60
+            ):
                 return ""
 
+        # Do not spend a classification call when the search itself cannot run.
+        if not str(getattr(self.settings, "tavily_key", "") or "").strip():
+            if not self._no_key_warned:
+                logger.info("[好奇心] 未配置 Tavily key，跳过联网查询")
+                self._no_key_warned = True
+            return ""
+
         term = target
+        self._last_lookup_at = time.time()
         self._running = True
         try:
-            # 先判断这个词值不值得联网查：日常词和群内黑话都不该被百科义覆盖。
-            kind = await self._classify(term)
-            if kind != "lookup":
-                self.notebook.drop_curiosity(term)
-                logger.info(f"[好奇心] 「{term}」判定为 {kind}，不联网查")
-                return ""
-            material = await self._search(term)
+            logger.info(f"[好奇心] 去查：「{search_query}」")
+            material = await self._search(search_query)
             if not material:
+                self._record_failure(term)
                 logger.info(f"[好奇心] 没搜到「{term}」的资料，先留着")
                 return ""
-            summary = await self._summarise(term, material)
+            summary = await self._summarise(term, material, ctx, umo=research_umo)
             if not summary:
+                self._record_failure(term)
                 return ""
-            if self.notebook.resolve_curiosity(term, summary):
-                self._bump_daily()
+            if self._useless_summary(summary):
+                self.store.drop(term)
+                self._attempts.pop(term, None)
+                logger.info(f"[好奇心] 「{term}」没有可用信息，丢弃")
+                return ""
+            if self.store.resolve(term, summary):
+                self._attempts.pop(term, None)
+                self._bump_daily(now)
                 logger.info(f"[好奇心] 查到「{term}」：{summary[:60]}")
                 return summary
         except Exception as exc:
@@ -301,11 +610,14 @@ class CuriosityModule(PluginModule):
         key = str(getattr(self.settings, "tavily_key", "") or "").strip()
         if not key:
             return ""
+        query = str(term or "").strip()
+        if len(query) <= 8 and " " not in query:
+            query = f"{query} 是什么意思"
         payload = {
             "api_key": key,
-            "query": term,
+            "query": query,
             "max_results": int(getattr(self.settings, "results", 3) or 3),
-            "include_answer": False,
+            "include_answer": True,
             "search_depth": "basic",
         }
         timeout = aiohttp.ClientTimeout(total=20)
@@ -316,6 +628,9 @@ class CuriosityModule(PluginModule):
                     return ""
                 data = await response.json()
         parts: list[str] = []
+        answer = str(data.get("answer") or "").strip()
+        if answer:
+            parts.append(f"搜索摘要：{answer}"[:500])
         for item in (data.get("results") or [])[:4]:
             if not isinstance(item, dict):
                 continue
@@ -325,52 +640,33 @@ class CuriosityModule(PluginModule):
                 parts.append(f"{title}：{content}"[:400])
         return "\n".join(parts)
 
-    async def _classify(self, term: str) -> str:
-        """Decide whether a term deserves a web lookup.
-
-        Args:
-            term: The term someone asked about.
-
-        Returns:
-            One of known, slang or lookup; lookup on failure.
-        """
-        provider_id = await self._resolve_provider_id()
-        if not provider_id:
-            return "lookup"
-        persona_text = ""
-        try:
-            persona = await self.context.persona_manager.get_default_persona_v3()
-            persona_text = str(persona.get("prompt", "") or "")[:600]
-        except Exception as exc:
-            logger.debug(f"[好奇心] 读取人格失败: {exc}")
-        prompt = _CLASSIFY_PROMPT.format(term=term, persona=persona_text)
-        try:
-            response = await self.context.llm_generate(
-                chat_provider_id=provider_id,
-                prompt=prompt,
-                max_tokens=200,
-            )
-            text = str(getattr(response, "completion_text", "") or "")
-        except Exception as exc:
-            logger.debug(f"[好奇心] 分类失败: {exc}")
-            return "lookup"
-        match = re.search(r'"kind"\s*:\s*"(known|slang|meh|lookup)"', text)
-        return match.group(1) if match else "lookup"
-
-    async def _summarise(self, term: str, material: str) -> str:
+    async def _summarise(
+        self,
+        term: str,
+        material: str,
+        ctx: FeatureContext | None = None,
+        umo: str = "",
+    ) -> str:
         """Ask the model to turn search results into a short note.
 
         Args:
             term: What was searched.
             material: Flattened search results.
+            ctx: Optional base-resolved turn context.
+            umo: Conversation origin when the summary runs in the background.
 
         Returns:
             The summary, or an empty string.
         """
-        provider_id = await self._resolve_provider_id()
+        provider_id = await self._resolve_provider_id(ctx)
         if not provider_id:
             return ""
-        prompt = _SUMMARISE_PROMPT.format(term=term, material=material[:2000])
+        persona_text = await self._persona_text(ctx, umo=umo)
+        prompt = _SUMMARISE_PROMPT.format(
+            persona=persona_text or "（未提供人格，但仍以自己的第一人称）",
+            term=term,
+            material=material[:2000],
+        )
         # 推理型模型偶尔把额度花在思考上，正文为空，给一次更大的机会。
         for budget in (400, 900):
             try:
@@ -384,42 +680,106 @@ class CuriosityModule(PluginModule):
                 continue
             text = str(getattr(response, "completion_text", "") or "").strip()
             if text:
-                limit = int(getattr(self.settings, "max_chars", 120) or 120)
+                limit = int(getattr(self.settings, "max_chars", 400) or 400)
                 return text[:limit]
         return ""
 
-    async def _resolve_provider_id(self) -> str:
+    async def _persona_text(
+        self, ctx: FeatureContext | None = None, umo: str = ""
+    ) -> str:
+        """Read the resolved persona prompt for this turn.
+
+        Args:
+            ctx: Optional base-resolved turn context.
+            umo: Conversation origin when no turn context is available.
+
+        Returns:
+            A short persona prompt, or an empty string.
+        """
+        selected = str(getattr(self.settings, "persona_id", "") or "").strip()
+        if selected:
+            try:
+                persona = self.context.persona_manager.get_persona_v3_by_id(selected)
+                prompt = str((persona or {}).get("prompt", "") or "").strip()
+                if prompt:
+                    return prompt[:1800]
+            except Exception as exc:
+                logger.debug(f"[好奇心] 指定人格读取失败: {exc}")
+        if ctx is not None and ctx.persona:
+            return ctx.persona[:1800]
+        try:
+            persona = await self.context.persona_manager.get_default_persona_v3(
+                (ctx.umo if ctx is not None else "") or umo or None
+            )
+            return str(persona.get("prompt", "") or "")[:1800]
+        except Exception as exc:
+            logger.debug(f"[好奇心] 读取人格失败: {exc}")
+            return ""
+
+    async def _resolve_provider_id(self, ctx: FeatureContext | None = None) -> str:
         """Resolve the chat provider for summarising.
+
+        Args:
+            ctx: Optional base-resolved turn context.
 
         Returns:
             A provider id, or an empty string.
         """
         if getattr(self.settings, "provider_id", ""):
             return self.settings.provider_id
+        if ctx is not None and ctx.provider_id:
+            return ctx.provider_id
         try:
-            provider = await self.context.get_using_provider_async()
+            if ctx is not None:
+                provider = await self.context.get_using_provider_async(ctx.umo)
+            else:
+                provider = await self.context.get_using_provider_async()
             return str(provider.meta().id) if provider else ""
         except Exception:
             return ""
 
-    def _today_count(self) -> int:
+    def _record_failure(self, term: str) -> None:
+        """Back off after a failed lookup instead of retrying every message.
+
+        Args:
+            term: The curiosity that could not be resolved.
+        """
+        attempts = self._attempts.get(term, 0) + 1
+        self._attempts[term] = attempts
+        if attempts >= 2:
+            self.store.drop(term)
+            self._attempts.pop(term, None)
+            logger.info(f"[好奇心] 「{term}」连续 {attempts} 次没有结果，先放弃")
+
+    def _today_count(self, now: datetime | None = None) -> int:
         """Read how many lookups ran today.
+
+        Args:
+            now: Time-zone-aware current time; defaults to local time.
 
         Returns:
             Today's count.
         """
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = (now or datetime.now()).strftime("%Y-%m-%d")
         if self._daily_key != today:
             self._daily_key = today
             self._daily_count = 0
         return self._daily_count
 
-    def _bump_daily(self) -> None:
-        """Count one completed lookup."""
+    def _bump_daily(self, now: datetime | None = None) -> None:
+        """Count one completed lookup.
+
+        Args:
+            now: Time-zone-aware current time; defaults to local time.
+        """
+        self._today_count(now)
         self._daily_count += 1
 
-    def _in_quiet_hours(self) -> bool:
+    def _in_quiet_hours(self, now: datetime | None = None) -> bool:
         """Tell whether the current time is inside the quiet window.
+
+        Args:
+            now: Time-zone-aware current time; defaults to local time.
 
         Returns:
             True when the pack should stay quiet.
@@ -433,7 +793,7 @@ class CuriosityModule(PluginModule):
             end = datetime.strptime(end_text.strip(), "%H:%M").time()
         except ValueError:
             return False
-        now = datetime.now().time()
+        current = (now or datetime.now()).time()
         if start <= end:
-            return start <= now <= end
-        return now >= start or now <= end
+            return start <= current <= end
+        return current >= start or current <= end

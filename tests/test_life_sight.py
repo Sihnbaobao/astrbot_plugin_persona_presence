@@ -173,3 +173,43 @@ def test_activity_question_detection(monkeypatch):
     assert not asked("你喜欢什么")
     assert not asked("吃饭了吗")
     assert not asked("奶龙是什么")
+
+
+def test_content_question_detection(monkeypatch):
+    module = _load_module(monkeypatch)
+    asked = module.LifeSight.looks_like_content_question
+
+    assert asked("你之前看了什么视频吗")
+    assert asked("你在看什么")
+    assert asked("最近看了哪些番")
+    assert not asked("在干嘛")
+    assert not asked("最近在忙什么")
+
+
+def test_general_state_hides_the_video_title(monkeypatch, tmp_path):
+    module = _load_module(monkeypatch)
+    log = tmp_path / "watch_log.json"
+    _write(log, [{"time": _stamp(20), "title": "被无惨咬，还是被DIO咬？", "score": 7}])
+    sight = module.LifeSight(str(log), enabled=True)
+
+    general = sight.state_lines(include_title=False, fresh_only=True)
+    assert any("刚刚" in line for line in general)
+    assert not any("被无惨咬" in line for line in general)
+
+    content = sight.state_lines(include_title=True)
+    assert any("被无惨咬" in line for line in content)
+
+
+def test_stale_watch_is_hidden_from_general_questions(monkeypatch, tmp_path):
+    module = _load_module(monkeypatch)
+    log = tmp_path / "watch_log.json"
+    _write(log, [{"time": _stamp(180), "title": "三小时前的视频", "score": 7}])
+    sight = module.LifeSight(str(log), enabled=True)
+
+    assert not any(
+        "三小时前的视频" in line
+        for line in sight.state_lines(include_title=False, fresh_only=True)
+    )
+    assert any(
+        "三小时前的视频" in line for line in sight.state_lines(include_title=True)
+    )

@@ -47,7 +47,7 @@ const api = {
     return httpCall("POST", path, body);
   },
 };
-const state = { values: {}, runtime: {}, version: "", groups: [], loadError: "" };
+const state = { values: {}, runtime: {}, version: "", groups: [], personas: [], loadError: "" };
 let activeIdx = 0;       // 当前显示的分组下标
 let configDirty = false; // 当前面板是否有未保存改动
 
@@ -60,6 +60,29 @@ function stripEmoji(s) {
   return (m ? String(s).replace(m[0], "") : String(s ?? "")).trim();
 }
 
+function pageSlice(items, page, size) {
+  const total = items.length;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const current = Math.min(Math.max(0, Number(page) || 0), pages - 1);
+  return {
+    items: items.slice(current * size, current * size + size),
+    page: current,
+    pages,
+    total,
+  };
+}
+
+function pagerHtml(target, paged) {
+  if (paged.pages <= 1) {
+    return '<span class="pager-note">共 ' + paged.total + " 条</span>";
+  }
+  return (
+    '<button class="pager-btn" data-page-target="' + target + '" data-page-step="-1"' + (paged.page <= 0 ? " disabled" : "") + '>上一页</button>' +
+    '<span class="pager-note">' + (paged.page + 1) + " / " + paged.pages + " · 共 " + paged.total + " 条</span>" +
+    '<button class="pager-btn" data-page-target="' + target + '" data-page-step="1"' + (paged.page >= paged.pages - 1 ? " disabled" : "") + '>下一页</button>'
+  );
+}
+
 /* ============ 分组主开关（卡片徽章判定） ============ */
 const MASTERS = {
   presence_basic: "enable_group_chat",
@@ -70,6 +93,7 @@ const MASTERS = {
   presence_manage: { any: ["enable_user_blacklist", "enable_command_filter"] },
   presence_concurrent: null,
   presence_enhance: { any: ["enable_image_processing", "enable_memory_injection", "enable_emoji_filter"] },
+  presence_image: "enable_image_archive",
   presence_cross_group: "enable_cross_group_sight",
   dlc_notebook: "enable_notebook",
   dlc_curiosity: "enable_curiosity",
@@ -94,12 +118,11 @@ function groupSummary(gid) {
     case "presence_reply": return `上下文 ${v.max_context_messages ?? "-"} 条 · 防复读${v.enable_duplicate_filter ? "开" : "关"}`;
     case "presence_manage": return `黑名单 ${(v.blacklist_user_ids || []).length} 人`;
     case "presence_concurrent": return `${v.concurrent_mode ?? "legacy"} 模式`;
-    case "presence_enhance": return "图片 / 记忆 / 表情 / 戳一戳";
+    case "presence_enhance": return "图片预处理 / 记忆 / 表情 / 戳一戳";
+    case "presence_image": return `${v.enable_image_archive ? "长期图库开" : "图库关"} · 上限 ${v.image_archive_max_mb ?? "-"}MB`;
     case "presence_cross_group": return v.enable_cross_group_sight ? "跨群见闻 · 开" : "跨群见闻 · 关";
     case "dlc_notebook": return v.enable_notebook ? "资料片已装载" : "资料片未装载";
-    case "dlc_curiosity": return v.enable_notebook
-      ? (v.enable_curiosity ? "资料片已装载 · 依赖记忆本" : "资料片未装载 · 需记忆本")
-      : "需先开启记忆本";
+    case "dlc_curiosity": return v.enable_curiosity ? "资料片已装载 · 独立知识库" : "资料片未装载";
     case "dlc_proactive": return v.enable_proactive ? "资料片已装载" : "资料片未装载";
     default: return "";
   }
@@ -144,6 +167,33 @@ async function loadNotebook() {
     return;
   }
   drawNetwork();
+}
+
+async function runJargonTest() {
+  const input = document.getElementById("jargonTestText");
+  const status = document.getElementById("jargonTestStatus");
+  if (!input || !status) return;
+  const text = input.value.trim();
+  if (!text) {
+    status.textContent = "先贴几行聊天记录";
+    return;
+  }
+  status.textContent = "试跑中…";
+  try {
+    const res = await api.post("jargon/run", { text: text });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || data.status === "error") {
+      status.textContent = "失败：" + ((data && (data.message || data.error)) || "未知错误");
+      return;
+    }
+    const added = Array.isArray(data.added) ? data.added : [];
+    status.textContent = added.length
+      ? "新增：" + added.join("、")
+      : "没有确认的新词（可能已经学过）";
+    if (added.length) await loadNotebook();
+  } catch (err) {
+    status.textContent = "失败：" + err.message;
+  }
 }
 
 /* 记忆网络：持续运行的力导向图，不是一次性布局 */
@@ -297,6 +347,12 @@ function drawNetwork() {
       "<dt>权重</dt><dd>" + node.weight + "</dd>" +
       "<dt>被印证</dt><dd>" + node.evidence + " 次</dd>" +
       "<dt>来源</dt><dd>" + esc(node.source) + "</dd>" +
+      (node.forget_stage !== undefined
+        ? "<dt>遗忘阶段</dt><dd>" + ["新鲜", "观察一", "观察二", "待删除"][Number(node.forget_stage) || 0] + "</dd>"
+        : "") +
+      (node.use_count
+        ? "<dt>被用到</dt><dd>" + node.use_count + " 次</dd>"
+        : "") +
       "</dl>" +
       '<div class="net-preview-title">bot 会看到：</div>' +
       "<pre>" + esc(node.inject) + "</pre>" +
@@ -497,11 +553,182 @@ function drawNetwork() {
   NET.raf = requestAnimationFrame(step);
 }
 
+async function loadImages(query, resetPage) {
+  if (IMAGES.loading) return;
+  IMAGES.loading = true;
+  if (typeof query === "string") {
+    if (resetPage || query !== IMAGES.query) IMAGES.page = 0;
+    IMAGES.query = query;
+  }
+  try {
+    const res = await api.get("image_archive", {
+      q: IMAGES.query || "",
+      offset: IMAGES.page * 12,
+      limit: 12,
+    });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || data.status === "error" || !data.ok) {
+      IMAGES.data = null;
+      const grid = document.getElementById("imageGrid");
+      if (grid) grid.innerHTML = '<div class="image-empty">图片库未启用或读取失败</div>';
+      return;
+    }
+    IMAGES.data = data;
+    renderImages();
+  } catch (err) {
+    const grid = document.getElementById("imageGrid");
+    if (grid) grid.innerHTML = '<div class="image-empty">读取失败：' + esc(err.message) + "</div>";
+  } finally {
+    IMAGES.loading = false;
+  }
+}
+
+function renderImages() {
+  const data = IMAGES.data;
+  if (!data) return;
+  const stats = data.stats || {};
+  const statsHost = document.getElementById("imageStats");
+  if (statsHost) {
+    const mb = ((Number(stats.bytes) || 0) / 1024 / 1024).toFixed(1);
+    const maxMb = ((Number(stats.max_bytes) || 0) / 1024 / 1024).toFixed(0);
+    statsHost.innerHTML =
+      '<div class="stat"><div class="stat-head"><span class="stat-icon">▧</span><span class="stat-label">图片</span></div><div class="stat-value">' + (stats.count || 0) + '</div><div class="stat-note">' + (stats.favorites || 0) + " 张收藏</div></div>" +
+      '<div class="stat"><div class="stat-head"><span class="stat-icon">◔</span><span class="stat-label">占用</span></div><div class="stat-value">' + mb + " / " + maxMb + ' MB</div><div class="stat-note">超过后先淘汰普通图</div></div>' +
+      '<div class="stat"><div class="stat-head"><span class="stat-icon">⌕</span><span class="stat-label">当前筛选</span></div><div class="stat-value">' + (data.entries || []).length + '</div><div class="stat-note">' + (IMAGES.query ? esc(IMAGES.query) : "全部会话") + "</div></div>";
+  }
+  const host = document.getElementById("imageGrid");
+  const pager = document.getElementById("imagePager");
+  if (!host) return;
+  const entries = data.entries || [];
+  const total = Number(data.total ?? entries.length);
+  const pages = Math.max(1, Math.ceil(total / 12));
+  const current = Math.min(Math.max(0, IMAGES.page), pages - 1);
+  IMAGES.page = current;
+  const paged = { items: entries, page: current, pages: pages, total: total };
+  if (!paged.items.length) {
+    host.innerHTML = '<div class="image-empty">还没有图片。收到图片后，识图模型会慢慢整理进来。</div>';
+  } else {
+    host.innerHTML = paged.items
+      .map((entry) => {
+        const tags = (entry.tags || [])
+          .map((tag) => '<span class="image-tag">' + esc(tag) + "</span>")
+          .join("");
+        const autoStopped = entry.analysis_pending && Number(entry.analysis_attempts || 0) >= Number(entry.analysis_max_retries || 0);
+        const descText = entry.analysis_pending
+          ? (autoStopped
+            ? "识图失败，自动重试已停止" + (entry.analysis_error ? "：" + entry.analysis_error : "")
+            : "等待识图…（会自动重试）")
+          : (entry.description || "（还没有描述）");
+        return (
+          '<article class="image-card">' +
+          (entry.thumb
+            ? '<img loading="lazy" src="' + entry.thumb + '" data-image-open="' + esc(entry.id) + '" alt="" />'
+            : '<div class="image-empty" style="padding:30px">缩略图不可用</div>') +
+          '<div class="image-card-body">' +
+          '<div class="image-card-desc">' + esc(descText) + "</div>" +
+          '<div class="image-tags">' + tags + "</div>" +
+          '<div class="image-card-meta">' + esc(entry.created) + " · " + esc(entry.chat) + " · " + esc(entry.sender) + "</div>" +
+          '<div class="image-card-actions">' +
+          '<span class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</span>" +
+          (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重新识图</button>' : "") +
+          '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
+          "</div></div></article>"
+        );
+      })
+      .join("");
+  }
+  if (pager) pager.innerHTML = pagerHtml("images", paged);
+}
+
+function closeImageViewer() {
+  const viewer = document.getElementById("imageViewer");
+  const image = document.getElementById("imageViewerImg");
+  if (viewer) viewer.hidden = true;
+  if (image) image.removeAttribute("src");
+}
+
+async function openImageViewer(id) {
+  if (!id) return;
+  const viewer = document.getElementById("imageViewer");
+  const image = document.getElementById("imageViewerImg");
+  const caption = document.getElementById("imageViewerCaption");
+  if (!viewer || !image || !caption) return;
+  const entry = ((IMAGES.data && IMAGES.data.entries) || []).find((item) => item.id === id);
+  if (entry && entry.thumb) image.src = entry.thumb;
+  caption.textContent = entry ? (entry.description || "加载大图…") : "加载大图…";
+  viewer.hidden = false;
+  try {
+    const res = await api.get("image_archive/preview", { id: id });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.image) {
+      toast("大图加载失败", "err");
+      return;
+    }
+    image.src = data.image;
+    caption.textContent = [data.description, data.created, data.sender]
+      .filter(Boolean)
+      .join(" · ");
+  } catch (err) {
+    toast("大图加载失败：" + err.message, "err");
+  }
+}
+
+async function rateArchiveImage(id, button) {
+  if (!id) return;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "识图中…";
+  }
+  try {
+    const res = await api.post("image_archive/rate", { id: id });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      toast("识图失败：" + ((data && (data.message || data.error)) || "稍后自动重试"), "err");
+      return;
+    }
+    toast("识图完成", "ok");
+    await loadImages(IMAGES.query);
+  } catch (err) {
+    toast("识图失败：" + err.message, "err");
+  } finally {
+    if (button && button.isConnected) button.disabled = false;
+  }
+}
+
+async function deleteArchiveImage(id, button) {
+  if (!id) return;
+  if (button && button.dataset.confirm !== "1") {
+    button.dataset.confirm = "1";
+    button.textContent = "再点一次";
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = "";
+      button.textContent = "删除";
+    }, 3000);
+    return;
+  }
+  try {
+    const res = await api.post("image_archive/delete", { id: id });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      toast("删除失败", "err");
+      return;
+    }
+    toast("已删除", "ok");
+    await loadImages(IMAGES.query);
+  } catch (err) {
+    toast("删除失败：" + err.message, "err");
+  }
+}
+
 const VIEW_TITLES = {
   overview: "概览",
   dlc: "资料片",
   config: "配置",
   network: "记忆网络",
+  curiosity: "好奇心",
+  images: "图片库",
+  proactive: "主动发言",
   prompt: "提示词",
 };
 
@@ -520,6 +747,9 @@ function showView(name) {
     el.classList.toggle("is-active", el.dataset.view === name);
   });
   if (name === "network") drawNetwork();
+  if (name === "curiosity") loadCuriosity();
+  if (name === "images") loadImages(IMAGES.query);
+  if (name === "proactive") loadProactive();
 }
 
 /* ============ 概览 ============ */
@@ -559,7 +789,7 @@ function renderOverview() {
     stat("⚙", "参与判断", tendency, "决定要不要接话"),
     stat("❖", "资料片", dlcOn + " / 3", dlcOn ? "已装载" : "全部未装载",
       dlcOn ? "ok" : "muted"),
-    stat("◎", "记忆条目", nb.total || 0, (nb.pending_curiosity || 0) + " 个待查"),
+    stat("◎", "记忆条目", nb.total || 0, (nb.pending_curiosity || 0) + " 个好奇心待查"),
     stat("☀", "真实状态", v.enable_life_state ? "跟随" : "关闭",
       v.enable_cross_group_sight ? "跨群见闻 开" : "跨群见闻 关"),
   ].join("");
@@ -579,11 +809,9 @@ const DLC_DEFS = [
     group: "dlc_curiosity",
     key: "enable_curiosity",
     name: "好奇心",
-    tagline: "不懂就去查",
+    tagline: "好奇就去查",
     icon: "◇",
-    desc: "群里出现它不懂的词，会自己上网查，查完记进本子。",
-    needs: "enable_notebook",
-    needsLabel: "需要先开记忆本",
+    desc: "群里出现它自己感兴趣的词或事，会自己上网查；结果放进独立知识库，不挤占记忆网络。",
   },
   {
     group: "dlc_proactive",
@@ -633,6 +861,8 @@ function renderDlc() {
           toast(el.checked ? "已装载" : "已卸载");
           await loadStatus();
           loadNotebook();
+          loadCuriosity();
+          loadProactive();
         } else {
           el.checked = !el.checked;
           toast("保存失败：" + (((data && data.skipped) || []).join(",") || "未知原因"), "err");
@@ -739,7 +969,16 @@ function fieldControl(key) {
     "</div>";
   const hintLine = showInline ? `<div class="field-hint">${esc(hint)}</div>` : "";
   let ctrl = "";
-  if (def.type === "bool") {
+  if (key === "curiosity_persona_id" && state.personas.length) {
+    const opts = ['<option value="">跟随当前会话默认人格</option>']
+      .concat(
+        state.personas.map(
+          (p) => '<option value="' + esc(p.id) + '"' + (String(val) === String(p.id) ? " selected" : "") + ">" + esc(p.name) + "</option>"
+        )
+      )
+      .join("");
+    ctrl = '<select data-key="' + key + '">' + opts + "</select>";
+  } else if (def.type === "bool") {
     ctrl = `<label class="switch"><input type="checkbox" data-key="${key}" ${val ? "checked" : ""} /><span class="track"></span></label>`;
   } else if (def.type === "select" || (def.options && def.options.length)) {
     const opts = (def.options || []).map((o) => `<option value="${esc(o)}" ${String(val) === String(o) ? "selected" : ""}>${esc(o)}</option>`).join("");
@@ -882,6 +1121,447 @@ async function renderPrompts() {
   }
 }
 
+/* ============ 好奇心 ============ */
+const CURIOSITY = { data: null, loading: false, pagePending: 0, pageKnown: 0, editing: null };
+const IMAGES = { data: null, loading: false, page: 0, token: "", query: "" };
+
+const CURIOSITY_SOURCE = {
+  interest: "自己好奇",
+  question: "群友在问",
+  manual: "手动查",
+  curiosity: "旧记录",
+};
+
+function curiositySource(source) {
+  const key = String(source || "");
+  return {
+    label: CURIOSITY_SOURCE[key] || key || "好奇",
+    cls: ["interest", "question", "manual"].includes(key) ? key : "",
+  };
+}
+
+function curiosityCard(entry, known) {
+  const source = curiositySource(entry.source);
+  const parts = [
+    '<div class="curiosity-card' + (known ? " is-known" : "") + '">',
+    '<div class="curiosity-card-head">',
+    '<div class="curiosity-topic">' + esc(entry.text) + "</div>",
+    '<span class="curiosity-source ' + source.cls + '">' + esc(source.label) + "</span>",
+    "</div>",
+  ];
+  if (entry.query) {
+    parts.push('<div class="curiosity-query">搜索：' + esc(entry.query) + "</div>");
+  }
+  if (entry.why) {
+    parts.push('<div class="curiosity-why">为什么好奇：' + esc(entry.why) + "</div>");
+  }
+  if (known && entry.summary) {
+    parts.push('<div class="curiosity-summary">' + esc(entry.summary) + "</div>");
+  }
+  const stageLabels = ["新鲜", "遗忘观察一", "遗忘观察二", "待删除"];
+  const stage = stageLabels[Number(entry.forget_stage) || 0] || "新鲜";
+  const used = entry.use_count ? " · 用过 " + entry.use_count + " 次" : "";
+  const meta = known
+    ? (entry.resolved ? "查到 " + entry.resolved : "已查到") + " · " + stage + used
+    : (entry.created ? "记下 " + entry.created : "待查");
+  parts.push('<div class="curiosity-meta">' + esc(meta) + "</div>");
+  parts.push(
+    '<div class="curiosity-actions">' +
+      '<button class="mini-btn" data-curiosity-edit data-text="' + esc(entry.text) + '" data-known="' + (known ? "1" : "0") + '">编辑</button>' +
+      '<button class="mini-btn danger" data-curiosity-delete data-text="' + esc(entry.text) + '">删除</button>' +
+    "</div>"
+  );
+  parts.push("</div>");
+  return parts.join("");
+}
+
+function renderCuriosity() {
+  const statsHost = document.getElementById("curiosityStats");
+  const pendingHost = document.getElementById("curiosityPending");
+  const knownHost = document.getElementById("curiosityKnown");
+  if (!statsHost || !pendingHost || !knownHost) return;
+
+  const data = CURIOSITY.data;
+  if (!data) {
+    statsHost.innerHTML = '<div class="stat"><div class="stat-value">加载中…</div></div>';
+    return;
+  }
+  if (data.error) {
+    statsHost.innerHTML =
+      '<div class="stat alert" style="grid-column:1/-1">' +
+      '<div class="stat-head"><span class="stat-icon">!</span><span class="stat-label">好奇心读取失败</span></div>' +
+      '<div class="stat-note">' + esc(data.error) + "</div></div>";
+    return;
+  }
+
+  const pending = data.pending || [];
+  const known = data.knowledge || [];
+  const enabled = !!data.enabled;
+  const softLimit = Number(data.pending_soft_limit || 0);
+  const addCap = Number(data.new_topics_per_day || 0);
+  const addedToday = Number(data.today_added || 0);
+  const pendingNote = softLimit > 0 && pending.length >= softLimit
+    ? "已到积压软上限，暂停自发新话题"
+    : (addCap > 0 ? "今日新增 " + addedToday + " / " + addCap : "它想知道，还没查");
+  const stat = (icon, label, value, note, cls) =>
+    '<div class="stat ' + (cls || "") + '">' +
+    '<div class="stat-head"><span class="stat-icon">' + icon + "</span>" +
+    '<span class="stat-label">' + label + "</span></div>" +
+    '<div class="stat-value">' + value + "</div>" +
+    '<div class="stat-note">' + note + "</div></div>";
+
+  statsHost.innerHTML = [
+    stat("◇", "待查", pending.length, pendingNote, pending.length ? "ok" : "muted"),
+    stat("✓", "已查到", known.length, known.length ? "在独立知识库里" : "还没查到东西", known.length ? "ok" : "muted"),
+    stat("⟳", "今日查询", (data.today_count || 0) + " / " + (data.daily_cap || 0), "每日上限", enabled ? "" : "muted"),
+    stat("◌", "状态", enabled ? "运行中" : "未装载", enabled ? (data.quiet_hours ? "静默 " + data.quiet_hours : "全天可查") : "去资料片开启", enabled ? "ok" : "muted"),
+  ].join("");
+
+  document.getElementById("curiosityPendingCount").textContent = String(pending.length);
+  document.getElementById("curiosityKnownCount").textContent = String(known.length);
+  const pendingPage = pageSlice(pending, CURIOSITY.pagePending, 4);
+  const knownPage = pageSlice(known, CURIOSITY.pageKnown, 4);
+  CURIOSITY.pagePending = pendingPage.page;
+  CURIOSITY.pageKnown = knownPage.page;
+  pendingHost.innerHTML = pendingPage.items.length
+    ? pendingPage.items.map((entry) => curiosityCard(entry, false)).join("")
+    : '<div class="curiosity-empty">' + (enabled ? "还没有待查的话题。它读到感兴趣的词会先放这里。" : "好奇心未装载。") + "</div>";
+  knownHost.innerHTML = knownPage.items.length
+    ? knownPage.items.map((entry) => curiosityCard(entry, true)).join("")
+    : '<div class="curiosity-empty">' + (enabled ? "还没查到东西。等它自己好奇，或者手动查一个。" : "好奇心未装载。") + "</div>";
+  const pendingPager = document.getElementById("curiosityPendingPager");
+  const knownPager = document.getElementById("curiosityKnownPager");
+  if (pendingPager) pendingPager.innerHTML = pending.length ? pagerHtml("curiosityPending", pendingPage) : "";
+  if (knownPager) knownPager.innerHTML = known.length ? pagerHtml("curiosityKnown", knownPage) : "";
+}
+
+async function loadCuriosity() {
+  if (CURIOSITY.loading) return;
+  CURIOSITY.loading = true;
+  try {
+    const res = await api.get("curiosity");
+    const data = res && res.data !== undefined ? res.data : res;
+    if (data && data.status === "error") throw new Error(data.message || "好奇心接口请求失败");
+    CURIOSITY.data = data;
+  } catch (err) {
+    CURIOSITY.data = { enabled: false, pending: [], knowledge: [], error: err.message || String(err) };
+  } finally {
+    CURIOSITY.loading = false;
+  }
+  renderCuriosity();
+}
+
+async function runCuriosity() {
+  const input = document.getElementById("curiosityTerm");
+  const btn = document.getElementById("curiosityRun");
+  const note = document.getElementById("curiosityNote");
+  if (!input || !btn) return;
+  const term = input.value.trim();
+  if (!term) { toast("先输入一个要查的词", "err"); return; }
+  btn.disabled = true;
+  if (note) note.textContent = "查询中…";
+  try {
+    const res = await api.post("curiosity/run", { term: term });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (data && data.ok) {
+      toast("查到了，已放进知识库", "ok");
+      input.value = "";
+      if (note) note.textContent = "刚刚查过：「" + term + "」";
+    } else {
+      const msg = (data && (data.message || data.error)) || "没查到什么有用的资料";
+      toast("没查成功：" + msg, "err");
+      if (note) note.textContent = msg;
+    }
+    await loadCuriosity();
+  } catch (err) {
+    toast("查询失败：" + err.message, "err");
+    if (note) note.textContent = err.message || String(err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteCuriosity(text, button) {
+  if (!text) return;
+  if (button && button.dataset.confirm !== "1") {
+    button.dataset.confirm = "1";
+    button.textContent = "再点一次删除";
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.dataset.confirm = "";
+      button.textContent = "删除";
+    }, 3000);
+    return;
+  }
+  try {
+    const res = await api.post("curiosity/delete", { text: text });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      toast("删除失败：" + ((data && (data.message || data.error)) || "未知错误"), "err");
+      return;
+    }
+    toast("已删除", "ok");
+    await loadCuriosity();
+  } catch (err) {
+    toast("删除失败：" + err.message, "err");
+  }
+}
+
+function editCuriosity(text, known) {
+  const list = known ? (CURIOSITY.data && CURIOSITY.data.knowledge) || [] : (CURIOSITY.data && CURIOSITY.data.pending) || [];
+  const entry = list.find((item) => item.text === text);
+  if (!entry) return;
+  CURIOSITY.editing = { text: text, known: known };
+  const modal = document.getElementById("curiosityEditModal");
+  if (!modal) return;
+  document.getElementById("curiosityEditText").value = entry.text || "";
+  document.getElementById("curiosityEditQuery").value = entry.query || entry.text || "";
+  const summary = document.getElementById("curiosityEditSummary");
+  const summaryRow = document.getElementById("curiosityEditSummaryRow");
+  if (summary) summary.value = entry.summary || "";
+  if (summaryRow) summaryRow.hidden = !known;
+  modal.hidden = false;
+  document.getElementById("curiosityEditText").focus();
+}
+
+function closeCuriosityEdit() {
+  const modal = document.getElementById("curiosityEditModal");
+  if (modal) modal.hidden = true;
+  CURIOSITY.editing = null;
+}
+
+async function saveCuriosityEdit() {
+  const editing = CURIOSITY.editing;
+  if (!editing) return;
+  const body = {
+    text: editing.text,
+    new_text: document.getElementById("curiosityEditText").value.trim(),
+    query: document.getElementById("curiosityEditQuery").value,
+  };
+  if (editing.known) body.summary = document.getElementById("curiosityEditSummary").value;
+  try {
+    const res = await api.post("curiosity/update", body);
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      toast("保存失败：" + ((data && (data.message || data.error)) || "未知错误"), "err");
+      return;
+    }
+    closeCuriosityEdit();
+    toast("已保存", "ok");
+    await loadCuriosity();
+  } catch (err) {
+    toast("保存失败：" + err.message, "err");
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const pager = event.target.closest && event.target.closest("[data-page-target]");
+  if (pager) {
+    const target = pager.dataset.pageTarget;
+    const step = Number(pager.dataset.pageStep) || 0;
+    if (target === "curiosityPending") CURIOSITY.pagePending += step;
+    if (target === "curiosityKnown") CURIOSITY.pageKnown += step;
+    if (target === "proactiveGroups") PROACTIVE.pageGroups += step;
+    if (target === "proactiveHistory") PROACTIVE.pageHistory += step;
+    if (target === "images") {
+      IMAGES.page += step;
+      loadImages(IMAGES.query);
+      return;
+    }
+    if (target.startsWith("curiosity")) renderCuriosity();
+    else renderProactive();
+    return;
+  }
+  const edit = event.target.closest && event.target.closest("[data-curiosity-edit]");
+  if (edit) {
+    editCuriosity(edit.dataset.text, edit.dataset.known === "1");
+    return;
+  }
+  const del = event.target.closest && event.target.closest("[data-curiosity-delete]");
+  if (del) deleteCuriosity(del.dataset.text, del);
+  const imageOpen = event.target.closest && event.target.closest("[data-image-open]");
+  if (imageOpen) openImageViewer(imageOpen.dataset.imageOpen);
+  const imageRate = event.target.closest && event.target.closest("[data-image-rate]");
+  if (imageRate) rateArchiveImage(imageRate.dataset.imageRate, imageRate);
+  const imageDel = event.target.closest && event.target.closest("[data-image-delete]");
+  if (imageDel) deleteArchiveImage(imageDel.dataset.imageDelete, imageDel);
+});
+
+/* ============ 主动发言 ============ */
+const PROACTIVE = { data: null, loading: false, pageGroups: 0, pageHistory: 0 };
+
+function shortTime(ts) {
+  const value = Number(ts || 0);
+  if (!value) return "—";
+  const date = new Date(value * 1000);
+  if (Number.isNaN(date.getTime())) return "—";
+  const pad = (n) => String(n).padStart(2, "0");
+  return pad(date.getMonth() + 1) + "-" + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+}
+
+const PROACTIVE_KIND = {
+  sent: "已发送",
+  proposed: "想分享",
+  silent: "选择沉默",
+  skip: "跳过",
+  error: "生成失败",
+  dryrun: "试跑",
+};
+
+function proactiveGroupCard(group) {
+  return (
+    '<div class="proactive-card">' +
+      '<div class="proactive-card-head">' +
+        '<span class="proactive-group">群 ' + esc(group.group) + "</span>" +
+        '<span class="pill' + (group.eligible ? " on" : "") + '">' + (group.eligible ? "可发言" : "未到时机") + "</span>" +
+      "</div>" +
+      '<div class="proactive-kv">' + (group.reason ? esc(group.reason) : "门槛都过了，下一次安静时可能开口") + "</div>" +
+      '<div class="proactive-kv">缓冲 ' + (group.buffered || 0) + " 条（只用于判断群里是否活跃） · 最近消息 " + shortTime(group.last_seen) +
+        " · 上次开口 " + shortTime(group.last_spoke) + " · 上次试跑 " + shortTime(group.last_try) + "</div>" +
+    "</div>"
+  );
+}
+
+function proactiveHistoryCard(item) {
+  const kind = PROACTIVE_KIND[item.kind] || item.kind || "记录";
+  const detail = item.text
+    ? "<div class=\"proactive-history-text\">" + esc(item.text) + "</div>"
+    : (item.reason ? "<div class=\"proactive-history-text\">" + esc(item.reason) + "</div>" : "");
+  return (
+    '<div class="proactive-card">' +
+      '<div class="proactive-card-head">' +
+        '<span class="proactive-group">' + esc(kind) + "</span>" +
+        '<span class="proactive-kv">' + shortTime(item.at) + "</span>" +
+      "</div>" +
+      '<div class="proactive-kv">群 ' + esc(item.group || "—") + "</div>" +
+      detail +
+    "</div>"
+  );
+}
+
+function renderProactive() {
+  const statsHost = document.getElementById("proactiveStats");
+  const groupsHost = document.getElementById("proactiveGroups");
+  const historyHost = document.getElementById("proactiveHistory");
+  if (!statsHost || !groupsHost || !historyHost) return;
+  const data = PROACTIVE.data;
+  if (!data) {
+    statsHost.innerHTML = '<div class="stat"><div class="stat-value">加载中…</div></div>';
+    return;
+  }
+  if (data.error) {
+    statsHost.innerHTML =
+      '<div class="stat alert" style="grid-column:1/-1">' +
+      '<div class="stat-head"><span class="stat-icon">!</span><span class="stat-label">主动发言读取失败</span></div>' +
+      '<div class="stat-note">' + esc(data.error) + "</div></div>";
+    return;
+  }
+
+  const groups = data.groups || [];
+  const history = data.history || [];
+  const enabled = !!data.enabled;
+  const eligible = groups.filter((group) => group.eligible).length;
+  const cap = Number(data.daily_cap || 0);
+  const today = Number(data.today_count || 0);
+  const capped = enabled && cap > 0 && today >= cap;
+  const stat = (icon, label, value, note, cls) =>
+    '<div class="stat ' + (cls || "") + '">' +
+    '<div class="stat-head"><span class="stat-icon">' + icon + "</span>" +
+    '<span class="stat-label">' + label + "</span></div>" +
+    '<div class="stat-value">' + value + "</div>" +
+    '<div class="stat-note">' + note + "</div></div>";
+
+  statsHost.innerHTML = [
+    stat("✦", "状态", capped ? "今日已满" : (enabled ? "运行中" : "未装载"), capped ? "额度用完，明天 0 点恢复" : (enabled ? "全局冷却 " + (data.global_cooldown_minutes || 0) + " 分钟" : "去资料片开启"), enabled && !capped ? "ok" : "muted"),
+    stat("↗", "今日开口", cap > 0 ? today + " / " + cap : today + " 次", capped ? "今天不会再尝试" : (cap > 0 ? "每日上限" : "没有硬性每日上限"), enabled && !capped ? "" : "muted"),
+    stat("◍", "可开口群", eligible + " / " + groups.length, "时机合适的群", eligible ? "ok" : "muted"),
+    stat("⟳", "触发策略", Math.round((data.base_probability || 0) * 100) + "% · " + (data.min_messages || 0) + " 条起", enabled ? "静默 " + (data.quiet_hours || "无") + " · 安静 " + (data.min_lull_seconds || 0) + "–" + (data.max_lull_seconds || 0) + " 秒" : "—", enabled ? "" : "muted"),
+  ].join("");
+
+  document.getElementById("proactiveGroupCount").textContent = String(groups.length);
+  document.getElementById("proactiveHistoryCount").textContent = String(history.length);
+  const groupsPage = pageSlice(groups, PROACTIVE.pageGroups, 3);
+  const historyPage = pageSlice(history, PROACTIVE.pageHistory, 6);
+  PROACTIVE.pageGroups = groupsPage.page;
+  PROACTIVE.pageHistory = historyPage.page;
+  groupsHost.innerHTML = groupsPage.items.length
+    ? groupsPage.items.map(proactiveGroupCard).join("")
+    : '<div class="proactive-empty">' + (enabled ? "还没有群消息进入缓冲。" : "主动发言未装载。") + "</div>";
+  historyHost.innerHTML = historyPage.items.length
+    ? historyPage.items.map(proactiveHistoryCard).join("")
+    : '<div class="proactive-empty">' + (enabled ? "还没有试过开口。下面可以手动试跑一次。" : "主动发言未装载。") + "</div>";
+  const groupsPager = document.getElementById("proactiveGroupsPager");
+  const historyPager = document.getElementById("proactiveHistoryPager");
+  if (groupsPager) groupsPager.innerHTML = groups.length ? pagerHtml("proactiveGroups", groupsPage) : "";
+  if (historyPager) historyPager.innerHTML = history.length ? pagerHtml("proactiveHistory", historyPage) : "";
+}
+
+async function loadProactive() {
+  if (PROACTIVE.loading) return;
+  PROACTIVE.loading = true;
+  try {
+    const res = await api.get("proactive");
+    const data = res && res.data !== undefined ? res.data : res;
+    if (data && data.status === "error") throw new Error(data.message || "主动发言接口请求失败");
+    PROACTIVE.data = data;
+  } catch (err) {
+    PROACTIVE.data = { enabled: false, groups: [], history: [], error: err.message || String(err) };
+  } finally {
+    PROACTIVE.loading = false;
+  }
+  renderProactive();
+  const input = document.getElementById("proactiveGroup");
+  if (input && !input.value && PROACTIVE.data && (PROACTIVE.data.groups || []).length) {
+    input.value = PROACTIVE.data.groups[0].group;
+  }
+}
+
+async function runProactiveDryRun() {
+  const input = document.getElementById("proactiveGroup");
+  const context = document.getElementById("proactiveContext");
+  const btn = document.getElementById("proactiveDryRun");
+  const note = document.getElementById("proactiveNote");
+  const result = document.getElementById("proactiveResult");
+  if (!input || !btn) return;
+  let group = input.value.trim();
+  if (!group && PROACTIVE.data && (PROACTIVE.data.groups || []).length) {
+    group = PROACTIVE.data.groups[0].group;
+    input.value = group;
+  }
+  if (!group) { toast("先填一个群号", "err"); return; }
+  btn.disabled = true;
+  if (note) note.textContent = "试跑中…";
+  if (result) result.textContent = "";
+  try {
+    const res = await api.post("proactive/dryrun", {
+      group: group,
+      text: context ? context.value.trim() : "",
+    });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      const reason = (data && data.reason) || (data && data.message) || "试跑失败";
+      if (note) note.textContent = reason;
+      if (result) result.textContent = reason;
+      toast("试跑失败：" + reason, "err");
+    } else if (data.would_speak) {
+      if (note) note.textContent = "它想主动说一句自己的事；这里只展示，不会发送";
+      if (result) result.innerHTML = '<div class="line">“' + esc(data.line) + "”</div>";
+    } else if (data.repeat) {
+      if (note) note.textContent = "它想说的和最近重复，被拦下了";
+      if (result) result.textContent = "重复内容：" + (data.line || "");
+    } else {
+      if (note) note.textContent = data.over_limit ? "想说的超过 " + data.max_chars + " 字" : "它选择沉默";
+      if (result) result.textContent = data.over_limit ? "生成内容超长：" + (data.line || "") : "这次它不想说。";
+    }
+    await loadProactive();
+  } catch (err) {
+    if (note) note.textContent = err.message || String(err);
+    toast("试跑失败：" + err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ============ toast ============ */
 let toastTimer = null;
 function toast(msg, type) {
@@ -897,6 +1577,16 @@ function renderAll() {
   renderHeader();
   renderTabs();
   renderGroup();
+}
+
+async function loadPersonas() {
+  try {
+    const res = await api.get("personas");
+    const data = res && res.data !== undefined ? res.data : res;
+    state.personas = (data && data.personas) || [];
+  } catch (err) {
+    state.personas = [];
+  }
 }
 
 async function loadStatus() {
@@ -932,23 +1622,90 @@ async function init() {
     });
   }
 
+  const imageViewer = document.getElementById("imageViewer");
+  const imageViewerClose = document.getElementById("imageViewerClose");
+  if (imageViewerClose) imageViewerClose.addEventListener("click", closeImageViewer);
+  if (imageViewer) {
+    imageViewer.addEventListener("click", (event) => {
+      if (event.target === imageViewer) closeImageViewer();
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeImageViewer();
+  });
+
   const refresh = document.getElementById("refreshBtn");
   if (refresh) {
     refresh.addEventListener("click", async () => {
       await loadStatus();
       loadNotebook();
+      loadCuriosity();
+      loadImages(IMAGES.query);
+      loadProactive();
       toast("已刷新");
+    });
+  }
+
+  const curiosityBtn = document.getElementById("curiosityRun");
+  if (curiosityBtn) curiosityBtn.addEventListener("click", runCuriosity);
+  const curiosityInput = document.getElementById("curiosityTerm");
+  if (curiosityInput) {
+    curiosityInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runCuriosity();
+    });
+  }
+  const curiosityNote = document.getElementById("curiosityNote");
+  if (curiosityNote) curiosityNote.textContent = "手动查询会绕过每日上限与静默时段";
+
+  const proactiveBtn = document.getElementById("proactiveDryRun");
+  if (proactiveBtn) proactiveBtn.addEventListener("click", runProactiveDryRun);
+  const proactiveNote = document.getElementById("proactiveNote");
+  if (proactiveNote) proactiveNote.textContent = "试跑只生成，不会发送到群里";
+
+  const imageSearch = document.getElementById("imageSearch");
+  const imageSearchBtn = document.getElementById("imageSearchBtn");
+  if (imageSearchBtn) imageSearchBtn.addEventListener("click", () => loadImages(imageSearch ? imageSearch.value : "", true));
+  if (imageSearch) {
+    imageSearch.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") loadImages(imageSearch.value, true);
+    });
+  }
+  const imageRefreshBtn = document.getElementById("imageRefreshBtn");
+  if (imageRefreshBtn) imageRefreshBtn.addEventListener("click", () => loadImages(IMAGES.query));
+
+  const jargonTestRun = document.getElementById("jargonTestRun");
+  if (jargonTestRun) jargonTestRun.addEventListener("click", runJargonTest);
+
+  const editCancel = document.getElementById("curiosityEditCancel");
+  if (editCancel) editCancel.addEventListener("click", closeCuriosityEdit);
+  const editSave = document.getElementById("curiosityEditSave");
+  if (editSave) editSave.addEventListener("click", saveCuriosityEdit);
+  const editModal = document.getElementById("curiosityEditModal");
+  if (editModal) {
+    editModal.addEventListener("click", (event) => {
+      if (event.target === editModal) closeCuriosityEdit();
     });
   }
   try { await ensureBridge(); if (bridge && bridge.ready) await bridge.ready(); } catch (e) { /* 直接打开也能用 */ }
   await ensureBridge();
   const wanted = (location.hash || "").replace("#", "");
   if (wanted && VIEW_TITLES[wanted]) showView(wanted);
+  await loadPersonas();
   await loadStatus();
   renderOverview();
   renderDlc();
   loadNotebook();
+  loadCuriosity();
+  loadProactive();
   renderPrompts();
+
+  setInterval(() => {
+    if (document.hidden) return;
+    const curiosityView = document.getElementById("view-curiosity");
+    const proactiveView = document.getElementById("view-proactive");
+    if (curiosityView && curiosityView.classList.contains("is-active")) loadCuriosity();
+    if (proactiveView && proactiveView.classList.contains("is-active")) loadProactive();
+  }, 30000);
 }
 
 init();

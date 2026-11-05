@@ -176,27 +176,6 @@
         "type": "string",
         "default": "",
         "hint": "留空=跟随当前会话人格；填人格名固定用它判断。"
-      },
-      "dialogue_turn_cap": {
-        "type": "int",
-        "description": "连续对谈硬上限（0=不启用，只靠疲劳概率衰减）",
-        "default": 0,
-        "minimum": 0,
-        "maximum": 50
-      },
-      "dialogue_turn_window_seconds": {
-        "type": "float",
-        "description": "连续对谈统计窗口（秒）",
-        "default": 600,
-        "minimum": 60,
-        "maximum": 7200
-      },
-      "dialogue_fatigue_decay": {
-        "type": "float",
-        "description": "对谈疲劳衰减：每多接一句，下次接话概率乘以该值（越小越容易停）",
-        "default": 0.75,
-        "minimum": 0.3,
-        "maximum": 1.0
       }
     }
   },
@@ -355,6 +334,18 @@
     "description": "✨ 扩展（图片/记忆/表情/戳一戳）",
     "type": "object",
     "items": {
+      "enable_life_state": {
+        "description": "真实状态（只读伴侣插件）",
+        "type": "bool",
+        "default": false,
+        "hint": "读取 B 站伴侣插件的观看记录，只在对方问“最近在做什么/看什么”时作为背景注入。读不到就不写，不编造。"
+      },
+      "life_state_data_dir": {
+        "description": "真实状态数据目录",
+        "type": "string",
+        "default": "",
+        "hint": "留空自动使用 data/plugin_data/astrbot_plugin_bili_scroll；目录里应包含 watch_log.json 和 autonomous_plan_today.json。"
+      },
       "enable_image_processing": {
         "description": "图片识别",
         "type": "bool",
@@ -481,6 +472,95 @@
         "type": "int",
         "default": 10,
         "hint": "单条消息最多处理几张图。"
+      },
+      "image_temp_retention_hours": {
+        "description": "临时图片保留（小时）",
+        "type": "int",
+        "default": 24,
+        "hint": "插件本身不存图片；识图和发送过程中 AstrBot 会下载到临时目录，这里定期清掉超过这个时间的 media_image_*；0 表示不清理。"
+      }
+    }
+  },
+  "presence_image": {
+    "type": "object",
+    "description": "🖼️ 图片库",
+    "hint": "长期图片库、识图重试、收藏回看和最近图片上下文，独立于扩展功能。",
+    "items": {
+      "enable_image_archive": {
+        "description": "长期图片库",
+        "type": "bool",
+        "default": true,
+        "hint": "把收到的图片复制到本地图库，识图模型标记描述/标签并判断值不值得留；按会话隔离，可被后续找回和发送。"
+      },
+      "image_archive_max_analysis_retries": {
+        "description": "识图自动重试次数",
+        "type": "int",
+        "default": 1,
+        "hint": "入库时已经试过一次；这里默认再自动重试 1 次，仍失败就停止自动重试，保留图片等手动重试。"
+      },
+      "image_archive_retry_minutes": {
+        "description": "识图失败重试间隔（分钟）",
+        "type": "int",
+        "default": 10,
+        "hint": "识图失败或没有描述的图片会留在图库里，按这个间隔重试；成功后自动补上描述、标签和评分。"
+      },
+      "image_archive_scope": {
+        "description": "收图范围",
+        "type": "string",
+        "options": [
+          "replied",
+          "all"
+        ],
+        "default": "replied",
+        "hint": "replied=只收模型实际参与回复的消息里的图，避免群友随手发图全部入库；all=所有进入图片处理的消息都收。"
+      },
+      "image_archive_min_kb": {
+        "description": "最小收图大小（KB）",
+        "type": "int",
+        "default": 8,
+        "hint": "小于这个大小的图多半是表情/缩略图，直接跳过，不调用识图，省 token；0=不按大小过滤。"
+      },
+      "image_context_window_minutes": {
+        "description": "最近图片上下文窗口（分钟）",
+        "type": "int",
+        "default": 5,
+        "hint": "这段时间内收到的图，在用户后续没带图的消息里会作为视觉上下文带上；不判断关键词，换说法也能看到。"
+      },
+      "image_context_max_images": {
+        "description": "最近图片上下文上限",
+        "type": "int",
+        "default": 3,
+        "hint": "一次最多带几张最近图片；图太多时带最近几张，让模型自己判断或反问。"
+      },
+      "image_archive_max_mb": {
+        "description": "图片库容量上限（MB）",
+        "type": "int",
+        "default": 500,
+        "hint": "超过后先淘汰普通图，再淘汰评分低的收藏图。"
+      },
+      "image_archive_ordinary_days": {
+        "description": "普通图片保留（天）",
+        "type": "int",
+        "default": 7,
+        "hint": "模型觉得一般的图片，超过这个时间自动清理。"
+      },
+      "image_archive_review_days": {
+        "description": "收藏图片回看周期（天）",
+        "type": "int",
+        "default": 30,
+        "hint": "觉得好的图片先留下，隔这么久再让模型自己回看还喜不喜欢；不喜欢就删。"
+      },
+      "image_archive_retrieval_days": {
+        "description": "图片找回范围（天）",
+        "type": "int",
+        "default": 30,
+        "hint": "用户说“前几天那张图”时，最多往前找多少天。"
+      },
+      "image_archive_min_score": {
+        "description": "收藏评分线",
+        "type": "float",
+        "default": 0.6,
+        "hint": "模型评分达到这个值才当作收藏图，进入回看流程。"
       }
     }
   },
@@ -573,10 +653,34 @@
         "hint": "两次尝试之间至少隔这么久，避免频繁调用模型。"
       },
       "proactive_daily_cap": {
-        "description": "每天上限",
+        "description": "每日硬上限（0=不限）",
         "type": "int",
-        "default": 20,
-        "hint": "一天最多主动说几次，跨群合计。"
+        "default": 0,
+        "hint": "0 表示不设每日硬上限，靠群内冷却、静默时段和概率自然控制；填正数才会在达到后停止跨群主动发言。"
+      },
+      "proactive_history_ttl_days": {
+        "description": "动作记录保留天数",
+        "type": "int",
+        "default": 3,
+        "hint": "“最近动作”只是调试记录，默认保留 3 天，超时自动清理；0 表示一直保留。"
+      },
+      "proactive_global_cooldown_minutes": {
+        "description": "全局冷却（分钟）",
+        "type": "int",
+        "default": 30,
+        "hint": "任意群主动说了一句后，所有群都至少安静这么久。用来避免几个群轮流刷存在感。"
+      },
+      "proactive_min_lull_seconds": {
+        "description": "群安静多久才考虑（秒）",
+        "type": "int",
+        "default": 90,
+        "hint": "群里还在连续说话时先不插嘴；安静超过这个秒数才进入判断。"
+      },
+      "proactive_max_lull_seconds": {
+        "description": "群太安静就不说（秒）",
+        "type": "int",
+        "default": 900,
+        "hint": "超过这个秒数没有新消息，就不硬找话说；0 表示不限制。"
       },
       "proactive_quiet_hours": {
         "description": "静默时段",
@@ -644,6 +748,12 @@
         "hint": "从群聊里归纳只有群内人才懂的说法（缩写、梗、内部称呼），并按群记录下来。",
         "default": true
       },
+      "notebook_cross_group_jargon": {
+        "type": "bool",
+        "description": "跨群引用群内专属黑话",
+        "hint": "通用梗、缩写和常见说法默认就可以跨群使用。这里控制的是“指群友、群内事件或只在那个群成立”的专属说法；开启后会在当前群看到带“来自其他群”标记的条目，但不会伪装成本群经历。",
+        "default": false
+      },
       "notebook_jargon_min_messages": {
         "type": "int",
         "description": "黑话取样条数",
@@ -669,10 +779,40 @@
         "hint": "整理出来的新条目要达到这个置信度才写进本子，0 到 1。"
       },
       "notebook_decay_days": {
-        "description": "遗忘周期（天）",
+        "description": "记忆衰减周期（天）",
         "type": "int",
         "default": 30,
-        "hint": "一条笔记这么久没再被印证，权重会减半；越久越淡。"
+        "hint": "普通笔记这么久没再被印证，权重会减半；黑话改用下面的三阶段遗忘。"
+      },
+      "notebook_jargon_web_search": {
+        "description": "黑话联网核对",
+        "type": "bool",
+        "default": true,
+        "hint": "推断黑话前先用 Tavily 搜一下，帮助确认专名、作品或身份；群聊证据仍优先。需要配置 Tavily key。"
+      },
+      "notebook_jargon_forgetting": {
+        "description": "黑话三阶段遗忘",
+        "type": "bool",
+        "default": true,
+        "hint": "参照自主学习插件：新黑话有宽限期，之后连续三个周期没被再次听到/用到才删除。"
+      },
+      "notebook_jargon_cycle_days": {
+        "description": "黑话遗忘周期（天）",
+        "type": "int",
+        "default": 7,
+        "hint": "每过一个周期没有再次出现或被用到，就进入下一阶段。"
+      },
+      "notebook_jargon_grace_days": {
+        "description": "新黑话宽限期（天）",
+        "type": "int",
+        "default": 14,
+        "hint": "新学会的黑话在这段时间内不参与遗忘。"
+      },
+      "notebook_jargon_protect_general": {
+        "description": "通用黑话不遗忘",
+        "type": "bool",
+        "default": true,
+        "hint": "判定为互联网通用梗的黑话视为公共资产，不参与自动遗忘；群限定/个人称呼仍会淡出。"
       }
     }
   },
@@ -684,13 +824,62 @@
         "description": "启用好奇心",
         "type": "bool",
         "default": false,
-        "hint": "群里出现它不懂的词时会自己上网查，查完记进本子。需要同时启用「记忆本」。"
+        "hint": "群里出现它自己感兴趣的词或事时会自己上网查，结果存在独立的知识库里，不占用记忆网络。记忆本只用来提供它平时在意的东西，可以不开启。"
+      },
+      "curiosity_pending_ttl_days": {
+        "description": "待查保留天数",
+        "type": "int",
+        "default": 7,
+        "hint": "超过这么多天还没查的话题自动清理，避免队列越积越多；0 表示不自动清理。"
+      },
+      "curiosity_knowledge_ttl_days": {
+        "description": "知识硬上限（0=不限）",
+        "type": "int",
+        "default": 0,
+        "hint": "0 表示不按固定天数硬删，改用三阶段遗忘；填正数才会在到期后强制清理。"
+      },
+      "curiosity_forgetting_cycle_days": {
+        "description": "遗忘周期（天）",
+        "type": "int",
+        "default": 7,
+        "hint": "每过一个周期没有再次被用到，知识就进入下一阶段；连续三个周期没用才删除。"
+      },
+      "curiosity_forgetting_grace_days": {
+        "description": "新知识宽限期（天）",
+        "type": "int",
+        "default": 14,
+        "hint": "新查到的知识在这段时间内不参与遗忘，避免刚查到就被清掉。"
+      },
+      "curiosity_persona_id": {
+        "description": "好奇心使用的人格",
+        "type": "string",
+        "default": "",
+        "_special": "select_persona",
+        "hint": "留空=跟随当前会话的人格；选择后，好奇心反思和查到的笔记都用这个人格的性格和语气来写。"
       },
       "curiosity_daily_cap": {
-        "description": "每天最多查几次",
+        "description": "每天查询预算（条）",
         "type": "int",
-        "default": 3,
-        "hint": "每次查询包含一次搜索和一次总结，别设太大。"
+        "default": 5,
+        "hint": "每天最多实际联网查几条；这是搜索成本预算，不是人格配额。手动查询会绕过。"
+      },
+      "curiosity_new_topics_per_day": {
+        "description": "每天最多新增待查（条）",
+        "type": "int",
+        "default": 5,
+        "hint": "不管查到多少，先把“待查”的进水口关小：每天最多新增这么多话题；手动查询不受限。"
+      },
+      "curiosity_pending_soft_limit": {
+        "description": "待查积压软上限",
+        "type": "int",
+        "default": 12,
+        "hint": "积压达到这个数量后，暂停“自己好奇”的新话题；群友明确问的问题仍然可以进来。"
+      },
+      "curiosity_min_gap_minutes": {
+        "description": "两次查询最小间隔（分钟）",
+        "type": "int",
+        "default": 10,
+        "hint": "避免一有消息就连续查好几条；0 表示不限制间隔。"
       },
       "curiosity_quiet_hours": {
         "description": "静默时段",
@@ -701,8 +890,8 @@
       "curiosity_max_chars": {
         "description": "结论长度上限",
         "type": "int",
-        "default": 120,
-        "hint": "总结出来的笔记最长多少字。"
+        "default": 400,
+        "hint": "总结出来的笔记最长多少字；太短会把没写完的句子截断，默认 400。"
       },
       "curiosity_provider_id": {
         "description": "总结用的模型",

@@ -112,6 +112,7 @@ class ReplyHandler:
         reply_context_hint: str = "",
         cross_group_hint: str = "",
         allow_tools: bool = True,
+        extra_tools: list | None = None,
     ) -> ProviderRequest:
         """
         生成AI回复（精简版）
@@ -133,6 +134,7 @@ class ReplyHandler:
             smart_batch_reply_hint: Smart并发批次提示（可选追加消息说明）
             reply_context_hint: 群聊对象边界提示，仅在当前消息涉及其他用户时追加
             allow_tools: 是否把 AstrBot 工具集附加到请求；预生成纯文本时关闭
+            extra_tools: Additional callable tools for this turn.
 
         Returns:
             ProviderRequest对象
@@ -207,6 +209,13 @@ class ReplyHandler:
                     + ReplyHandler.PROMPT_ENDING
                 )
 
+            if len(image_urls) > 1:
+                full_prompt += (
+                    "\n\n[图片上下文] 这些图片按时间先后排列。"
+                    "如果用户没有明确指哪一张，先结合对话判断；"
+                    "仍不确定就直接问是哪张，不要默认成某一张。"
+                )
+
             logger.debug(
                 f"正在调用AI生成回复（当前发送者：{sender_name or '未知'}，ID:{sender_id}）..."
             )
@@ -223,6 +232,18 @@ class ReplyHandler:
                         plugin_tool_set = func_tools_mgr
                 except Exception:
                     pass
+
+            if extra_tools:
+                try:
+                    if plugin_tool_set is None:
+                        from astrbot.core.agent.tool import ToolSet
+
+                        plugin_tool_set = ToolSet()
+                    for tool in extra_tools:
+                        if tool is not None:
+                            plugin_tool_set.add_tool(tool)
+                except Exception as exc:
+                    logger.warning(f"Failed to attach extra tools: {exc}")
 
             # Resolve the final persona for this conversation on every request.
             # This keeps session-forced and conversation-selected personas in sync
@@ -367,6 +388,8 @@ class ReplyHandler:
         history_messages: list | None = None,
         smart_batch_reply_hint: str = "",
         reply_context_hint: str = "",
+        image_urls: list | None = None,
+        extra_tools: list | None = None,
     ) -> str | None:
         """Generate a buffered direct private text reply without executing tools.
 
@@ -379,6 +402,8 @@ class ReplyHandler:
             history_messages: Preserved compatibility argument for prompt building.
             smart_batch_reply_hint: Smart batch context appended to the prompt.
             reply_context_hint: Additional context boundary text.
+            image_urls: Images attached to the current private turn.
+            extra_tools: Additional callable tools for this draft.
 
         Returns:
             Plain generated text, or None when speculative generation is unavailable.
@@ -387,18 +412,20 @@ class ReplyHandler:
             asyncio.CancelledError: Propagates cancellation so a follower can discard
                 the in-flight request without committing its result.
         """
+        image_urls = image_urls or []
         request = await ReplyHandler.generate_reply(
             event,
             context,
             formatted_message,
             extra_prompt,
             prompt_mode,
-            image_urls=[],
+            image_urls=image_urls,
             audio_urls=[],
             history_messages=history_messages,
             smart_batch_reply_hint=smart_batch_reply_hint,
             reply_context_hint=reply_context_hint,
             allow_tools=True,
+            extra_tools=extra_tools,
         )
         if not isinstance(request, ProviderRequest):
             event.set_extra("_persona_presence_reply_error", False)
@@ -420,7 +447,7 @@ class ReplyHandler:
             session_id=request.session_id or event.session_id,
             contexts=request.contexts,
             system_prompt=system_prompt,
-            image_urls=[],
+            image_urls=image_urls,
             audio_urls=[],
             func_tool=request.func_tool,
             extra_user_content_parts=request.extra_user_content_parts,
