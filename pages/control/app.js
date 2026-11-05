@@ -610,9 +610,14 @@ function renderImages() {
   } else {
     host.innerHTML = paged.items
       .map((entry) => {
-        const tags = (entry.tags || [])
+        const allTags = entry.tags || [];
+        const visibleTags = allTags.slice(0, 4);
+        const tags = visibleTags
           .map((tag) => '<span class="image-tag">' + esc(tag) + "</span>")
-          .join("");
+          .join("") +
+          (allTags.length > visibleTags.length
+            ? '<span class="image-tag image-tag-more" title="' + esc(allTags.join("、")) + '">+' + (allTags.length - visibleTags.length) + "</span>"
+            : "");
         const autoStopped = entry.analysis_pending && Number(entry.analysis_attempts || 0) >= Number(entry.analysis_max_retries || 0);
         const descText = entry.analysis_pending
           ? (autoStopped
@@ -625,8 +630,8 @@ function renderImages() {
             ? '<img loading="lazy" src="' + entry.thumb + '" data-image-open="' + esc(entry.id) + '" alt="" />'
             : '<div class="image-empty" style="padding:30px">缩略图不可用</div>') +
           '<div class="image-card-body">' +
-          '<div class="image-card-desc">' + esc(descText) + "</div>" +
-          '<div class="image-tags">' + tags + "</div>" +
+          '<div class="image-card-desc" title="' + esc(descText) + '" data-image-open="' + esc(entry.id) + '">' + esc(descText) + "</div>" +
+          '<div class="image-tags" title="' + esc(allTags.join("、")) + '" data-image-open="' + esc(entry.id) + '">' + tags + "</div>" +
           '<div class="image-card-meta">' + esc(entry.created) + " · " + esc(entry.chat) + " · " + esc(entry.sender) + "</div>" +
           '<div class="image-card-actions">' +
           '<span class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</span>" +
@@ -665,9 +670,15 @@ async function openImageViewer(id) {
       return;
     }
     image.src = data.image;
-    caption.textContent = [data.description, data.created, data.sender]
-      .filter(Boolean)
-      .join(" · ");
+    const tags = data.tags || (entry && entry.tags) || [];
+    caption.innerHTML =
+      '<div class="image-viewer-desc">' + esc(data.description || "") + "</div>" +
+      (tags.length
+        ? '<div class="image-viewer-tags">' + tags.map((tag) => '<span class="image-tag">' + esc(tag) + "</span>").join("") + "</div>"
+        : "") +
+      '<div class="image-viewer-meta">' +
+      esc([data.created, data.sender].filter(Boolean).join(" · ")) +
+      "</div>";
   } catch (err) {
     toast("大图加载失败：" + err.message, "err");
   }

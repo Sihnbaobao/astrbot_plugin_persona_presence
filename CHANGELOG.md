@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.4.2
+
+- **Image card details**: long descriptions and tags are no longer dead-ended by the two-line clamp. Clicking the description/tags opens the lightbox with the full description and every tag; cards show the first four tags plus a `+N` overflow chip and a native tooltip.
+
 ## 1.4.1
 
 - **Content-addressed cross-chat dedupe**: the same image bytes are now one archive entry even when sent in private and group chats. Each conversation is stored as a chat binding, so both can find/send it, but the file and vision analysis are not duplicated. Legacy duplicate entries are merged on load.
