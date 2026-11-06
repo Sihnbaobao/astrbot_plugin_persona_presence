@@ -565,6 +565,7 @@ async function loadImages(query, resetPage) {
       q: IMAGES.query || "",
       offset: IMAGES.page * 24,
       limit: 24,
+      filter: IMAGES.filter || "all",
     });
     const data = res && res.data !== undefined ? res.data : res;
     if (!data || data.status === "error" || !data.ok) {
@@ -629,12 +630,13 @@ function renderImages() {
           (entry.thumb
             ? '<img loading="lazy" src="' + entry.thumb + '" data-image-open="' + esc(entry.id) + '" alt="" />'
             : '<div class="image-empty" style="padding:30px">缩略图不可用</div>') +
+          (entry.animated ? '<span class="image-gif-badge">GIF</span>' : "") +
           '<div class="image-card-body">' +
           '<div class="image-card-desc" title="' + esc(descText) + '" data-image-open="' + esc(entry.id) + '">' + esc(descText) + "</div>" +
           '<div class="image-tags" title="' + esc(allTags.join("、")) + '" data-image-open="' + esc(entry.id) + '">' + tags + "</div>" +
           '<div class="image-card-meta">' + esc(entry.created) + " · " + esc(entry.chat) + " · " + esc(entry.sender) + "</div>" +
+          '<div class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</div>" +
           '<div class="image-card-actions">' +
-          '<span class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</span>" +
           (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重新识图</button>' : "") +
           '<button class="mini-btn' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' title="敏感标签：' + esc(entry.blocked_tag) + '；仅名单内会话可发送"' : "") + '>' + (entry.sendable ? (entry.blocked_tag ? "敏感可发" : "可发送") : "标记可发送") + '</button>' +
           '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
@@ -664,7 +666,7 @@ async function openImageViewer(id) {
   caption.textContent = entry ? (entry.description || "加载大图…") : "加载大图…";
   viewer.hidden = false;
   try {
-    const res = await api.get("image_archive/preview", { id: id });
+    const res = await api.get("image_archive/preview", { id: id, animated: entry && entry.animated ? 1 : 0 });
     const data = res && res.data !== undefined ? res.data : res;
     if (!data || !data.image) {
       toast("大图加载失败", "err");
@@ -1155,7 +1157,7 @@ async function renderPrompts() {
 
 /* ============ 好奇心 ============ */
 const CURIOSITY = { data: null, loading: false, pagePending: 0, pageKnown: 0, editing: null };
-const IMAGES = { data: null, loading: false, page: 0, token: "", query: "" };
+const IMAGES = { data: null, loading: false, page: 0, token: "", query: "", filter: "all" };
 
 const CURIOSITY_SOURCE = {
   interest: "自己好奇",
@@ -1698,6 +1700,14 @@ async function init() {
 
   const imageSearch = document.getElementById("imageSearch");
   const imageSearchBtn = document.getElementById("imageSearchBtn");
+  const imageFilter = document.getElementById("imageFilter");
+  if (imageFilter) {
+    IMAGES.filter = imageFilter.value || "all";
+    imageFilter.addEventListener("change", () => {
+      IMAGES.filter = imageFilter.value || "all";
+      loadImages(IMAGES.query, true);
+    });
+  }
   if (imageSearchBtn) imageSearchBtn.addEventListener("click", () => loadImages(imageSearch ? imageSearch.value : "", true));
   if (imageSearch) {
     imageSearch.addEventListener("keydown", (event) => {

@@ -557,8 +557,20 @@ class ImageArchive:
             logger.debug(f"[图片库] 缩略图失败: {exc}")
             return ""
 
-    def preview_data_url(self, entry: "ArchiveEntry", max_size: int = 1600) -> str:
-        """Build a cached large JPEG preview for the lightbox."""
+    def preview_data_url(
+        self, entry: "ArchiveEntry", max_size: int = 1600, animated: bool = False
+    ) -> str:
+        """Build a cached large preview, preserving GIF animation when asked."""
+        if animated and str(entry.file).lower().endswith(".gif"):
+            import base64
+
+            source = self.root / entry.file
+            try:
+                data = source.read_bytes()
+            except OSError:
+                return ""
+            if data and len(data) <= 16 * 1024 * 1024:
+                return "data:image/gif;base64," + base64.b64encode(data).decode()
         import base64
         from io import BytesIO
 

@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.7.3（Persona Presence 参与判断重构）
+版本: 1.7.4（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.7.3"
+PLUGIN_VERSION = "1.7.4"
 
 
 @register(
@@ -3254,10 +3254,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         archive.prune()
         try:
             query = str(request.query.get("q", "") or "").strip()
+            filter_value = str(request.query.get("filter", "all") or "all").strip()
             offset = max(0, int(request.query.get("offset", 0) or 0))
             limit = max(1, min(48, int(request.query.get("limit", 12) or 12)))
         except Exception:
             query = ""
+            filter_value = "all"
             offset = 0
             limit = 12
         entries = [entry for entry in archive.entries if entry.status == "active"]
@@ -3267,6 +3269,25 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 for entry in entries
                 if query in entry.description or query in " ".join(entry.tags)
             ]
+        if filter_value == "sendable":
+            entries = [entry for entry in entries if entry.sendable]
+        elif filter_value == "unsendable":
+            entries = [entry for entry in entries if not entry.sendable]
+        elif filter_value == "favorite":
+            entries = [entry for entry in entries if entry.favorite]
+        elif filter_value.startswith("tag:"):
+            tag = filter_value[4:].strip().lower()
+            if tag:
+                if tag in {"r18", "敏感"}:
+                    entries = [
+                        entry for entry in entries if send_block_reason(entry.tags)
+                    ]
+                else:
+                    entries = [
+                        entry
+                        for entry in entries
+                        if any(tag in str(item).lower() for item in (entry.tags or []))
+                    ]
         entries.sort(
             key=lambda entry: (entry.favorite, entry.score, entry.created_at),
             reverse=True,
@@ -3288,6 +3309,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     "analysis_attempts": entry.analysis_attempts,
                     "analysis_error": entry.analysis_error,
                     "analysis_max_retries": self.image_archive_max_analysis_retries,
+                    "animated": str(entry.file).lower().endswith(".gif"),
                     "size_kb": max(1, entry.size // 1024),
                     "created": datetime.fromtimestamp(entry.created_at).strftime(
                         "%m-%d %H:%M"
@@ -3360,7 +3382,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         if entry is None:
             return error_response("没有找到这张图片")
-        preview = archive.preview_data_url(entry)
+        animated = str(request.query.get("animated", "") or "").strip() in {
+            "1",
+            "true",
+            "yes",
+        }
+        preview = archive.preview_data_url(entry, animated=animated)
         if not preview:
             return error_response("图片文件不存在或无法预览")
         return json_response(

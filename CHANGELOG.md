@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 1.7.4
+
+- Image cards now separate the score/size metadata from the action row, so the sendable button no longer covers file information; actions wrap instead of turning into vertical text.
+- Added image-library filters: all, sendable, unmarked, favorite, and tags such as 表情包 / R18 / 截图.
+- GIFs stay stored as GIFs. Cards still show a static thumbnail with a GIF badge; opening the lightbox loads the animated original.
+
 ## 1.7.3
 
 - **Image library pagination**: 24 images per page (three rows at the usual desktop width), and the image pager is centered instead of pushed to the far edges. Card actions wrap cleanly with the sendable button.
