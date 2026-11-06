@@ -857,6 +857,7 @@ html[data-theme="dark"] .curiosity-source.manual { color: #e3b341; }
   color: var(--text-2); font: inherit; font-size: var(--fs-micro); cursor: pointer;
 }
 .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+.mini-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(47, 107, 255, .08); }
 .mini-btn.danger { color: #b42318; border-color: rgba(180, 35, 24, .28); }
 html[data-theme="dark"] .mini-btn.danger { color: #ff8a80; }
 .pager {

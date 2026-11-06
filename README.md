@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.7.0。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.7.1。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -18,6 +18,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 - 私聊生成方式（二选一）：`precomputed` 提前生成草稿，回复更快但不支持多气泡；`followup` 关闭预生成、走完整工具链，允许模型用 `queue_followup` 排一条补充。切换选项会自动关闭另一种方式，最多一条，不额外调用模型。
 - 表情桥接（实验）：开启后模型可用 `queue_meme(query)` 通过 meme_manager 的语义索引选一张具体图片，并进当前回复；没有正文时只发表情。默认关闭，private 范围；meme_manager 或索引不可用时自动退回普通回复。
 - 图片处理：图片转文字、图片描述缓存、多模态直传，以及私聊纯图片独立策略。
+- 图片库发送权限：默认不发送；页面逐张标记“可发送”后才能用 `queue_saved_image` 并进当前回复。带截图、聊天记录、二维码/证件、真人照片、R18/性暗示等标签的图会被拦截。
 - 表情包处理：纯表情包可忽略、交给参与判断或直接处理；重复表情包可折叠。
 - 人格切换：正式回复每次解析当前会话最终人格，支持会话强制人格、会话选择人格和默认人格。
 - 上下文与历史：正式回复使用 AstrBot 官方历史链路；群聊参与判断也读取已启用的 AstrBot 官方群聊上下文缓冲（默认最多 1000 条），支持时间、发送者和媒体信息整理。

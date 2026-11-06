@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 1.7.1
+
+- **Image-library send permission**: archived images are no longer sendable by default. A new per-image `sendable` flag, exposed as a toggle in the image library page, is required before `send_saved_image` or `queue_saved_image` can use it.
+- Added generic safety tags (`表情包`, `截图`, `聊天记录`, `二维码/证件`, `真人照片`, `R18/性暗示`, `血腥/暴力`) and a blocked-tag filter. Sensitive images cannot be marked sendable.
+- Added `queue_saved_image(image_id)` so a permitted archive image can be merged with the final reply or sent alone when the final text is empty.
+
 ## 1.7.0
 
 - **Optional meme bridge**: `queue_meme(query)` selects one specific image through meme_manager's semantic index and queues it for the current reply. The base merges it into the final message chain, so text+image stay together and an empty/punctuation-only reply becomes a pure meme. Off by default; private scope by default; falls back to no image when meme_manager or its index is unavailable.

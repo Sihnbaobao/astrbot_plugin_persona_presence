@@ -18,6 +18,51 @@ logger = logging.getLogger("astrbot")
 
 _MAX_ENTRIES = 2000
 
+# Tags that make an archived image unsuitable for automatic sending.
+_SEND_BLOCK_TAGS = (
+    "r18",
+    "色情",
+    "性暗示",
+    "露骨",
+    "血腥",
+    "暴力",
+    "证件",
+    "二维码",
+    "聊天记录",
+    "截图",
+    "真人照片",
+)
+
+
+def send_block_reason(tags: list | None) -> str:
+    """Return the first tag that blocks sending, or an empty string.
+
+    Args:
+        tags: Archive entry tags.
+
+    Returns:
+        The blocking tag, or an empty string when the image is sendable.
+    """
+    text = " ".join(str(tag).lower() for tag in (tags or []))
+    for tag in _SEND_BLOCK_TAGS:
+        if tag in text:
+            return tag
+    return ""
+
+
+def entry_can_send(entry: "ArchiveEntry") -> bool:
+    """Tell whether an archive entry may be sent as a meme.
+
+    Args:
+        entry: Archive entry to inspect.
+
+    Returns:
+        True only for manually enabled entries without sensitive tags.
+    """
+    return bool(getattr(entry, "sendable", False)) and not send_block_reason(
+        getattr(entry, "tags", [])
+    )
+
 
 @dataclass
 class ArchiveEntry:
@@ -39,6 +84,7 @@ class ArchiveEntry:
         tags: Searchable tags.
         score: Model interest score, 0 to 1.
         favorite: Whether the image is worth keeping for review.
+        sendable: Whether the user allowed this image to be sent as a meme.
         analysis_pending: Whether vision analysis still needs a retry.
         analysis_attempts: Number of failed analysis attempts.
         analysis_last_try: Last analysis attempt timestamp.
@@ -64,6 +110,7 @@ class ArchiveEntry:
     tags: list = field(default_factory=list)
     score: float = 0.0
     favorite: bool = False
+    sendable: bool = False
     analysis_pending: bool = False
     analysis_attempts: int = 0
     analysis_last_try: float = 0.0
@@ -385,6 +432,26 @@ class ImageArchive:
         found.sort(key=lambda item: (-item[0], -item[1], -item[2].created_at))
         return [entry for _hits, _score, entry in found[: max(1, int(limit))]]
 
+    def set_sendable(self, entry_id: str, sendable: bool) -> bool:
+        """Allow or forbid sending one archived image as a meme.
+
+        Args:
+            entry_id: Archive id.
+            sendable: New manual send permission.
+
+        Returns:
+            True when the entry exists and the new state is allowed.
+        """
+        for entry in self.entries:
+            if entry.id != entry_id or entry.status != "active":
+                continue
+            if sendable and send_block_reason(entry.tags):
+                return False
+            entry.sendable = bool(sendable)
+            self._save()
+            return True
+        return False
+
     def due_for_review(self, limit: int = 3, now: float | None = None) -> list:
         """Return favorites whose review time has arrived."""
         current = float(now if now is not None else time.time())
@@ -603,6 +670,8 @@ class ImageArchive:
             for chat in entry.chat_ids or [entry.chat_id]:
                 if not self.matches_entry(first, chat):
                     first.chat_ids.append(chat)
+            if entry.sendable:
+                first.sendable = True
             if not first.description and entry.description:
                 first.description = entry.description
                 first.tags = list(entry.tags)

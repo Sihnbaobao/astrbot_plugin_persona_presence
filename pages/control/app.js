@@ -636,6 +636,7 @@ function renderImages() {
           '<div class="image-card-actions">' +
           '<span class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</span>" +
           (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重新识图</button>' : "") +
+          '<button class="mini-btn' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' disabled title="敏感标签：' + esc(entry.blocked_tag) + '"' : "") + '>' + (entry.blocked_tag ? "不可发送" : (entry.sendable ? "可发送" : "标记可发送")) + '</button>' +
           '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
           "</div></div></article>"
         );
@@ -701,6 +702,26 @@ async function rateArchiveImage(id, button) {
     await loadImages(IMAGES.query);
   } catch (err) {
     toast("识图失败：" + err.message, "err");
+  } finally {
+    if (button && button.isConnected) button.disabled = false;
+  }
+}
+
+async function toggleArchiveSendable(id, button) {
+  if (!id) return;
+  const next = button && button.dataset.sendable !== "1";
+  if (button) button.disabled = true;
+  try {
+    const res = await api.post("image_archive/sendable", { id: id, sendable: next });
+    const data = res && res.data !== undefined ? res.data : res;
+    if (!data || !data.ok) {
+      toast((data && (data.message || data.error)) || "更新失败", "err");
+      return;
+    }
+    toast(next ? "已标记为可发送" : "已取消可发送", "ok");
+    await loadImages(IMAGES.query);
+  } catch (err) {
+    toast("更新失败：" + err.message, "err");
   } finally {
     if (button && button.isConnected) button.disabled = false;
   }
@@ -1394,6 +1415,8 @@ document.addEventListener("click", (event) => {
   if (imageOpen) openImageViewer(imageOpen.dataset.imageOpen);
   const imageRate = event.target.closest && event.target.closest("[data-image-rate]");
   if (imageRate) rateArchiveImage(imageRate.dataset.imageRate, imageRate);
+  const imageSendable = event.target.closest && event.target.closest("[data-image-sendable]");
+  if (imageSendable) toggleArchiveSendable(imageSendable.dataset.imageSendable, imageSendable);
   const imageDel = event.target.closest && event.target.closest("[data-image-delete]");
   if (imageDel) deleteArchiveImage(imageDel.dataset.imageDelete, imageDel);
 });

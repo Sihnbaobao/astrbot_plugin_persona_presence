@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.7.0（Persona Presence 参与判断重构）
+版本: 1.7.1（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -93,13 +93,17 @@ from .utils.message_cache_manager import MessageCacheManager
 from .utils.modules.base import FeatureContext, Proposal
 from .utils.modules.curiosity import CuriosityModule
 from .utils.modules.curiosity_store import CuriosityStore
-from .utils.modules.image_archive import ImageArchive
+from .utils.modules.image_archive import (
+    ImageArchive,
+    entry_can_send,
+    send_block_reason,
+)
 from .utils.modules.notebook import Notebook
 from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.7.0"
+PLUGIN_VERSION = "1.7.1"
 
 
 @register(
@@ -1649,6 +1653,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     f"- image_id={entry.id} | {entry.description or '（无描述）'} | "
                     f"标签：{', '.join(entry.tags) or '无'} | "
                     f"评分：{entry.score:.2f} | "
+                    f"可发送：{'是' if entry_can_send(entry) else '否'}"
+                    f"{('（敏感标签：' + send_block_reason(entry.tags) + '）') if send_block_reason(entry.tags) else ''} | "
                     f"时间：{datetime.fromtimestamp(entry.created_at).strftime('%m-%d %H:%M')}"
                 )
             return "\n".join(lines)
@@ -1666,6 +1672,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
             if entry is None:
                 return "没有找到这张图，或它不属于当前会话。"
+            if not entry_can_send(entry):
+                reason = send_block_reason(entry.tags)
+                if reason:
+                    return f"这张图带有敏感标签「{reason}」，不能发送。"
+                return "这张图还没有标记为可发送。"
             path = archive.root / entry.file
             if not path.is_file():
                 return "图片文件已经不在了。"
@@ -1674,6 +1685,35 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
             logger.info(f"[图片工具] 发送存档图 {entry.id}")
             return f"已把图片 {entry.id} 发到当前会话。"
+
+        async def queue_saved_image(event, image_id: str) -> str:
+            entry = next(
+                (
+                    item
+                    for item in archive.entries
+                    if item.id == str(image_id).strip()
+                    and item.status == "active"
+                    and archive.matches_entry(item, self._archive_chat_key(event))
+                ),
+                None,
+            )
+            if entry is None:
+                return "没有找到这张图，或它不属于当前会话。"
+            if not entry_can_send(entry):
+                reason = send_block_reason(entry.tags)
+                if reason:
+                    return f"这张图带有敏感标签「{reason}」，不能发送。"
+                return "这张图还没有标记为可发送。"
+            path = archive.root / entry.file
+            if not path.is_file():
+                return "图片文件已经不在了。"
+            pending = list(event.get_extra("_persona_queued_memes") or [])
+            if len(pending) >= self.meme_bridge_max_per_turn:
+                return "当前回复里已经有表情了。"
+            pending.append(str(path))
+            event.set_extra("_persona_queued_memes", pending)
+            logger.info(f"[图片工具] 排队存档图 {entry.id}")
+            return "已排进当前回复。"
 
         async def send_current_image(event, index: int = 1) -> str:
             refs = []
@@ -1754,6 +1794,25 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 handler=send_saved_image,
             ),
             FunctionTool(
+                name="queue_saved_image",
+                description=(
+                    "Queue a saved image into the current reply instead of "
+                    "sending it immediately. image_id must come from "
+                    "search_saved_images, and the image must be marked sendable."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "image_id": {
+                            "type": "string",
+                            "description": "The image_id from search_saved_images.",
+                        }
+                    },
+                    "required": ["image_id"],
+                },
+                handler=queue_saved_image,
+            ),
+            FunctionTool(
                 name="send_current_image",
                 description=(
                     "Send an image from the current turn by 1-based index. "
@@ -1827,6 +1886,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "以及这张图可能被拿来做什么；不要只写“一个女孩”。\n"
             "tags：6 到 10 个细粒度中文标签，覆盖主体、动作/表情、文字或梗、"
             "风格/用途和情绪；按你的关注点写，不要只堆“二次元/插画”。\n"
+            "另外按画面加通用用途标签，有就加、没有就不加：表情包、截图、"
+            "聊天记录、二维码/证件、真人照片、R18/性暗示、血腥/暴力。\n"
             '只输出 JSON：{"description":"一到两句描述",'
             '"tags":["6到10个标签"],"score":0.0,'
             '"favorite":true/false}'
@@ -1874,7 +1935,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             favorite = data.get("favorite")
             return {
                 "description": str(data.get("description") or "").strip(),
-                "tags": [str(tag).strip() for tag in tags if str(tag).strip()][:5],
+                "tags": [str(tag).strip() for tag in tags if str(tag).strip()][:10],
                 "score": max(0.0, min(1.0, score)),
                 "favorite": bool(favorite) if isinstance(favorite, bool) else None,
             }
@@ -2890,6 +2951,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "删除一张图片库图片",
             )
             self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/image_archive/sendable",
+                self._api_image_archive_sendable,
+                ["POST"],
+                "标记图片库图片是否可发送",
+            )
+            self.context.register_web_api(
                 f"/{self._PLUGIN_NAME}/notebook",
                 self._api_notebook,
                 ["GET"],
@@ -3183,6 +3250,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     "tags": entry.tags,
                     "score": round(entry.score, 2),
                     "favorite": entry.favorite,
+                    "sendable": bool(entry.sendable),
+                    "blocked_tag": send_block_reason(entry.tags),
                     "analysis_pending": entry.analysis_pending,
                     "analysis_attempts": entry.analysis_attempts,
                     "analysis_error": entry.analysis_error,
@@ -3343,6 +3412,39 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if not archive.remove(entry_id):
             return error_response("没有找到这张图片")
         return json_response({"ok": True})
+
+    async def _api_image_archive_sendable(self):
+        """Allow or forbid sending one archived image as a meme."""
+        from astrbot.api.web import error_response, json_response, request
+
+        archive = getattr(self, "image_archive", None)
+        if archive is None:
+            return error_response("图片库未启用")
+        try:
+            payload = await request.json(default={})
+        except Exception:
+            payload = {}
+        payload = payload or {}
+        entry_id = str(payload.get("id") or "").strip()
+        sendable = bool(payload.get("sendable"))
+        if not entry_id:
+            return error_response("缺少 id")
+        entry = next(
+            (
+                item
+                for item in archive.entries
+                if item.id == entry_id and item.status == "active"
+            ),
+            None,
+        )
+        if entry is None:
+            return error_response("没有找到这张图片")
+        blocked = send_block_reason(entry.tags)
+        if sendable and blocked:
+            return error_response(f"这张图带有敏感标签「{blocked}」，不能标记为可发送")
+        if not archive.set_sendable(entry_id, sendable):
+            return error_response("更新失败")
+        return json_response({"ok": True, "sendable": sendable})
 
     async def _api_notebook(self):
         """Return the persona's notebook as a node/edge network."""
