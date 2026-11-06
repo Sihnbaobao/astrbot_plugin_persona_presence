@@ -563,8 +563,8 @@ async function loadImages(query, resetPage) {
   try {
     const res = await api.get("image_archive", {
       q: IMAGES.query || "",
-      offset: IMAGES.page * 12,
-      limit: 12,
+      offset: IMAGES.page * 24,
+      limit: 24,
     });
     const data = res && res.data !== undefined ? res.data : res;
     if (!data || data.status === "error" || !data.ok) {
@@ -601,7 +601,7 @@ function renderImages() {
   if (!host) return;
   const entries = data.entries || [];
   const total = Number(data.total ?? entries.length);
-  const pages = Math.max(1, Math.ceil(total / 12));
+  const pages = Math.max(1, Math.ceil(total / 24));
   const current = Math.min(Math.max(0, IMAGES.page), pages - 1);
   IMAGES.page = current;
   const paged = { items: entries, page: current, pages: pages, total: total };
@@ -636,7 +636,7 @@ function renderImages() {
           '<div class="image-card-actions">' +
           '<span class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</span>" +
           (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重新识图</button>' : "") +
-          '<button class="mini-btn' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' disabled title="敏感标签：' + esc(entry.blocked_tag) + '"' : "") + '>' + (entry.blocked_tag ? "不可发送" : (entry.sendable ? "可发送" : "标记可发送")) + '</button>' +
+          '<button class="mini-btn' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' title="敏感标签：' + esc(entry.blocked_tag) + '；仅名单内会话可发送"' : "") + '>' + (entry.sendable ? (entry.blocked_tag ? "敏感可发" : "可发送") : "标记可发送") + '</button>' +
           '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
           "</div></div></article>"
         );

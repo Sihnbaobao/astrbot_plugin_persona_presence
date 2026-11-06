@@ -50,20 +50,6 @@ def send_block_reason(tags: list | None) -> str:
     return ""
 
 
-def entry_can_send(entry: "ArchiveEntry") -> bool:
-    """Tell whether an archive entry may be sent as a meme.
-
-    Args:
-        entry: Archive entry to inspect.
-
-    Returns:
-        True only for manually enabled entries without sensitive tags.
-    """
-    return bool(getattr(entry, "sendable", False)) and not send_block_reason(
-        getattr(entry, "tags", [])
-    )
-
-
 @dataclass
 class ArchiveEntry:
     """One stored image and the context needed to find it again.
@@ -445,8 +431,6 @@ class ImageArchive:
         for entry in self.entries:
             if entry.id != entry_id or entry.status != "active":
                 continue
-            if sendable and send_block_reason(entry.tags):
-                return False
             entry.sendable = bool(sendable)
             self._save()
             return True

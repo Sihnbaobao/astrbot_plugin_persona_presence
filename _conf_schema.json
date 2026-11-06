@@ -659,6 +659,18 @@
         "type": "float",
         "default": 0.6,
         "hint": "模型评分达到这个值才当作收藏图，进入回看流程。"
+      },
+      "archive_sensitive_send_enabled": {
+        "description": "允许敏感图片发送",
+        "type": "bool",
+        "default": false,
+        "hint": "关闭时，带 R18/性暗示/色情/露骨/血腥/暴力等标签的图片即使标记可发送也会被拦截。开启后仍需会话在下方名单内。"
+      },
+      "archive_sensitive_allowlist": {
+        "description": "敏感图片发送名单",
+        "type": "list",
+        "default": [],
+        "hint": "填写允许接收敏感图片的群号或用户 QQ 号，每行一个。留空=任何会话都不允许。群聊会同时检查群号和发送者。"
       }
     }
   },

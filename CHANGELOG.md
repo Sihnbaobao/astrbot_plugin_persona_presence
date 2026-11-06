@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.7.3
+
+- **Image library pagination**: 24 images per page (three rows at the usual desktop width), and the image pager is centered instead of pushed to the far edges. Card actions wrap cleanly with the sendable button.
+- **Sensitive-image allowlist**: sensitive tags are still blocked by default. When `archive_sensitive_send_enabled` is on, only conversations whose group id or sender id appears in `archive_sensitive_allowlist` may receive them; an empty list allows nobody. Sensitive images can now be marked sendable, but delivery still checks the allowlist.
+
 ## 1.7.2
 
 - **Repeated-reply collapse**: if the model emits the exact same whole sentence twice, the output stage now keeps one copy. The check requires a repeated unit of at least six characters so short emphasis like “哈哈” is untouched.

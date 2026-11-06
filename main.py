@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.7.2（Persona Presence 参与判断重构）
+版本: 1.7.3（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -95,7 +95,6 @@ from .utils.modules.curiosity import CuriosityModule
 from .utils.modules.curiosity_store import CuriosityStore
 from .utils.modules.image_archive import (
     ImageArchive,
-    entry_can_send,
     send_block_reason,
 )
 from .utils.modules.notebook import Notebook
@@ -103,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.7.2"
+PLUGIN_VERSION = "1.7.3"
 
 
 @register(
@@ -310,6 +309,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self.image_archive_min_score = self._cfg_float(
             "image_archive_min_score", 0.6, minimum=0.0, maximum=1.0
+        )
+        self.archive_sensitive_send_enabled = self._cfg_bool(
+            "archive_sensitive_send_enabled", False
+        )
+        self.archive_sensitive_allowlist = self._cfg_list(
+            "archive_sensitive_allowlist", []
         )
         self.enable_image_description_cache = self._cfg_bool(
             "enable_image_description_cache", False
@@ -1557,6 +1562,37 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
         ]
 
+    def _archive_entry_send_error(self, event, entry) -> str:
+        """Return why an archive entry cannot be sent, or an empty string.
+
+        Args:
+            event: Current conversation event.
+            entry: Archive entry to check.
+
+        Returns:
+            User-facing rejection reason, or an empty string when allowed.
+        """
+        if not bool(getattr(entry, "sendable", False)):
+            return "这张图还没有标记为可发送。"
+        blocked = send_block_reason(getattr(entry, "tags", []))
+        if not blocked:
+            return ""
+        if not self.archive_sensitive_send_enabled:
+            return f"这张图带有敏感标签「{blocked}」，当前未开启敏感图发送。"
+        allowlist = {str(item).strip() for item in self.archive_sensitive_allowlist}
+        if not allowlist:
+            return f"这张图带有敏感标签「{blocked}」，但敏感发送名单为空。"
+        chat_ids = {str(event.get_sender_id() or "").strip()}
+        try:
+            if not event.is_private_chat():
+                chat_ids.add(str(event.get_group_id() or "").strip())
+        except Exception:
+            pass
+        chat_ids.discard("")
+        if not (chat_ids & allowlist):
+            return f"这张图带有敏感标签「{blocked}」，当前会话不在敏感发送名单内。"
+        return ""
+
     def _meme_bridge_enabled(self, is_private: bool) -> bool:
         """Tell whether the optional meme bridge applies to this scope.
 
@@ -1653,7 +1689,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     f"- image_id={entry.id} | {entry.description or '（无描述）'} | "
                     f"标签：{', '.join(entry.tags) or '无'} | "
                     f"评分：{entry.score:.2f} | "
-                    f"可发送：{'是' if entry_can_send(entry) else '否'}"
+                    f"可发送：{'是' if entry.sendable else '否'}"
                     f"{('（敏感标签：' + send_block_reason(entry.tags) + '）') if send_block_reason(entry.tags) else ''} | "
                     f"时间：{datetime.fromtimestamp(entry.created_at).strftime('%m-%d %H:%M')}"
                 )
@@ -1672,11 +1708,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
             if entry is None:
                 return "没有找到这张图，或它不属于当前会话。"
-            if not entry_can_send(entry):
-                reason = send_block_reason(entry.tags)
-                if reason:
-                    return f"这张图带有敏感标签「{reason}」，不能发送。"
-                return "这张图还没有标记为可发送。"
+            reason = self._archive_entry_send_error(event, entry)
+            if reason:
+                return reason
             path = archive.root / entry.file
             if not path.is_file():
                 return "图片文件已经不在了。"
@@ -1699,11 +1733,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
             if entry is None:
                 return "没有找到这张图，或它不属于当前会话。"
-            if not entry_can_send(entry):
-                reason = send_block_reason(entry.tags)
-                if reason:
-                    return f"这张图带有敏感标签「{reason}」，不能发送。"
-                return "这张图还没有标记为可发送。"
+            reason = self._archive_entry_send_error(event, entry)
+            if reason:
+                return reason
             path = archive.root / entry.file
             if not path.is_file():
                 return "图片文件已经不在了。"
@@ -3439,9 +3471,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         if entry is None:
             return error_response("没有找到这张图片")
-        blocked = send_block_reason(entry.tags)
-        if sendable and blocked:
-            return error_response(f"这张图带有敏感标签「{blocked}」，不能标记为可发送")
         if not archive.set_sendable(entry_id, sendable):
             return error_response("更新失败")
         return json_response({"ok": True, "sendable": sendable})
