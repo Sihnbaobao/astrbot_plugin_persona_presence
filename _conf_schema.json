@@ -294,6 +294,35 @@
           "followup"
         ],
         "hint": "二选一：precomputed=提前生成草稿，回复更快，但不支持多气泡；followup=关闭预生成，走完整工具链，允许一条补充。切换这个选项会自动关闭另一种方式。"
+      },
+      "enable_meme_bridge": {
+        "description": "表情桥接（实验）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后提供一个 queue_meme 工具：按自然语言从 meme_manager 的语义索引选一张具体图片，并入当前回复。关闭不影响本体和 meme_manager。"
+      },
+      "meme_bridge_scope": {
+        "description": "表情桥接范围",
+        "type": "string",
+        "default": "private",
+        "options": [
+          "private",
+          "group",
+          "both"
+        ],
+        "hint": "private=只私聊；group=只群聊；both=都生效。群聊请谨慎开启，避免频繁配图。"
+      },
+      "meme_bridge_min_score": {
+        "description": "表情匹配最低分",
+        "type": "float",
+        "default": 0.25,
+        "hint": "语义匹配低于该分数就不选图，避免硬塞不相关的表情。"
+      },
+      "meme_bridge_max_per_turn": {
+        "description": "每轮最多表情数",
+        "type": "int",
+        "default": 1,
+        "hint": "一次回复最多排队几张表情图；建议 1。"
       }
     }
   },

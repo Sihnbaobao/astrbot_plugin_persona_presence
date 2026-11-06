@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.6.6（Persona Presence 参与判断重构）
+版本: 1.7.0（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -88,6 +88,7 @@ from .utils.jargon import (
     parse_json_block,
     search_web as search_jargon_web,
 )
+from .utils.meme_bridge import select_meme_image
 from .utils.message_cache_manager import MessageCacheManager
 from .utils.modules.base import FeatureContext, Proposal
 from .utils.modules.curiosity import CuriosityModule
@@ -98,7 +99,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.6.6"
+PLUGIN_VERSION = "1.7.0"
 
 
 @register(
@@ -474,6 +475,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self.followup_max_delay_ms = self._cfg_int(
             "followup_max_delay_ms", 2200, minimum=0, maximum=10_000
+        )
+
+        # ========== 表情桥接（可选，依赖 meme_manager） ==========
+        self.enable_meme_bridge = self._cfg_bool("enable_meme_bridge", False)
+        self.meme_bridge_scope = self._cfg_choice(
+            "meme_bridge_scope", "private", {"private", "group", "both"}
+        )
+        self.meme_bridge_min_score = self._cfg_float(
+            "meme_bridge_min_score", 0.25, minimum=0.0, maximum=1.0
+        )
+        self.meme_bridge_max_per_turn = self._cfg_int(
+            "meme_bridge_max_per_turn", 1, minimum=1, maximum=2
         )
 
         # ========== 性能警告阈值 ==========
@@ -1537,6 +1550,75 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     "required": ["text"],
                 },
                 handler=queue_followup,
+            )
+        ]
+
+    def _meme_bridge_enabled(self, is_private: bool) -> bool:
+        """Tell whether the optional meme bridge applies to this scope.
+
+        Args:
+            is_private: Whether the current turn is a private conversation.
+
+        Returns:
+            True when enabled and the configured scope includes this chat.
+        """
+        if not self.enable_meme_bridge:
+            return False
+        if self.meme_bridge_scope == "private":
+            return is_private
+        if self.meme_bridge_scope == "group":
+            return not is_private
+        return True
+
+    def _meme_bridge_tools(self, is_private: bool) -> list:
+        """Build the optional same-message meme selection tool.
+
+        Args:
+            is_private: Whether the current turn is a private conversation.
+
+        Returns:
+            A one-item tool list when the bridge applies to this chat.
+        """
+        from astrbot.core.agent.tool import FunctionTool
+
+        if not self._meme_bridge_enabled(is_private):
+            return []
+
+        async def queue_meme(event, query: str = "") -> str:
+            cleaned = str(query or "").strip()
+            if not cleaned:
+                return "没有描述想表达的意思。"
+            pending = list(event.get_extra("_persona_queued_memes") or [])
+            if len(pending) >= self.meme_bridge_max_per_turn:
+                return "当前回复里已经有表情了。"
+            path = await select_meme_image(
+                self.context, event, cleaned, self.meme_bridge_min_score
+            )
+            if not path:
+                return "没有找到合适的表情图。"
+            pending.append(path)
+            event.set_extra("_persona_queued_memes", pending)
+            logger.info(f"[表情桥接] 已选图：{Path(path).name}")
+            return "已排进当前回复。"
+
+        return [
+            FunctionTool(
+                name="queue_meme",
+                description=(
+                    "按自然语言描述从表情图库选一张具体的图，排进当前回复；"
+                    "不立即发送。只想发表情时可以不写正文。"
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "这张图要表达的意思、情绪或态度",
+                        }
+                    },
+                    "required": ["query"],
+                },
+                handler=queue_meme,
             )
         ]
 
@@ -5133,7 +5215,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         raw_chat_id,
                         history_messages,
                         merged_image_urls,
-                        self._image_tools() + self._followup_tools(is_private=True),
+                        self._image_tools()
+                        + self._followup_tools(is_private=True)
+                        + self._meme_bridge_tools(is_private=True),
                     )
                 )
                 logger.info(
@@ -7304,6 +7388,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "如果确实还有半句自然想补的，可以交给 queue_followup，"
                 "等主回复发出后再接着发。不要为了凑第二条硬拆一句话。"
             )
+        if self._meme_bridge_enabled(is_private):
+            final_message += (
+                "\n\n[表情] 需要配图时可以用 queue_meme 选一张具体的图，"
+                "它会并进当前回复；如果只想发表情，可以只调用 queue_meme，"
+                "不要再写正文。"
+            )
 
         # Generate the formal reply after context preparation.
         if self.debug_mode:
@@ -7357,7 +7447,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     cross_group_hint=cross_group_hint,
                     extra_tools=self._image_tools()
                     + self._lookup_tools()
-                    + self._followup_tools(is_private),
+                    + self._followup_tools(is_private)
+                    + self._meme_bridge_tools(is_private),
                 )
         except Exception as e:
             ai_error_flag = True
@@ -8016,6 +8107,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 else:
                     req.func_tool = plugin_tool_set
 
+            if self._meme_bridge_enabled(event.is_private_chat()):
+                remove_tool = getattr(req.func_tool, "remove_tool", None)
+                if callable(remove_tool):
+                    for tool_name in ("send_meme", "search_memes"):
+                        try:
+                            remove_tool(tool_name)
+                        except Exception:
+                            pass
+
             # Skills are intentionally not appended to every persona reply.
             # The request keeps its tool set, while unrelated skill instructions stay out
             # of the persona system prompt.
@@ -8126,6 +8226,30 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     return
 
             result = event.get_result()
+            queued_meme_paths = list(event.get_extra("_persona_queued_memes") or [])
+            if queued_meme_paths:
+                if result is None:
+                    result = event.make_result()
+                    event.set_result(result)
+                if not hasattr(result, "chain"):
+                    return
+                chain = list(result.chain or [])
+                text_only = "".join(
+                    self._coerce_component_text(getattr(comp, "text", None))
+                    for comp in chain
+                ).strip()
+                if not text_only or not re.sub(
+                    r"[\s.。…·!！?？,，、~～\-—]+", "", text_only
+                ):
+                    chain = [comp for comp in chain if not hasattr(comp, "text")]
+                for path in queued_meme_paths:
+                    try:
+                        chain.append(Image.fromFileSystem(path))
+                    except Exception as image_err:
+                        logger.warning(f"[表情桥接] 图片加载失败: {image_err}")
+                result.chain = chain
+                event.set_extra("_persona_queued_memes", None)
+                logger.info("[表情桥接] 已把选中的表情并入当前回复")
             if not result or not hasattr(result, "chain") or not result.chain:
                 return
 

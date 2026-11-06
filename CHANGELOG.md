@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.7.0
+
+- **Optional meme bridge**: `queue_meme(query)` selects one specific image through meme_manager's semantic index and queues it for the current reply. The base merges it into the final message chain, so text+image stay together and an empty/punctuation-only reply becomes a pure meme. Off by default; private scope by default; falls back to no image when meme_manager or its index is unavailable.
+- While the bridge is enabled, the old direct `send_meme`/`search_memes` tools are removed from the request so the model doesn't bypass the merge path.
+
 ## 1.6.6
 
 - **Meme closing guard in the base plugin**: when `meme_manager` reports a direct `send_meme` send, a final reply made only of punctuation (for example `...` or `……`) is dropped. The fix lives in Persona Presence rather than the third-party meme plugin, so updating meme_manager does not erase it.
