@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.9
+
+- The image-card delete button is neutral by default and uses the accent colour on hover; red is reserved for the second-click confirmation state, making that state easier to notice.
+
 ## 1.7.8
 
 - The image-card delete button now gets a red hover highlight, matching the visual feedback of the sendable toggle instead of staying visually inert on hover.
