@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.8.4
+
+- Curiosity reflection now classifies candidates as `web` or `group`. Group roleplay, titles, nicknames, in-jokes and ongoing lore are explicitly excluded from web lookup, so the persona no longer researches things that only exist in the current group's conversation.
+- Cleaned the two existing bogus group-lore knowledge entries so they no longer get injected as facts.
+
 ## 1.8.3
 
 - Curiosity reflection now receives the current group's known slang and is told not to treat those terms as general web-searchable knowledge. If a reflected topic exactly matches a stored group-slang headword, it is skipped instead of being sent to Tavily.
