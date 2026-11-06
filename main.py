@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.3.0（Persona Presence 参与判断重构）
+版本: 1.6.0（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -98,7 +98,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.3.0"
+PLUGIN_VERSION = "1.6.0"
 
 
 @register(
@@ -450,6 +450,21 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self.private_batch_max_size = self._cfg_int(
             "private_batch_max_size", 10, minimum=1, maximum=1000
+        )
+
+        # ========== 多气泡补充（实验） ==========
+        self.enable_followup_reply = self._cfg_bool("enable_followup_reply", False)
+        self.followup_scope = self._cfg_choice(
+            "followup_scope", "private", {"private", "group", "both"}
+        )
+        self.followup_max_messages = self._cfg_int(
+            "followup_max_messages", 1, minimum=1, maximum=2
+        )
+        self.followup_min_delay_ms = self._cfg_int(
+            "followup_min_delay_ms", 700, minimum=0, maximum=10_000
+        )
+        self.followup_max_delay_ms = self._cfg_int(
+            "followup_max_delay_ms", 2200, minimum=0, maximum=10_000
         )
 
         # ========== 性能警告阈值 ==========
@@ -1447,6 +1462,58 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     "required": ["query"],
                 },
                 handler=web_lookup,
+            )
+        ]
+
+    def _followup_tools(self, is_private: bool) -> list:
+        """Build the optional follow-up queue tool for multi-bubble replies.
+
+        Args:
+            is_private: Whether the current turn is a private conversation.
+
+        Returns:
+            A one-item tool list when follow-ups are enabled for this scope.
+        """
+        from astrbot.core.agent.tool import FunctionTool
+
+        if not self.enable_followup_reply:
+            return []
+        if self.followup_scope == "private" and not is_private:
+            return []
+        if self.followup_scope == "group" and is_private:
+            return []
+
+        async def queue_followup(event, text: str = "") -> str:
+            cleaned = str(text or "").strip()
+            if not cleaned:
+                return "没有内容。"
+            pending = list(event.get_extra("_persona_followups") or [])
+            if len(pending) >= self.followup_max_messages:
+                return "当前回复后已经有补充了。"
+            if cleaned in pending:
+                return "这句已经排过了。"
+            pending.append(cleaned[:160])
+            event.set_extra("_persona_followups", pending)
+            return "已排在当前回复后面。"
+
+        return [
+            FunctionTool(
+                name="queue_followup",
+                description=(
+                    "把一句已经想好的补充排到当前回复之后；"
+                    "不会单独生成，也不会立即发送。"
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "要接在后面发的一句短话",
+                        }
+                    },
+                    "required": ["text"],
+                },
+                handler=queue_followup,
             )
         ]
 
@@ -5041,7 +5108,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         raw_chat_id,
                         history_messages,
                         merged_image_urls,
-                        self._image_tools(),
+                        self._image_tools() + self._followup_tools(is_private=True),
                     )
                 )
                 logger.info(
@@ -7233,7 +7300,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     smart_batch_reply_hint=smart_batch_reply_hint,
                     reply_context_hint=reply_context_hint,
                     cross_group_hint=cross_group_hint,
-                    extra_tools=self._image_tools() + self._lookup_tools(),
+                    extra_tools=self._image_tools()
+                    + self._lookup_tools()
+                    + self._followup_tools(is_private),
                 )
         except Exception as e:
             ai_error_flag = True
@@ -7462,6 +7531,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 if precomputed_reply_text is not None and message_id_for_error:
                     self._agent_done_flags.add(message_id_for_error)
 
+            followups = list(event.get_extra("_persona_followups") or [])
             yield reply_result
 
             if not is_private and not ai_error_flag:
@@ -7526,6 +7596,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         f"[安全兜底] 兜底保存失败: {fallback_err}", exc_info=True
                     )
 
+            if followups and not ai_error_flag:
+                asyncio.create_task(
+                    self._deliver_followup_messages(event, followups, reply_text)
+                )
+
             if self.debug_mode:
                 logger.info("【步骤13.9】回复已通过yield发送")
         else:
@@ -7566,6 +7641,38 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if self.poke_after_reply_enabled:
             replied_user_id = event.get_sender_id()
             await self._do_poke_after_reply(event, replied_user_id, is_private, chat_id)
+
+    async def _deliver_followup_messages(
+        self, event: AstrMessageEvent, texts: list[str], main_text: str = ""
+    ) -> None:
+        """Send queued follow-up bubbles after the main reply.
+
+        Args:
+            event: The turn that produced the follow-ups.
+            texts: Ordered follow-up texts.
+            main_text: Main reply text, used to drop accidental duplicates.
+        """
+        low = min(self.followup_min_delay_ms, self.followup_max_delay_ms)
+        high = max(self.followup_min_delay_ms, self.followup_max_delay_ms)
+        main_clean = str(main_text or "").strip()
+        for text in texts:
+            cleaned = str(text or "").strip()
+            if not cleaned or cleaned == main_clean:
+                continue
+            delay = random.randint(low, high) / 1000 if high > 0 else 0
+            if delay > 0:
+                await asyncio.sleep(delay)
+            try:
+                await self.context.send_message(
+                    event.unified_msg_origin, MessageChain([Plain(cleaned)])
+                )
+                logger.info(f"[多气泡] 补充发送：{cleaned[:60]}")
+                try:
+                    await ContextManager.save_bot_message(event, cleaned, self.context)
+                except Exception as save_err:
+                    logger.warning(f"[多气泡] 补充保存失败: {save_err}")
+            except Exception as send_err:
+                logger.warning(f"[多气泡] 补充发送失败: {send_err}")
 
     async def _refresh_history_after_wait(
         self,
@@ -7967,13 +8074,27 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if not result or not hasattr(result, "chain") or not result.chain:
                 return
 
-            if not result.is_llm_result():
-                return
-
             reply_text = "".join(
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            # 上游模型不可用时，框架会把错误说明当成回复发出去（而且是普通
+            # 结果而不是 LLM 结果），所以这一步必须放在 is_llm_result 之前。
+            if re.search(
+                r"LLM 响应错误|All chat models failed|RateLimitError|prefill_cap_refused"
+                r"|Error code: 4\d\d|Error code: 5\d\d",
+                reply_text,
+            ):
+                logger.warning(
+                    f"[上游错误] 拦截异常回复文本（{len(reply_text)} 字）: "
+                    f"{reply_text[:80]}"
+                )
+                event.clear_result()
+                return
+
+            if not result.is_llm_result():
+                return
 
             if not reply_text:
                 return

@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.6.0
+
+- **Experimental multi-bubble follow-ups**: a `queue_followup` tool lets the persona queue one short afterthought during the same generation; the base sends it after the main reply with a randomized 0.7–2.2s delay. Disabled by default, scoped to private chat in the live config. No second LLM call.
+- **Group Smart timing**: group wait defaults reduced from 10 to 3 loops, batch limit from 20 to 6, and claim delay from 0.3s to 0.2s, so group replies are less likely to answer a stale topic.
+
 ## 1.5.5
 
 - **Removed the old group-question path entirely**: deleted the explicit-question regex detector, question-specific soft-limit bypass, question urgency, and their tests. Group questions no longer create curiosity entries at any layer; only persona reflection can queue a topic.

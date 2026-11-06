@@ -255,6 +255,41 @@
         "type": "int",
         "default": 5,
         "hint": "向上文展示最近几条自己的回复。数值越大越不容易重复，但也会占用更多上下文。"
+      },
+      "enable_followup_reply": {
+        "description": "多气泡补充（实验）",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后模型可以把一句补充排到主回复之后，由插件延迟发送；默认关闭。建议先只在私聊使用。"
+      },
+      "followup_scope": {
+        "description": "补充生效范围",
+        "type": "string",
+        "default": "private",
+        "options": [
+          "private",
+          "group",
+          "both"
+        ],
+        "hint": "private=只私聊；group=只群聊；both=都生效。群聊多气泡容易刷屏，建议先 private。"
+      },
+      "followup_max_messages": {
+        "description": "最多补充几条",
+        "type": "int",
+        "default": 1,
+        "hint": "一条主回复后面最多允许几条补充，建议先 1。"
+      },
+      "followup_min_delay_ms": {
+        "description": "补充最短延迟(毫秒)",
+        "type": "int",
+        "default": 700,
+        "hint": "主回复发出后，至少等这么久再发补充。"
+      },
+      "followup_max_delay_ms": {
+        "description": "补充最长延迟(毫秒)",
+        "type": "int",
+        "default": 2200,
+        "hint": "主回复发出后，最多等这么久再发补充；实际延迟在最短和最长之间随机。"
       }
     }
   },
@@ -327,6 +362,30 @@
         "type": "int",
         "default": 10,
         "hint": "单个 Smart 私聊批次最多合并的消息数，direct 和 decide 都适用。"
+      },
+      "concurrent_wait_max_loops": {
+        "description": "群聊最多等待轮数",
+        "type": "int",
+        "default": 3,
+        "hint": "Smart 群聊每条消息最多等待几轮，用来吸收更早到达的消息；过大会让回复变旧。建议 3。"
+      },
+      "concurrent_wait_interval": {
+        "description": "群聊等待间隔(秒)",
+        "type": "float",
+        "default": 1.0,
+        "hint": "每一轮等待的秒数；最坏等待约等于轮数 × 间隔。"
+      },
+      "smart_concurrent_max_batch_size": {
+        "description": "群聊批次上限",
+        "type": "int",
+        "default": 6,
+        "hint": "单个 Smart 群聊批次最多合并多少条消息；过大会把不同人的话塞进同一批。建议 6。"
+      },
+      "smart_concurrent_claim_delay": {
+        "description": "群聊提交前延迟(秒)",
+        "type": "float",
+        "default": 0.2,
+        "hint": "等待结束后、真正 claim 批次前再等一小会；建议 0.2。"
       }
     }
   },
