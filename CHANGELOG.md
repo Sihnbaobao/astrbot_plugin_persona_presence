@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.7
+
+- Fixed the configurable slang threshold wiring: `notebook_jargon_min_count` is now actually read from config (default 4) and used by the candidate filter, and the field is present in the config schema.
+
 ## 1.8.6
 
 - Made the slang frequency threshold configurable as `notebook_jargon_min_count`, default 4. The self-learning plugin uses 5, but that plugin keeps continuous per-group statistics; our 30-message batch would miss too much at 5, while 3 let ordinary chat words through.

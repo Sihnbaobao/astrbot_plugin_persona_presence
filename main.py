@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.8.6（Persona Presence 参与判断重构）
+版本: 1.8.7（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.8.6"
+PLUGIN_VERSION = "1.8.7"
 
 
 @register(
@@ -2060,6 +2060,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             self.notebook_jargon_min_messages = self._cfg_int(
                 "notebook_jargon_min_messages", 30, minimum=10, maximum=200
             )
+            self.notebook_jargon_min_count = self._cfg_int(
+                "notebook_jargon_min_count", 4, minimum=2, maximum=10
+            )
             self._jargon_buffers = {}
             self._jargon_last_run = 0.0
             for raw in self._cfg_list("notebook_entries", []):
@@ -2611,7 +2614,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if notebook is None:
             return
 
-        candidates = candidate_terms(lines, min_count=3)
+        candidates = candidate_terms(
+            lines, min_count=getattr(self, "notebook_jargon_min_count", 4)
+        )
         if not candidates:
             logger.info(f"[黑话] 群 {group_id} 看了 {len(lines)} 条消息，没抽到候选词")
             return
