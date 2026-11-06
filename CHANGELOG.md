@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 1.8.0
+
+- **Image-library self-memory**: when a turn includes images or mentions the image library, the persona now receives a short block with her own saved images, her scores, tags and descriptions. It explicitly frames them as her own collection rather than images forced on her by the user.
+- The block also separates “interest when saving” from “willingness to be spammed now”, so she can own the collection without pretending every repeat is welcome.
+- Image tools now describe results as the persona's own saved images, and the page labels scores as “我的评分”.
+
 ## 1.7.9
 
 - The image-card delete button is neutral by default and uses the accent colour on hover; red is reserved for the second-click confirmation state, making that state easier to notice.

@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.7.9（Persona Presence 参与判断重构）
+版本: 1.8.0（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.7.9"
+PLUGIN_VERSION = "1.8.0"
 
 
 @register(
@@ -1426,6 +1426,48 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             logger.info(f"[图片库] 为当前问题补充 {len(paths)} 张最近图片")
         return paths
 
+    def _archive_memory_block(self, event, chat_id: str) -> str:
+        """Describe the persona's own image library when it is relevant.
+
+        Args:
+            event: Current message event.
+            chat_id: Scoped conversation key used by the archive.
+
+        Returns:
+            A short prompt block, or an empty string when not relevant.
+        """
+        archive = getattr(self, "image_archive", None)
+        if archive is None or not chat_id:
+            return ""
+        text = str(event.get_message_str() or "")
+        has_images = bool(event.get_extra("_persona_turn_image_urls"))
+        if not has_images and not re.search(
+            r"图库|收藏|保存|评分|表情包|图片|那张图|旧图", text
+        ):
+            return ""
+        entries = [
+            entry
+            for entry in archive.entries
+            if entry.status == "active" and archive.matches_entry(entry, chat_id)
+        ]
+        if not entries:
+            return ""
+        entries.sort(key=lambda entry: entry.created_at, reverse=True)
+        lines = [
+            "[你自己的图片库]",
+            "下面是你自己保存、识图、评分和收藏过的图，不是别人硬塞给你的。",
+            "被问起时按自己的记录承认，不要装不知道，也不要说成是对面硬塞的。",
+            "评分代表你收图当时的兴趣；它不等于你现在愿意被同类图刷屏。",
+        ]
+        for entry in entries[:3]:
+            tags = "、".join(entry.tags[:6]) or "无标签"
+            lines.append(
+                f"- 我的评分 {entry.score:.2f}"
+                f"{'（收藏）' if entry.favorite else ''}｜{tags}｜"
+                f"{entry.description or '（无描述）'}"
+            )
+        return "\n".join(lines)
+
     def _lookup_tools(self) -> list:
         """Build a web lookup tool for uncertain names and terms."""
         from astrbot.core.agent.tool import FunctionTool
@@ -1683,12 +1725,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 logger.info(f"[图片工具] 搜索「{query}」：没有结果")
                 return "没有找到符合条件的已保存图片。"
             logger.info(f"[图片工具] 搜索「{query}」：{len(entries)} 张")
-            lines = ["已保存图片："]
+            lines = ["你自己保存和评分的图片："]
             for entry in entries:
                 lines.append(
                     f"- image_id={entry.id} | {entry.description or '（无描述）'} | "
                     f"标签：{', '.join(entry.tags) or '无'} | "
-                    f"评分：{entry.score:.2f} | "
+                    f"我的评分：{entry.score:.2f} | "
                     f"可发送：{'是' if entry.sendable else '否'}"
                     f"{('（敏感标签：' + send_block_reason(entry.tags) + '）') if send_block_reason(entry.tags) else ''} | "
                     f"时间：{datetime.fromtimestamp(entry.created_at).strftime('%m-%d %H:%M')}"
@@ -1781,8 +1823,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="search_saved_images",
                 description=(
-                    "Search this conversation's saved images by description or "
-                    "tags; returns descriptions, tags, scores and image_id. "
+                    "Search images you saved and rated yourself in this "
+                    "conversation. Returns your scores, tags and image_id. "
                     "Does not send."
                 ),
                 parameters={
@@ -1810,7 +1852,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="send_saved_image",
                 description=(
-                    "Send a saved image to the current chat. "
+                    "Send one of your own saved images to the current chat. "
                     "image_id must come from search_saved_images."
                 ),
                 parameters={
@@ -1828,8 +1870,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="queue_saved_image",
                 description=(
-                    "Queue a saved image into the current reply instead of "
-                    "sending it immediately. image_id must come from "
+                    "Queue one of your own saved images into the current reply "
+                    "instead of sending it immediately. image_id must come from "
                     "search_saved_images, and the image must be marked sendable."
                 ),
                 parameters={
@@ -7390,6 +7432,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     logger.info(f"[背景] 内容:\n{background}")
         except Exception as e:
             logger.warning(f"[背景注入] 失败: {e}")
+
+        try:
+            archive_memory = self._archive_memory_block(event, chat_id)
+            if archive_memory:
+                final_message = f"{final_message}\n\n{archive_memory}"
+                logger.info("[图片库] 已注入自身图片记忆")
+        except Exception as e:
+            logger.debug(f"[图片库] 自身图片记忆注入失败: {e}")
 
         # 人格里某个设定容易被说成口头禅（发呆/别吵/笨蛋），把最近几次摆出来。
         if getattr(self, "enable_repeat_guard", False):
