@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.1
+
+- Added an explicit per-turn scene block. Private chats are labelled as one-to-one and told not to treat the user as a group; group chats are labelled as multi-person with the current speaker named. This prevents the persona's generic “online chat” wording from blurring the two contexts.
+
 ## 1.8.0
 
 - **Image-library self-memory**: when a turn includes images or mentions the image library, the persona now receives a short block with her own saved images, her scores, tags and descriptions. It explicitly frames them as her own collection rather than images forced on her by the user.

@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.8.0（Persona Presence 参与判断重构）
+版本: 1.8.1（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.8.0"
+PLUGIN_VERSION = "1.8.1"
 
 
 @register(
@@ -7466,6 +7466,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
             except Exception as e:
                 logger.warning(f"[口头禅抑制] 失败: {e}")
+
+        try:
+            if is_private:
+                scene = (
+                    "[当前场景] 这是一对一私聊，只有你和屏幕对面的这个人。"
+                    "不要把它当成群聊，也不要提群里的其他人或把对方当成一群人。"
+                )
+            else:
+                sender = str(event.get_sender_name() or "对方")
+                scene = (
+                    f"[当前场景] 这是群聊，当前说话的是「{sender}」，"
+                    "群里还有其他人在场；不要把它当成一对一私聊。"
+                )
+            final_message = f"{final_message}\n\n{scene}"
+        except Exception as e:
+            logger.debug(f"[场景] 注入失败: {e}")
 
         return final_message, state_chat_id
 
