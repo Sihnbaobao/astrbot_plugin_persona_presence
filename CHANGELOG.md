@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.2
+
+- **Repeated-reply collapse**: if the model emits the exact same whole sentence twice, the output stage now keeps one copy. The check requires a repeated unit of at least six characters so short emphasis like “哈哈” is untouched.
+
 ## 1.7.1
 
 - **Image-library send permission**: archived images are no longer sendable by default. A new per-image `sendable` flag, exposed as a toggle in the image library page, is required before `send_saved_image` or `queue_saved_image` can use it.

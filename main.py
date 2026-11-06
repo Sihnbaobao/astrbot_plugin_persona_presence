@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.7.1（Persona Presence 参与判断重构）
+版本: 1.7.2（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.7.1"
+PLUGIN_VERSION = "1.7.2"
 
 
 @register(
@@ -8359,6 +8359,19 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            # Short replies sometimes get emitted as the same sentence twice.
+            # Collapse only an exact whole-text repetition; normal emphasis or
+            # a short "哈哈" is left alone by the six-character minimum.
+            repeated = re.fullmatch(r"(.{6,})\1", reply_text, re.DOTALL)
+            if repeated:
+                text_components = [
+                    comp for comp in result.chain if hasattr(comp, "text")
+                ]
+                if len(text_components) == 1:
+                    reply_text = repeated.group(1).strip()
+                    text_components[0].text = reply_text
+                    logger.info("[回复清洗] 折叠重复的整句")
 
             # meme_manager's direct send_meme tool already delivered an image.
             # Models often finish the tool loop with a punctuation-only "...";
