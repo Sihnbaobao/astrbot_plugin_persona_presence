@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.6.5
+
+- Raised the private adaptive hard cap from 3500ms to 4000ms. The quiet threshold stays at 1200ms, so normal bursts still reply after 1.2s of silence; only sustained multi-message bursts can extend to 4s.
+
 ## 1.6.4
 
 - **Adaptive private Smart window**: private chat now waits for 1200ms of silence after the last message, resetting on each new arrival, with a 3500ms hard cap. Group chat stays on the fixed 3s window. This replaces the fixed 2500ms private wait and keeps quick bursts merged without always paying the full delay.
