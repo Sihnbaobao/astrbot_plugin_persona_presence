@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.8.1（Persona Presence 参与判断重构）
+版本: 1.8.2（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.8.1"
+PLUGIN_VERSION = "1.8.2"
 
 
 @register(
@@ -1454,10 +1454,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return ""
         entries.sort(key=lambda entry: entry.created_at, reverse=True)
         lines = [
-            "[你自己的图片库]",
-            "下面是你自己保存、识图、评分和收藏过的图，不是别人硬塞给你的。",
-            "被问起时按自己的记录承认，不要装不知道，也不要说成是对面硬塞的。",
-            "评分代表你收图当时的兴趣；它不等于你现在愿意被同类图刷屏。",
+            "[我保存过的图片]",
+            "这些是我自己收进图库的，评分也是我当时给的。",
         ]
         for entry in entries[:3]:
             tags = "、".join(entry.tags[:6]) or "无标签"

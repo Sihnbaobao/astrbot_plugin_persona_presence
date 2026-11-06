@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.2
+
+- Rewrote the image-library memory block as first-person declarative memory (“我保存过的图片 / 这些是我自己收进图库的”) instead of imperative guidance. It now reads like something the persona remembers, not an assistant instruction.
+
 ## 1.8.1
 
 - Added an explicit per-turn scene block. Private chats are labelled as one-to-one and told not to treat the user as a group; group chats are labelled as multi-person with the current speaker named. This prevents the persona's generic “online chat” wording from blurring the two contexts.
