@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.6.1
+
+- **Follow-up activation fix**: private speculative drafts could bypass the tool-enabled Agent path, so `queue_followup` was rarely available. Speculative reply generation is now skipped while follow-ups are enabled, and the reply prompt gets a short rhythm hint. Added `[多气泡]` queue/send logs for testing.
+
 ## 1.6.0
 
 - **Experimental multi-bubble follow-ups**: a `queue_followup` tool lets the persona queue one short afterthought during the same generation; the base sends it after the main reply with a randomized 0.7–2.2s delay. Disabled by default, scoped to private chat in the live config. No second LLM call.

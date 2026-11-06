@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.6.0（Persona Presence 参与判断重构）
+版本: 1.6.1（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -98,7 +98,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.6.0"
+PLUGIN_VERSION = "1.6.1"
 
 
 @register(
@@ -1465,6 +1465,23 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
         ]
 
+    def _followup_enabled(self, is_private: bool) -> bool:
+        """Tell whether follow-up bubbles are enabled for this scope.
+
+        Args:
+            is_private: Whether the current turn is a private conversation.
+
+        Returns:
+            True when the configured scope includes this conversation.
+        """
+        if not self.enable_followup_reply:
+            return False
+        if self.followup_scope == "private":
+            return is_private
+        if self.followup_scope == "group":
+            return not is_private
+        return True
+
     def _followup_tools(self, is_private: bool) -> list:
         """Build the optional follow-up queue tool for multi-bubble replies.
 
@@ -1476,11 +1493,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         """
         from astrbot.core.agent.tool import FunctionTool
 
-        if not self.enable_followup_reply:
-            return []
-        if self.followup_scope == "private" and not is_private:
-            return []
-        if self.followup_scope == "group" and is_private:
+        if not self._followup_enabled(is_private):
             return []
 
         async def queue_followup(event, text: str = "") -> str:
@@ -1494,13 +1507,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 return "这句已经排过了。"
             pending.append(cleaned[:160])
             event.set_extra("_persona_followups", pending)
+            logger.info(f"[多气泡] 已排队：{cleaned[:60]}")
             return "已排在当前回复后面。"
 
         return [
             FunctionTool(
                 name="queue_followup",
                 description=(
-                    "把一句已经想好的补充排到当前回复之后；"
+                    "把一句补充排到当前回复之后；主回复发出后会自动接着发送。"
                     "不会单独生成，也不会立即发送。"
                 ),
                 parameters={
@@ -4998,6 +5012,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         speculative_private_reply = bool(
             is_private
+            and not self._followup_enabled(True)
             and self.private_reply_mode == "direct"
             and use_smart_batch
             and bool(message_text.strip())
@@ -7248,6 +7263,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             final_message = formatted_context
             state_chat_id = ProbabilityManager.get_chat_key(
                 platform_name, is_private, chat_id
+            )
+
+        if self._followup_enabled(is_private):
+            final_message += (
+                "\n\n[回复节奏] 一句话说完就够了就正常结束；"
+                "如果确实还有半句自然想补的，可以交给 queue_followup，"
+                "等主回复发出后再接着发。不要为了凑第二条硬拆一句话。"
             )
 
         # Generate the formal reply after context preparation.
