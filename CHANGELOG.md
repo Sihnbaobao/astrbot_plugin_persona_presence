@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.6
+
+- Made the slang frequency threshold configurable as `notebook_jargon_min_count`, default 4. The self-learning plugin uses 5, but that plugin keeps continuous per-group statistics; our 30-message batch would miss too much at 5, while 3 let ordinary chat words through.
+
 ## 1.8.5
 
 - Group-slang learning now uses a statistical pre-filter before the LLM: character n-grams must repeat at least three times, and ordinary vocabulary in jieba's dictionary is excluded. This follows the self-learning plugin's frequency/standard-word filtering idea.
