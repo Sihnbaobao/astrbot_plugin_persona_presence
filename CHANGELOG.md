@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.6.6
+
+- **Meme closing guard in the base plugin**: when `meme_manager` reports a direct `send_meme` send, a final reply made only of punctuation (for example `...` or `……`) is dropped. The fix lives in Persona Presence rather than the third-party meme plugin, so updating meme_manager does not erase it.
+
 ## 1.6.5
 
 - Raised the private adaptive hard cap from 3500ms to 4000ms. The quiet threshold stays at 1200ms, so normal bursts still reply after 1.2s of silence; only sustained multi-message bursts can extend to 4s.

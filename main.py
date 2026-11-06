@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.6.5（Persona Presence 参与判断重构）
+版本: 1.6.6（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -98,7 +98,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.6.5"
+PLUGIN_VERSION = "1.6.6"
 
 
 @register(
@@ -8133,6 +8133,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            # meme_manager's direct send_meme tool already delivered an image.
+            # Models often finish the tool loop with a punctuation-only "...";
+            # drop that empty closing so a pure meme stays a pure meme. This
+            # guard lives here, not in the third-party plugin, so updating the
+            # meme plugin cannot erase it.
+            if (
+                reply_text
+                and event.get_extra("meme_manager_direct_send_attempted")
+                and result.chain
+                and all(hasattr(comp, "text") for comp in result.chain)
+                and not re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", reply_text)
+            ):
+                logger.info("[表情包] 已主动发图，忽略仅标点的收尾正文")
+                event.clear_result()
+                return
 
             # 上游模型不可用时，框架会把错误说明当成回复发出去（而且是普通
             # 结果而不是 LLM 结果），所以这一步必须放在 is_llm_result 之前。
