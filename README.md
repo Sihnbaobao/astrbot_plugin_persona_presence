@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.6.1。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.6.2。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -15,7 +15,7 @@ Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让
 - 群聊安全边界：只对无正文的他人定向消息、纯媒体和明显低信息短句提前过滤；有正文的他人对话仍交给模型判断是否适合旁观补充。
 - 私聊独立策略：普通私聊默认可以直接回应，不继承群聊的安静人格规则。
 - Smart 连续消息：短时间连续发送的多条消息可以合并为一轮输入，只生成一条综合回复。
-- 多气泡补充（实验）：私聊里模型可以用 `queue_followup` 把一句已经想好的补充排到主回复后面，由本体延迟发送；默认关闭，最多一条，不额外调用模型。
+- 私聊生成方式（二选一）：`precomputed` 提前生成草稿，回复更快但不支持多气泡；`followup` 关闭预生成、走完整工具链，允许模型用 `queue_followup` 排一条补充。切换选项会自动关闭另一种方式，最多一条，不额外调用模型。
 - 图片处理：图片转文字、图片描述缓存、多模态直传，以及私聊纯图片独立策略。
 - 表情包处理：纯表情包可忽略、交给参与判断或直接处理；重复表情包可折叠。
 - 人格切换：正式回复每次解析当前会话最终人格，支持会话强制人格、会话选择人格和默认人格。
@@ -113,7 +113,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 
 无论 private_reply_mode 是 direct 还是 decide，只要 private_concurrent_mode=smart，短时间内到达的消息都会在约 4500ms 窗口内组织成一轮输入并只生成一条综合回复。direct 只表示普通文本绕过私聊参与判断，不表示绕过 Smart；decide 还会对首条纯文本并行预判。literal sleep 尚未到重新考虑时间时仍会缓存并静默，不进入 Smart 批次。关键词或 @ 不会改变这些边界。相同文本重复发送时，模型会收到重复次数提示，并按当前 Persona 对啰嗦和催促的态度自然回应；不会为同一批消息逐条调用正式回复。
 
-对需要 Smart 的消息来说，相隔几秒且超过窗口的消息属于不同轮次。窗口外的后续消息不会再额外等待前一个模型请求十秒，而是快速进入自己的处理流程。direct 的纯文本 anchor 会在窗口期间提前启动一轮缓冲的、不执行工具、非流式正式文本生成：窗口内没有 follower 且草稿已完成时复用结果；草稿仍在生成时取消并立即走正常 Agent，窗口内出现 follower 时也作废草稿并对合并消息重新生成。这个预生成只覆盖普通 direct 纯文本；媒体、收尾边界和需要工具的完整 Agent 路径仍在批次确定后执行。如果更重视单条 direct 延迟，可以将 private_concurrent_mode 改为 legacy。需要合并短连发时，建议把窗口调整在 3000-6000ms 范围内。
+对需要 Smart 的消息来说，相隔几秒且超过窗口的消息属于不同轮次。窗口外的后续消息不会再额外等待前一个模型请求十秒，而是快速进入自己的处理流程。direct 的纯文本 anchor 会在窗口期间提前启动一轮缓冲的、不执行工具、非流式正式文本生成：窗口内没有 follower 且草稿已完成时复用结果；草稿仍在生成时取消并立即走正常 Agent，窗口内出现 follower 时也作废草稿并对合并消息重新生成。这个预生成只覆盖普通 direct 纯文本；媒体、收尾边界和需要工具的完整 Agent 路径仍在批次确定后执行。私聊生成方式选择 followup 时会关闭这层预生成，避免它绕过工具链；两种方式在配置里二选一，不会同时生效。如果更重视单条 direct 延迟，可以将 private_concurrent_mode 改为 legacy。需要合并短连发时，建议把窗口调整在 3000-6000ms 范围内。
 
 ## 图片与表情包
 

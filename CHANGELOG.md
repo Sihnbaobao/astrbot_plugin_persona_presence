@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.6.2
+
+- **Private generation mode**: replaced the separate follow-up toggle with one `private_generation_mode` choice. `precomputed` keeps the faster speculative draft and disables multi-bubble; `followup` disables the draft, uses the tool-enabled Agent path, and allows one queued supplement. The two can no longer be enabled at the same time.
+- Fixed a jargon-log formatting error when candidates were tuples.
+
 ## 1.6.1
 
 - **Follow-up activation fix**: private speculative drafts could bypass the tool-enabled Agent path, so `queue_followup` was rarely available. Speculative reply generation is now skipped while follow-ups are enabled, and the reply prompt gets a short rhythm hint. Added `[多气泡]` queue/send logs for testing.

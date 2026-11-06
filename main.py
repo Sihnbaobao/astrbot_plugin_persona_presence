@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.6.1（Persona Presence 参与判断重构）
+版本: 1.6.2（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -98,7 +98,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.6.1"
+PLUGIN_VERSION = "1.6.2"
 
 
 @register(
@@ -452,8 +452,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "private_batch_max_size", 10, minimum=1, maximum=1000
         )
 
-        # ========== 多气泡补充（实验） ==========
-        self.enable_followup_reply = self._cfg_bool("enable_followup_reply", False)
+        # ========== 私聊生成方式（预生成 / 多气泡） ==========
+        self.private_generation_mode = self._cfg_choice(
+            "private_generation_mode", "precomputed", {"precomputed", "followup"}
+        )
+        self.enable_followup_reply = self.private_generation_mode == "followup"
+        self.enable_private_speculative_reply = (
+            self.private_generation_mode == "precomputed"
+        )
         self.followup_scope = self._cfg_choice(
             "followup_scope", "private", {"private", "group", "both"}
         )
@@ -2483,7 +2489,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         else:
             logger.info(
                 f"[黑话] 群 {group_id} 候选 {len(candidates)} 个"
-                f"（{', '.join(candidates[:5])}），本次没有确认的新词"
+                f"（{', '.join(str(item[0] if isinstance(item, tuple) else item) for item in candidates[:5])}），本次没有确认的新词"
             )
 
     def _maybe_reflect_notebook(self, event) -> None:
@@ -5012,6 +5018,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         speculative_private_reply = bool(
             is_private
+            and self.enable_private_speculative_reply
             and not self._followup_enabled(True)
             and self.private_reply_mode == "direct"
             and use_smart_batch

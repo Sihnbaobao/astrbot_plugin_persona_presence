@@ -256,12 +256,6 @@
         "default": 5,
         "hint": "向上文展示最近几条自己的回复。数值越大越不容易重复，但也会占用更多上下文。"
       },
-      "enable_followup_reply": {
-        "description": "多气泡补充（实验）",
-        "type": "bool",
-        "default": false,
-        "hint": "开启后模型可以把一句补充排到主回复之后，由插件延迟发送；默认关闭。建议先只在私聊使用。"
-      },
       "followup_scope": {
         "description": "补充生效范围",
         "type": "string",
@@ -277,7 +271,7 @@
         "description": "最多补充几条",
         "type": "int",
         "default": 1,
-        "hint": "一条主回复后面最多允许几条补充，建议先 1。"
+        "hint": "仅在私聊生成方式=followup 时生效；一条主回复后面最多允许几条补充，建议先 1。"
       },
       "followup_min_delay_ms": {
         "description": "补充最短延迟(毫秒)",
@@ -290,6 +284,16 @@
         "type": "int",
         "default": 2200,
         "hint": "主回复发出后，最多等这么久再发补充；实际延迟在最短和最长之间随机。"
+      },
+      "private_generation_mode": {
+        "description": "私聊生成方式",
+        "type": "string",
+        "default": "precomputed",
+        "options": [
+          "precomputed",
+          "followup"
+        ],
+        "hint": "二选一：precomputed=提前生成草稿，回复更快，但不支持多气泡；followup=关闭预生成，走完整工具链，允许一条补充。切换这个选项会自动关闭另一种方式。"
       }
     }
   },
