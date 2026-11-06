@@ -358,8 +358,14 @@
       "private_batch_wait_ms": {
         "description": "私聊短连发等待(毫秒)",
         "type": "int",
-        "default": 2500,
-        "hint": "只用于合并同一段话的连续消息。followup 模式建议 2000-3000ms；precomputed 模式可以保留 3000-4500ms，因为预生成草稿会抵消等待。还没到唤醒时间的 literal sleep 不使用此等待。"
+        "default": 3500,
+        "hint": "私聊自适应窗口的硬上限：从第一条消息开始最多等这么久。默认 3500ms；期间有新消息会重置静默计时，但不会超过这个上限。"
+      },
+      "private_batch_quiet_ms": {
+        "description": "私聊静默判定(毫秒)",
+        "type": "int",
+        "default": 1200,
+        "hint": "最后一条消息之后安静多久就认为这一段说完了。默认 1200ms；调大更耐心，调小更快回复。"
       },
       "private_batch_max_size": {
         "description": "私聊批次上限",

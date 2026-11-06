@@ -195,6 +195,28 @@ class SmartConcurrentManager:
             logger.warning(f"[SmartConcurrent] has_earlier_pending 失败: {e}")
             return False
 
+    @classmethod
+    async def latest_arrival(cls, chat_id: str) -> float:
+        """Return the newest pending arrival timestamp for a chat.
+
+        Args:
+            chat_id: Scoped conversation key.
+
+        Returns:
+            Monotonic timestamp of the newest pending message, or 0.0.
+        """
+        try:
+            async with cls._get_lock():
+                cls._cleanup_expired_locked(chat_id)
+                entries = cls._pending.get(chat_id, {}).values()
+                return max(
+                    (float(entry.get("arrival_monotonic", 0.0)) for entry in entries),
+                    default=0.0,
+                )
+        except Exception as error:
+            logger.warning(f"[SmartConcurrent] latest_arrival 失败: {error}")
+            return 0.0
+
     # 单批次最多吸收的消息数（防止极端并发下上下文溢出）
     _MAX_BATCH_SIZE: int = 20
 

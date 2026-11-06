@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.6.3（Persona Presence 参与判断重构）
+版本: 1.6.4（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -98,7 +98,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.6.3"
+PLUGIN_VERSION = "1.6.4"
 
 
 @register(
@@ -446,7 +446,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "private_concurrent_mode", "smart", {"legacy", "smart"}
         )
         self.private_batch_wait_ms = self._cfg_int(
-            "private_batch_wait_ms", 4500, minimum=0, maximum=600_000
+            "private_batch_wait_ms", 3500, minimum=0, maximum=600_000
+        )
+        self.private_batch_quiet_ms = self._cfg_int(
+            "private_batch_quiet_ms", 1200, minimum=100, maximum=60_000
         )
         self.private_batch_max_size = self._cfg_int(
             "private_batch_max_size", 10, minimum=1, maximum=1000
@@ -5140,18 +5143,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # Smart 模式下先按 arrival_seq 等待更早消息，确保只有 anchor 进入 AI 决策
         smart_claim = None
         if is_private:
-            try:
-                wait_interval_seconds = max(float(self.concurrent_wait_interval), 0.1)
-                private_window_seconds = max(
-                    float(self.private_batch_wait_ms) / 1000, 0.0
-                )
-                # Let followers observe the anchor claim across the configured window.
-                smart_wait_loops = max(
-                    3,
-                    int(private_window_seconds / wait_interval_seconds) + 2,
-                )
-            except (TypeError, ValueError):
-                smart_wait_loops = 6
+            if use_smart_batch:
+                # Adaptive window: reset the quiet timer on every new arrival,
+                # but never extend past the configured hard deadline.
+                await self._wait_private_adaptive_window(chat_id, processing_id)
+            smart_wait_loops = 2
         else:
             smart_wait_loops = max(1, self.concurrent_wait_max_loops)
         smart_batch_had_followers = False
@@ -5182,11 +5178,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 await asyncio.sleep(self.concurrent_wait_interval)
                 continue
 
-            claim_delay = (
-                max(0.0, float(self.private_batch_wait_ms) / 1000)
-                if is_private
-                else self.smart_concurrent_claim_delay
-            )
+            claim_delay = 0.0 if is_private else self.smart_concurrent_claim_delay
             if (
                 smart_wait_idx == 0
                 and claim_delay > 0
@@ -7228,6 +7220,40 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
     # ============================================================
     # 生成并发送回复
     # ============================================================
+
+    async def _wait_private_adaptive_window(
+        self, chat_id: str, processing_id: str
+    ) -> None:
+        """Wait for a private burst to go quiet, bounded by a hard deadline.
+
+        Args:
+            chat_id: Scoped private conversation key.
+            processing_id: Processing ID of the anchor message.
+        """
+        started = time.monotonic()
+        max_wait = max(0.0, float(self.private_batch_wait_ms) / 1000)
+        quiet_wait = max(0.1, float(self.private_batch_quiet_ms) / 1000)
+        last_arrival = await SmartConcurrentManager.latest_arrival(chat_id)
+        quiet_until = started + quiet_wait
+
+        while True:
+            if await SmartConcurrentManager.is_consumed(processing_id):
+                return
+            if await SmartConcurrentManager.has_earlier_pending(chat_id, processing_id):
+                await asyncio.sleep(0.1)
+                continue
+
+            now = time.monotonic()
+            latest = await SmartConcurrentManager.latest_arrival(chat_id)
+            if latest > last_arrival:
+                last_arrival = latest
+                quiet_until = now + quiet_wait
+
+            if now >= quiet_until or now - started >= max_wait:
+                return
+            await asyncio.sleep(
+                max(0.02, min(0.1, quiet_until - now, started + max_wait - now))
+            )
 
     async def _generate_and_send_reply(
         self,

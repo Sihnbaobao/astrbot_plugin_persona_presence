@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.6.4
+
+- **Adaptive private Smart window**: private chat now waits for 1200ms of silence after the last message, resetting on each new arrival, with a 3500ms hard cap. Group chat stays on the fixed 3s window. This replaces the fixed 2500ms private wait and keeps quick bursts merged without always paying the full delay.
+
 ## 1.6.3
 
 - **Private Smart window shortened**: default `private_batch_wait_ms` lowered from 4500 to 2500. With `followup` mode the speculative draft is disabled, so the old window was exposed as pure latency; 2.5s still catches most same-thought bursts. `precomputed` users can raise it back toward 3000-4500.

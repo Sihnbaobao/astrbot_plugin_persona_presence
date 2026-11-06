@@ -160,7 +160,7 @@ def test_private_media_modes_are_configured_separately():
     assert runtime["presence_enhance"]["private_emoji_mode"] in set(
         enhance_items["private_emoji_mode"]["options"]
     )
-    assert runtime["presence_concurrent"]["private_batch_wait_ms"] == 2500
+    assert runtime["presence_concurrent"]["private_batch_wait_ms"] == 3500
 
 
 def test_arrival_order_survives_payload_processing_race(monkeypatch):
