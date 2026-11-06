@@ -637,9 +637,9 @@ function renderImages() {
           '<div class="image-card-meta">' + esc(entry.created) + " · " + esc(entry.chat) + " · " + esc(entry.sender) + "</div>" +
           '<div class="image-card-meta">评分 ' + entry.score + (entry.favorite ? " · 收藏" : "") + " · " + entry.size_kb + "KB</div>" +
           '<div class="image-card-actions">' +
-          (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重新识图</button>' : "") +
-          '<button class="mini-btn' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' title="敏感标签：' + esc(entry.blocked_tag) + '；仅名单内会话可发送"' : "") + '>' + (entry.sendable ? (entry.blocked_tag ? "敏感可发" : "可发送") : "标记可发送") + '</button>' +
-          '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
+          (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重识</button>' : "") +
+          '<button class="sendable-toggle' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' title="敏感标签：' + esc(entry.blocked_tag) + '；仅名单内会话可发送"' : "") + '>' + (entry.sendable ? (entry.blocked_tag ? "敏感可发" : "可发送") : "允许发送") + '</button>' +
+          '<button class="icon-btn danger" data-image-delete="' + esc(entry.id) + '" title="删除" aria-label="删除">×</button>' +
           "</div></div></article>"
         );
       })
@@ -733,11 +733,13 @@ async function deleteArchiveImage(id, button) {
   if (!id) return;
   if (button && button.dataset.confirm !== "1") {
     button.dataset.confirm = "1";
-    button.textContent = "再点一次";
+    button.classList.add("confirming");
+    button.title = "再点一次确认删除";
     setTimeout(() => {
       if (!button.isConnected) return;
       button.dataset.confirm = "";
-      button.textContent = "删除";
+      button.classList.remove("confirming");
+      button.title = "删除";
     }, 3000);
     return;
   }

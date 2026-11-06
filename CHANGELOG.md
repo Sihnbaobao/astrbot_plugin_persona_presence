@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.5
+
+- Refined image-card actions: the sendable control is now a compact status toggle with a dot, and delete is a square icon button. The action row sits under a divider instead of visually competing with the card metadata, and delete confirmation changes the icon colour rather than replacing the label.
+
 ## 1.7.4
 
 - Image cards now separate the score/size metadata from the action row, so the sendable button no longer covers file information; actions wrap instead of turning into vertical text.
