@@ -358,8 +358,8 @@
       "private_batch_wait_ms": {
         "description": "私聊短连发等待(毫秒)",
         "type": "int",
-        "default": 4500,
-        "hint": "需要 Smart 的私聊消息保留后续短连发的时间；纯文本 decide 会在窗口期间并行预判，无后续消息时复用结果；direct 纯文本会并行生成不执行工具、非流式缓冲文本；Smart 提交时仅复用已完成草稿，仍在生成的草稿会取消并走正常 Agent，有 follower 时作废并对合并消息重生成；尚未到唤醒时间的 literal sleep 不使用此等待。"
+        "default": 2500,
+        "hint": "只用于合并同一段话的连续消息。followup 模式建议 2000-3000ms；precomputed 模式可以保留 3000-4500ms，因为预生成草稿会抵消等待。还没到唤醒时间的 literal sleep 不使用此等待。"
       },
       "private_batch_max_size": {
         "description": "私聊批次上限",

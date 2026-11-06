@@ -2,12 +2,12 @@
 
 Persona Presence 是面向 AstrBot 的群聊与私聊消息增强插件。它让当前 Persona 基于兴趣、关系、上下文和当下意愿选择是否参与；媒体整理、Smart 批处理和正式回复仍沿用 AstrBot 的正常链路。
 
-[![Version](https://img.shields.io/badge/version-1.6.2-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
+[![Version](https://img.shields.io/badge/version-1.6.3-blue.svg)](https://github.com/Sihnbaobao/astrbot_plugin_persona_presence)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A54.11.0-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![Plugin Pages](https://img.shields.io/badge/Plugin%20Pages-v4.25.3%2B-purple.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](LICENSE)
 
-> 当前版本：1.6.2。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
+> 当前版本：1.6.3。插件标识已更新为 astrbot_plugin_persona_presence；插件元数据兼容 AstrBot >= 4.11.0，插件页管理控制台建议使用支持 Plugin Pages 的 AstrBot 版本（4.25.3+）。
 
 ## 功能概览
 
@@ -102,7 +102,7 @@ takeover_private_reply 控制插件静默时是否阻止 AstrBot 默认兜底。
 推荐配置：
 
 - private_concurrent_mode = smart
-- private_batch_wait_ms = 4500
+- private_batch_wait_ms = 2500
 - private_batch_max_size = 10
 
 Smart 的含义是“短时间连发合并”，不是“只要机器人还没回复就无限等待”。direct 和 decide 私聊都可以使用 Smart；decide 纯文本会在合并窗口期间并行预判，没有后续消息时复用判断，窗口内出现后续消息时作废预判并对合并批次重判。direct 仍绕过普通私聊 DecisionAI，但会把连续消息合并成一条正式 Persona 回复。例如：
@@ -111,9 +111,9 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
     刚才那个问题你看到了吗
     我再补充一句
 
-无论 private_reply_mode 是 direct 还是 decide，只要 private_concurrent_mode=smart，短时间内到达的消息都会在约 4500ms 窗口内组织成一轮输入并只生成一条综合回复。direct 只表示普通文本绕过私聊参与判断，不表示绕过 Smart；decide 还会对首条纯文本并行预判。literal sleep 尚未到重新考虑时间时仍会缓存并静默，不进入 Smart 批次。关键词或 @ 不会改变这些边界。相同文本重复发送时，模型会收到重复次数提示，并按当前 Persona 对啰嗦和催促的态度自然回应；不会为同一批消息逐条调用正式回复。
+无论 private_reply_mode 是 direct 还是 decide，只要 private_concurrent_mode=smart，短时间内到达的消息都会在约 2500ms 窗口内组织成一轮输入并只生成一条综合回复。direct 只表示普通文本绕过私聊参与判断，不表示绕过 Smart；decide 还会对首条纯文本并行预判。literal sleep 尚未到重新考虑时间时仍会缓存并静默，不进入 Smart 批次。关键词或 @ 不会改变这些边界。相同文本重复发送时，模型会收到重复次数提示，并按当前 Persona 对啰嗦和催促的态度自然回应；不会为同一批消息逐条调用正式回复。
 
-对需要 Smart 的消息来说，相隔几秒且超过窗口的消息属于不同轮次。窗口外的后续消息不会再额外等待前一个模型请求十秒，而是快速进入自己的处理流程。direct 的纯文本 anchor 会在窗口期间提前启动一轮缓冲的、不执行工具、非流式正式文本生成：窗口内没有 follower 且草稿已完成时复用结果；草稿仍在生成时取消并立即走正常 Agent，窗口内出现 follower 时也作废草稿并对合并消息重新生成。这个预生成只覆盖普通 direct 纯文本；媒体、收尾边界和需要工具的完整 Agent 路径仍在批次确定后执行。私聊生成方式选择 followup 时会关闭这层预生成，避免它绕过工具链；两种方式在配置里二选一，不会同时生效。如果更重视单条 direct 延迟，可以将 private_concurrent_mode 改为 legacy。需要合并短连发时，建议把窗口调整在 3000-6000ms 范围内。
+对需要 Smart 的消息来说，相隔几秒且超过窗口的消息属于不同轮次。窗口外的后续消息不会再额外等待前一个模型请求十秒，而是快速进入自己的处理流程。direct 的纯文本 anchor 会在窗口期间提前启动一轮缓冲的、不执行工具、非流式正式文本生成：窗口内没有 follower 且草稿已完成时复用结果；草稿仍在生成时取消并立即走正常 Agent，窗口内出现 follower 时也作废草稿并对合并消息重新生成。这个预生成只覆盖普通 direct 纯文本；媒体、收尾边界和需要工具的完整 Agent 路径仍在批次确定后执行。私聊生成方式选择 followup 时会关闭这层预生成，避免它绕过工具链；两种方式在配置里二选一，不会同时生效。如果更重视单条 direct 延迟，可以将 private_concurrent_mode 改为 legacy。需要合并短连发时，followup 模式建议把窗口调整在 2000-3000ms 范围内；precomputed 模式可以稍长。
 
 ## 图片与表情包
 
@@ -166,7 +166,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 | private_decision_ai_reply_tendency | persona | 只影响私聊参与判断：persona 按当前人格，reserved 更克制，active 更愿意接住有内容的私聊 |
 | concurrent_mode | legacy | 群聊逐条或 Smart 批处理 |
 | private_concurrent_mode | smart | 私聊短连发合并；direct 和 decide 都适用，direct 不调用普通私聊 DecisionAI |
-| private_batch_wait_ms | 4500 | 私聊 Smart 短连发合并窗口；direct/decide 都适用，literal sleep 静默期不使用 |
+| private_batch_wait_ms | 2500 | 私聊 Smart 短连发合并窗口；direct/decide 都适用，literal sleep 静默期不使用 |
 | private_batch_max_size | 10 | 单个私聊批次最多合并的消息数 |
 | decision_ai_provider_id | 空 | 参与判断使用的提供商；留空跟随会话默认提供商 |
 | decision_ai_include_persona | true | 参与判断是否携带当前人格 |
@@ -214,7 +214,7 @@ Smart 的含义是“短时间连发合并”，不是“只要机器人还没�
 - enable_private_chat = true
 - private_reply_mode = direct
 - private_concurrent_mode = smart（只影响需要参与判断的媒体/边界或 decide 私聊）
-- private_batch_wait_ms = 4500
+- private_batch_wait_ms = 2500
 - private_emoji_mode = ignore
 - 根据需要设置 enabled_private_users
 
@@ -240,11 +240,11 @@ ambient 模式允许普通群消息进入判断。Persona 不应为了展示知�
 
 ### 连续发消息为什么还是逐条回复？
 
-先确认消息是否真的进入 Smart：private_reply_mode=direct 和 decide 都可以使用 private_batch_wait_ms，只要 private_concurrent_mode=smart。direct 白天不调用普通私聊 DecisionAI；深夜普通文本先经过一次参与复核，不提前生成正式草稿；其他普通纯文本会在等待窗口期间提前生成一份缓冲文本；窗口结束时只有已完成草稿才直接复用，未完成草稿会取消并走正常 Agent，follower 到达时则作废并对合并消息重生成。默认窗口是 4500ms，相隔 5 秒或 8 秒通常不属于同一批；literal sleep 静默期直接缓存，不进入 Smart。Smart 不是“等待机器人回复结束后再合并全部消息”的模式。
+先确认消息是否真的进入 Smart：private_reply_mode=direct 和 decide 都可以使用 private_batch_wait_ms，只要 private_concurrent_mode=smart。direct 白天不调用普通私聊 DecisionAI；深夜普通文本先经过一次参与复核，不提前生成正式草稿；其他普通纯文本会在等待窗口期间提前生成一份缓冲文本；窗口结束时只有已完成草稿才直接复用，未完成草稿会取消并走正常 Agent，follower 到达时则作废并对合并消息重生成。默认窗口是 2500ms，相隔 4 秒或更久通常不属于同一批；literal sleep 静默期直接缓存，不进入 Smart。Smart 不是“等待机器人回复结束后再合并全部消息”的模式。
 
 ### 私聊回复为什么仍然慢？
 
-如果是普通 direct 私聊仍然慢，先检查正式模型耗时和 provider 状态：Smart 模式会保留窗口，但 direct 纯文本的缓冲生成与窗口并行进行，正常情况下不会再把完整 4.5 秒叠加到模型耗时。媒体、收尾边界或需要工具的请求仍会在批次确定后生成。想要关闭短连发合并，可以将 private_concurrent_mode 改为 legacy。当前版本已经移除了旧的“同会话最多等待十秒”私聊保护。
+如果是普通 direct 私聊仍然慢，先检查正式模型耗时和 provider 状态：Smart 模式会保留窗口，但 direct 纯文本的缓冲生成与窗口并行进行，正常情况下不会再把完整等待叠加到模型耗时。媒体、收尾边界或需要工具的请求仍会在批次确定后生成。想要关闭短连发合并，可以将 private_concurrent_mode 改为 legacy。当前版本已经移除了旧的“同会话最多等待十秒”私聊保护。
 
 ### 表情包为什么不回复？
 
