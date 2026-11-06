@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.7
+
+- Restored the wider sendable control while keeping the text delete button: the sendable toggle takes the available footer width and delete keeps a fixed natural width, so both actions stay visible and balanced.
+
 ## 1.7.6
 
 - Image-card actions are now compact: the sendable toggle only takes its content width, and delete is a normal text button again instead of a square icon. Actions stay balanced at the two ends of the card footer.
