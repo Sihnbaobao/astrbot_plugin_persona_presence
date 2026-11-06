@@ -45,6 +45,8 @@ _FILLER_CHARS = set("哈呵嘿嘻嗯啊哦噢呃额草bbb")
 
 _EXTRACT_PROMPT = """判断下面这些词里，哪些是只有这个群的人才懂的说法：缩写、梗、内部称呼、谐音、特定用法。
 同一个称呼有更长写法时选完整写法（例如选“大肥鱼”，不要选“肥鱼”这种片段）。
+群友正在演的剧情、临时称号、外号、玩笑或普通聊天内容，不算黑话；
+只有已经成为群内固定说法、换个人也这么用的词才选。
 
 候选词：{terms}
 
@@ -70,7 +72,7 @@ _MEANING_CONTEXT_PROMPT = """群里的一段对话里出现了「{term}」：
 如果上下文不足以判断，输出 {{"no_info": true}}"""
 
 _MEANING_ONLY_PROMPT = """「{term}」是某个群聊里的说法。仅凭这个词猜它的意思。
-只输出 JSON：{{"meaning": "含义"}}；如果没把握，输出 {{"no_info": true}}"""
+只输出 JSON：{{"meaning": "含义"}}；如果只是普通词/常见词，直接写它的常见含义。如果没把握，输出 {{"no_info": true}}"""
 
 _COMPARE_PROMPT = """「{term}」有两次推断：
 
@@ -90,13 +92,41 @@ _COMPARE_PROMPT = """「{term}」有两次推断：
 - 只有昵称、@、玩笑或“称帝/皇帝”，不足以确定身份，必须写“对某个对象的称呼（身份未明）”；
 - 不把玩笑写成事实，不把字面义写成群内用法。
 
+判断它到底是不是这个群的黑话：
+- 如果 A 和 B 的含义相同，或者只是普通词/常见词，is_jargon=false；
+- 如果只有结合这个群才知道，is_jargon=true；
+- 群友正在演的剧情、临时称号、玩笑，不要因为“查不到”就判成黑话。
 只输出 JSON：
-{{"meaning": "最终含义", "confidence": 0.0-1.0, "scope": "internet|group|person"}}
+{{"meaning": "最终含义", "confidence": 0.0-1.0, "is_jargon": true/false, "scope": "internet|group|person"}}
 两次都不可信就输出 {{"no_info": true}}"""
 
 
+_JIEBA_READY = False
+
+
+def _is_standard_word(term: str) -> bool:
+    """Reject words that are common in jieba's general dictionary.
+
+    Args:
+        term: Candidate character n-gram.
+
+    Returns:
+        True when jieba treats it as ordinary vocabulary.
+    """
+    global _JIEBA_READY
+    try:
+        import jieba
+
+        if not _JIEBA_READY:
+            jieba.initialize()
+            _JIEBA_READY = True
+        return int(jieba.dt.FREQ.get(term, 0)) > 100
+    except Exception:
+        return False
+
+
 def candidate_terms(
-    lines: list[str], min_count: int = 2, limit: int = 8
+    lines: list[str], min_count: int = 3, limit: int = 8
 ) -> list[tuple[str, int]]:
     """Collect repeated character n-grams as slang candidates.
 
@@ -118,6 +148,8 @@ def candidate_terms(
                     if gram in _STOP_TERMS:
                         continue
                     if set(gram) <= _FILLER_CHARS:
+                        continue
+                    if _is_standard_word(gram):
                         continue
                     counter[gram] += 1
 

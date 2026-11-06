@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 1.8.5
+
+- Group-slang learning now uses a statistical pre-filter before the LLM: character n-grams must repeat at least three times, and ordinary vocabulary in jieba's dictionary is excluded. This follows the self-learning plugin's frequency/standard-word filtering idea.
+- The three-way inference now returns an explicit `is_jargon` verdict. The learner adds a term only when context and word-only meanings actually diverge, so ordinary nouns repeated in chat no longer become slang.
+- The extraction prompt explicitly excludes group roleplay, temporary titles, nicknames and jokes, which should not be learned as stable group vocabulary.
+
 ## 1.8.4
 
 - Curiosity reflection now classifies candidates as `web` or `group`. Group roleplay, titles, nicknames, in-jokes and ongoing lore are explicitly excluded from web lookup, so the persona no longer researches things that only exist in the current group's conversation.
