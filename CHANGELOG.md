@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.6
+
+- Image-card actions are now compact: the sendable toggle only takes its content width, and delete is a normal text button again instead of a square icon. Actions stay balanced at the two ends of the card footer.
+
 ## 1.7.5
 
 - Refined image-card actions: the sendable control is now a compact status toggle with a dot, and delete is a square icon button. The action row sits under a divider instead of visually competing with the card metadata, and delete confirmation changes the icon colour rather than replacing the label.

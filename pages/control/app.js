@@ -639,7 +639,7 @@ function renderImages() {
           '<div class="image-card-actions">' +
           (entry.analysis_pending ? '<button class="mini-btn" data-image-rate="' + esc(entry.id) + '">重识</button>' : "") +
           '<button class="sendable-toggle' + (entry.sendable ? " active" : "") + '" data-image-sendable="' + esc(entry.id) + '" data-sendable="' + (entry.sendable ? "1" : "0") + '"' + (entry.blocked_tag ? ' title="敏感标签：' + esc(entry.blocked_tag) + '；仅名单内会话可发送"' : "") + '>' + (entry.sendable ? (entry.blocked_tag ? "敏感可发" : "可发送") : "允许发送") + '</button>' +
-          '<button class="icon-btn danger" data-image-delete="' + esc(entry.id) + '" title="删除" aria-label="删除">×</button>' +
+          '<button class="mini-btn danger" data-image-delete="' + esc(entry.id) + '">删除</button>' +
           "</div></div></article>"
         );
       })
@@ -734,12 +734,12 @@ async function deleteArchiveImage(id, button) {
   if (button && button.dataset.confirm !== "1") {
     button.dataset.confirm = "1";
     button.classList.add("confirming");
-    button.title = "再点一次确认删除";
+    button.textContent = "再点一次";
     setTimeout(() => {
       if (!button.isConnected) return;
       button.dataset.confirm = "";
       button.classList.remove("confirming");
-      button.title = "删除";
+      button.textContent = "删除";
     }, 3000);
     return;
   }
