@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.7.8
+
+- The image-card delete button now gets a red hover highlight, matching the visual feedback of the sendable toggle instead of staying visually inert on hover.
+
 ## 1.7.7
 
 - Restored the wider sendable control while keeping the text delete button: the sendable toggle takes the available footer width and delete keeps a fixed natural width, so both actions stay visible and balanced.

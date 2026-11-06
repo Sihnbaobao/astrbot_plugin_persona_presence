@@ -1049,4 +1049,9 @@ html[data-theme="dark"] .mini-btn.danger { color: #ff8a80; }
 html[data-theme="dark"] .sendable-toggle.active { color: #8ee09a; }
 html[data-theme="dark"] .sendable-toggle.active::before { background: #8ee09a; }
 .mini-btn.confirming { border-color: rgba(180, 35, 24, .55); color: #b42318; background: rgba(180, 35, 24, .08); }
+.image-card-actions .mini-btn.danger:hover {
+  border-color: rgba(180, 35, 24, .45); color: #b42318;
+  background: rgba(180, 35, 24, .06);
+}
+html[data-theme="dark"] .image-card-actions .mini-btn.danger:hover { color: #ff8a80; }
 .image-empty { grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-3); }
