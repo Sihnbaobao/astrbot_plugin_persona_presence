@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.8
+
+- Fixed proactive-speech lull measurement. The current message was recorded before the gate check, so `now - last_seen` was always near zero and the 90-second lull could never pass. The group state now keeps the quiet gap that preceded the latest message and the gate uses that value.
+
 ## 1.8.7
 
 - Fixed the configurable slang threshold wiring: `notebook_jargon_min_count` is now actually read from config (default 4) and used by the candidate filter, and the field is present in the config schema.

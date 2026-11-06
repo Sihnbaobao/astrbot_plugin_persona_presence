@@ -82,12 +82,14 @@ class _GroupState:
     Attributes:
         lines: Recent chat lines, oldest first.
         last_seen: Timestamp of the last message.
+        last_gap: Quiet seconds before the latest message.
         last_spoke: Timestamp of the last proactive line.
         last_try: Timestamp of the last generation attempt.
     """
 
     lines: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     last_seen: float = 0.0
+    last_gap: float = 0.0
     last_spoke: float = 0.0
     last_try: float = 0.0
 
@@ -181,7 +183,9 @@ class ProactiveModule(PluginModule):
         if not text:
             text = "[图片或表情]"
         state.lines.append(f"{sender}：{text}" if sender else text)
-        state.last_seen = time.time()
+        now = time.time()
+        state.last_gap = max(0.0, now - state.last_seen) if state.last_seen else 0.0
+        state.last_seen = now
 
     def can_propose(self, ctx: FeatureContext) -> bool:
         """Tell whether the cheap gates allow a proposal attempt.
@@ -554,7 +558,7 @@ class ProactiveModule(PluginModule):
         if len(state.lines) < s.min_messages:
             return f"消息不足（{len(state.lines)}/{s.min_messages}）"
         now_ts = time.time()
-        lull = now_ts - (state.last_seen or 0.0)
+        lull = float(state.last_gap or 0.0) or (now_ts - (state.last_seen or 0.0))
         if s.min_lull_seconds > 0 and lull < s.min_lull_seconds:
             wait = int(s.min_lull_seconds - lull)
             return f"群里还在聊，{wait} 秒后再看"
@@ -605,6 +609,7 @@ class ProactiveModule(PluginModule):
                     "reason": reason,
                     "buffered": len(state.lines),
                     "last_seen": state.last_seen,
+                    "last_gap": round(state.last_gap, 1),
                     "last_spoke": state.last_spoke,
                     "last_try": state.last_try,
                 }
@@ -640,7 +645,7 @@ class ProactiveModule(PluginModule):
         now_ts = time.time()
         if len(state.lines) < s.min_messages:
             return False
-        lull = now_ts - (state.last_seen or 0.0)
+        lull = float(state.last_gap or 0.0) or (now_ts - (state.last_seen or 0.0))
         if s.min_lull_seconds > 0 and lull < s.min_lull_seconds:
             return False
         if s.max_lull_seconds > 0 and lull > s.max_lull_seconds:
