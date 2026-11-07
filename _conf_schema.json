@@ -323,6 +323,17 @@
         "type": "int",
         "default": 1,
         "hint": "一次回复最多排队几张表情图；建议 1。"
+      },
+      "reply_ellipsis_style": {
+        "description": "省略号风格",
+        "type": "string",
+        "options": [
+          "keep",
+          "ascii",
+          "chinese"
+        ],
+        "default": "keep",
+        "hint": "keep=保留模型输出；ascii=统一成三个点；chinese=统一成中文省略号。只处理最终发出的正文，不改写上下文。"
       }
     }
   },

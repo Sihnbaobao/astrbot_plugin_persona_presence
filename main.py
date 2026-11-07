@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.3（Persona Presence 参与判断重构）
+版本: 1.9.4（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.3"
+PLUGIN_VERSION = "1.9.4"
 
 
 @register(
@@ -244,6 +244,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self.include_timestamp = self._cfg_bool("include_timestamp", True)
         self.include_sender_info = self._cfg_bool("include_sender_info", True)
         self.collapse_reply_newlines = self._cfg_bool("collapse_reply_newlines", False)
+        self.reply_ellipsis_style = self._cfg_choice(
+            "reply_ellipsis_style", "keep", {"keep", "ascii", "chinese"}
+        )
 
         # ========== 上下文配置 ==========
         self.max_context_messages = self._cfg_int(
@@ -8471,6 +8474,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             raw = str(getattr(response, "completion_text", "") or "")
             if raw:
                 cleaned = AIResponseFilter.sanitize_reply_text(raw)
+                if self.reply_ellipsis_style != "keep":
+                    cleaned = AIResponseFilter.normalize_ellipsis(
+                        cleaned, self.reply_ellipsis_style
+                    )
                 if cleaned != raw:
                     # completion_text 的 setter 会同步替换 result_chain 里的纯文本段
                     response.completion_text = cleaned

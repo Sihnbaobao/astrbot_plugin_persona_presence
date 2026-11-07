@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.4
+
+- Added an outgoing punctuation style option (`reply_ellipsis_style`): keep the model's pause punctuation, normalise it to three ASCII dots, or normalise it to a Chinese ellipsis. This only affects delivered text, not the prompt or saved context. Live config is set to `ascii`.
+
 ## 1.9.3
 
 - Near-duplicate reply collapse: punctuation and ellipsis variants are normalized before checking whether the text is the same phrase twice. This catches cases like “……躺着……等蓝原……躺着…等蓝原” that the exact-half check missed.

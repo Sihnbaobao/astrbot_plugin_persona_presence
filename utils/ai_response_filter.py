@@ -108,15 +108,16 @@ class AIResponseFilter:
         cleaned = re.sub(r"^\s*<[a-z_]+>\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\s*</[a-z_]+>\s*$", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"</?(?:reply|bubble|message|p|div|span)>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"</?(?:reply|bubble|message|p|div|span)>", "", cleaned, flags=re.IGNORECASE
+        )
 
         # 整段被三反引号包住时，只保留里面的内容
         fence = "```"
         text = cleaned.strip()
         if text.startswith(fence) and text.endswith(fence) and len(text) > 6:
             inner = text[3:-3].strip()
-            head, _, rest = inner.partition(
-)
+            head, _, rest = inner.partition()
             text = rest.strip() if head.strip().isalpha() and rest else inner
         cleaned = text
 
@@ -124,6 +125,26 @@ class AIResponseFilter:
         cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         return cleaned.strip()
+
+    @staticmethod
+    def normalize_ellipsis(response: str, style: str = "keep") -> str:
+        """Normalise pause ellipses in an outgoing reply.
+
+        Args:
+            response: Reply text after markup cleanup.
+            style: ``ascii`` for three dots, ``chinese`` for a Chinese
+                ellipsis, or ``keep`` to leave the model's punctuation.
+
+        Returns:
+            The reply with pause ellipses normalised.
+        """
+        if not response or not isinstance(response, str):
+            return response
+        if style == "ascii":
+            return re.sub(r"…+|\.{3,}", "...", response)
+        if style == "chinese":
+            return re.sub(r"…+|\.{3,}", "……", response)
+        return response
 
     @staticmethod
     def filter_thinking_chain(response: str) -> str:
