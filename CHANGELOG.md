@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.3
+
+- Near-duplicate reply collapse: punctuation and ellipsis variants are normalized before checking whether the text is the same phrase twice. This catches cases like “……躺着……等蓝原……躺着…等蓝原” that the exact-half check missed.
+
 ## 1.9.2
 
 - Rewrote the private/group scene note as a terse factual aside (“（私聊。对面只有对方一个人。）” / “（群聊。刚才说话的是「某某」，周围还有人。）”) instead of imperative assistant-style instructions.

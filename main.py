@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.2（Persona Presence 参与判断重构）
+版本: 1.9.3（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.2"
+PLUGIN_VERSION = "1.9.3"
 
 
 @register(
@@ -8571,15 +8571,32 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             # Short replies sometimes get emitted as the same sentence twice.
             # Collapse only an exact whole-text repetition; normal emphasis or
             # a short "哈哈" is left alone by the six-character minimum.
+            text_components = [comp for comp in result.chain if hasattr(comp, "text")]
             repeated = re.fullmatch(r"(.{6,})\1", reply_text, re.DOTALL)
+            collapsed_text = ""
             if repeated:
-                text_components = [
-                    comp for comp in result.chain if hasattr(comp, "text")
-                ]
-                if len(text_components) == 1:
-                    reply_text = repeated.group(1).strip()
-                    text_components[0].text = reply_text
-                    logger.info("[回复清洗] 折叠重复的整句")
+                collapsed_text = repeated.group(1).strip()
+            else:
+                normalized = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", reply_text)
+                half = len(normalized) // 2
+                if (
+                    len(normalized) >= 12
+                    and len(normalized) % 2 == 0
+                    and normalized[:half] == normalized[half:]
+                ):
+                    counted = 0
+                    for index, char in enumerate(reply_text):
+                        if not re.match(r"[\s.。…·!！?？,，、~～\-—]", char):
+                            counted += 1
+                        if counted == half:
+                            collapsed_text = reply_text[: index + 1].rstrip(
+                                " \n.。…·!！?？,，、~～-—"
+                            )
+                            break
+            if collapsed_text and len(text_components) == 1:
+                reply_text = collapsed_text
+                text_components[0].text = reply_text
+                logger.info("[回复清洗] 折叠重复的整句")
 
             # meme_manager's direct send_meme tool already delivered an image.
             # Models often finish the tool loop with a punctuation-only "...";
