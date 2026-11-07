@@ -334,6 +334,18 @@
         ],
         "default": "keep",
         "hint": "keep=保留模型输出；ascii=统一成三个点；chinese=统一成中文省略号。只处理最终发出的正文，不改写上下文。"
+      },
+      "quote_slow_reply": {
+        "description": "慢回复引用原消息",
+        "type": "bool",
+        "default": false,
+        "hint": "生成超过阈值时，在回复前引用触发它的那条消息，避免晚到回复看起来像突然插话。"
+      },
+      "quote_slow_reply_threshold_seconds": {
+        "description": "慢回复阈值（秒）",
+        "type": "int",
+        "default": 30,
+        "hint": "超过这个耗时才加引用；默认 30 秒。"
       }
     }
   },

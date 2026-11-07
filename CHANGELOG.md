@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.2
+
+- Added optional slow-reply quotation (`quote_slow_reply`, default off; live on). When a reply takes at least `quote_slow_reply_threshold_seconds` (default 30), it is sent with a Reply component pointing at the message that triggered it, so a late reply reads as a reply rather than an out-of-nowhere interjection.
+
 ## 2.0.1
 
 - Applied the configured ellipsis style to direct feature proposal sends and follow-up bubbles. Those paths bypass `on_llm_response`, so proactive/react and queued second bubbles previously kept `……` or `......` even when `reply_ellipsis_style=ascii`.

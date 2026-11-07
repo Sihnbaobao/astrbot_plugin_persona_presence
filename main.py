@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.1（Persona Presence 参与判断重构）
+版本: 2.0.2（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -53,7 +53,7 @@ import aiohttp
 from astrbot.api import logger
 from astrbot.api.all import *
 from astrbot.api.event import filter
-from astrbot.core.message.components import Image, Plain
+from astrbot.core.message.components import Image, Plain, Reply
 from astrbot.core.message.message_event_result import ResultContentType
 from astrbot.core.provider.entities import ProviderRequest
 
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.1"
+PLUGIN_VERSION = "2.0.2"
 
 
 @register(
@@ -246,6 +246,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self.collapse_reply_newlines = self._cfg_bool("collapse_reply_newlines", False)
         self.reply_ellipsis_style = self._cfg_choice(
             "reply_ellipsis_style", "keep", {"keep", "ascii", "chinese"}
+        )
+        self.quote_slow_reply = self._cfg_bool("quote_slow_reply", False)
+        self.quote_slow_reply_threshold_seconds = self._cfg_int(
+            "quote_slow_reply_threshold_seconds",
+            30,
+            minimum=5,
+            maximum=300,
         )
 
         # ========== 上下文配置 ==========
@@ -8039,6 +8046,26 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 event.call_llm = True
                 if precomputed_reply_text is not None and message_id_for_error:
                     self._agent_done_flags.add(message_id_for_error)
+
+            if (
+                self.quote_slow_reply
+                and time.time() - _process_start_time
+                >= self.quote_slow_reply_threshold_seconds
+                and reply_result is not None
+                and hasattr(reply_result, "chain")
+            ):
+                try:
+                    source_message_id = str(
+                        getattr(getattr(event, "message_obj", None), "message_id", "")
+                        or ""
+                    ).strip()
+                    if source_message_id:
+                        reply_result.chain = [Reply(id=source_message_id)] + list(
+                            reply_result.chain or []
+                        )
+                        logger.info("[慢回复] 已引用原消息")
+                except Exception as quote_err:
+                    logger.debug(f"[慢回复] 引用失败: {quote_err}")
 
             followups = list(event.get_extra("_persona_followups") or [])
             if (
