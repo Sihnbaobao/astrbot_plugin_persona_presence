@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.0（Persona Presence 参与判断重构）
+版本: 2.0.1（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.0"
+PLUGIN_VERSION = "2.0.1"
 
 
 @register(
@@ -2558,6 +2558,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         action = str(getattr(proposal, "action", "react") or "react").lower()
         text = AIResponseFilter.sanitize_reply_text(str(proposal.text or "")).strip()
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
+        if self.reply_ellipsis_style != "keep":
+            text = AIResponseFilter.normalize_ellipsis(
+                text, self.reply_ellipsis_style
+            )
         if not text and action != "meme":
             note("空内容")
             return False
@@ -8207,6 +8211,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         main_clean = str(main_text or "").strip()
         for text in texts:
             cleaned = str(text or "").strip()
+            if self.reply_ellipsis_style != "keep":
+                cleaned = AIResponseFilter.normalize_ellipsis(
+                    cleaned, self.reply_ellipsis_style
+                )
             if not cleaned or cleaned == main_clean:
                 continue
             delay = random.randint(low, high) / 1000 if high > 0 else 0

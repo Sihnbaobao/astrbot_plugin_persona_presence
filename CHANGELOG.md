@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.1
+
+- Applied the configured ellipsis style to direct feature proposal sends and follow-up bubbles. Those paths bypass `on_llm_response`, so proactive/react and queued second bubbles previously kept `……` or `......` even when `reply_ellipsis_style=ascii`.
+
 ## 2.0.0
 
 - **Proactive voice changed from self-reporting to group reaction**: the proactive pack now sees the last few group messages and chooses `react` (short roast/reaction), `meme` (semantic meme bubble, optionally with a short caption), or `silent`. It no longer defaults to narrating its own imaginary day.
