@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.13（Persona Presence 参与判断重构）
+版本: 2.0.14（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.14"
+PLUGIN_VERSION = "2.0.15"
 
 
 @register(
@@ -1543,8 +1543,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="web_lookup",
                 description=(
-                    "搜索作品、角色、梗或专有名词，返回搜索摘要和来源片段。"
-                    "query 可以带上作品名或上下文。搜索结果只是资料。"
+                    "作品、角色、梗或专有名词的资料检索；"
+                    "query 可带作品名或上下文，返回摘要和来源片段。搜索结果只是资料。"
                 ),
                 parameters={
                     "type": "object",
@@ -1743,8 +1743,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="queue_meme",
                 description=(
-                    "按自然语言描述从表情图库选一张具体的图，排进当前回复；"
-                    "不立即发送。只想发表情时可以不写正文。"
+                    "表情图库里符合描述的一张图，可以放进当前回复；"
+                    "也可以只发表情。"
                 ),
                 parameters={
                     "type": "object",
@@ -1940,26 +1940,24 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="search_saved_images",
                 description=(
-                    "Search images you saved and rated yourself in this "
-                    "conversation. Returns your scores, tags and image_id. "
-                    "Does not send."
+                    "你自己收进图库、打过分的图片；返回评分、标签和 image_id，只查不发。"
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Description or tag keywords; empty means recent images.",
+                            "description": "描述或标签关键词；留空表示最近图片。",
                             "default": "",
                         },
                         "days": {
                             "type": "integer",
-                            "description": "How many days back to search.",
+                            "description": "往前查几天。",
                             "default": 30,
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum results, 1-10.",
+                            "description": "最多返回几条，1-10。",
                             "default": 5,
                         },
                     },
@@ -1969,15 +1967,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="send_saved_image",
                 description=(
-                    "Send one of your own saved images to the current chat. "
-                    "image_id must come from search_saved_images."
+                    "你图库里的一张图，直接发到当前会话；"
+                    "image_id 来自 search_saved_images。"
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "image_id": {
                             "type": "string",
-                            "description": "The image_id from search_saved_images.",
+                            "description": "search_saved_images 返回的图片编号。",
                         }
                     },
                     "required": ["image_id"],
@@ -1987,16 +1985,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="queue_saved_image",
                 description=(
-                    "Queue one of your own saved images into the current reply "
-                    "instead of sending it immediately. image_id must come from "
-                    "search_saved_images, and the image must be marked sendable."
+                    "你图库里的一张图，放进当前回复而不是立即单独发送；"
+                    "image_id 来自 search_saved_images，且图片需标记为可发送。"
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "image_id": {
                             "type": "string",
-                            "description": "The image_id from search_saved_images.",
+                            "description": "search_saved_images 返回的图片编号。",
                         }
                     },
                     "required": ["image_id"],
@@ -2006,16 +2003,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="send_current_image",
                 description=(
-                    "Send an image from the current turn by 1-based index. "
-                    "The turn may include a recent image even if it is not "
-                    "repeated in this text message."
+                    "当前消息里的一张图，按 1 起始序号发回；"
+                    "即使这条文字没重复，也可以取最近一张。"
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "index": {
                             "type": "integer",
-                            "description": "1-based image index in the current message.",
+                            "description": "当前消息里的第几张图，从 1 开始。",
                             "default": 1,
                         }
                     },

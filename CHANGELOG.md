@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.15
+
+- Reworked built-in tool descriptions into capability statements instead of imperative instructions. `web_lookup`, `queue_meme`, and the image archive tools now describe what exists (“作品、角色…的资料检索”, “你图库里的一张图…”) rather than telling the persona to search/send/queue. This reduces the assistant-like pull of the always-injected tool schema.
+
 ## 2.0.14
 
 - 回复链路接入音乐插件的工具（listen_music / listen_song / like_song / save_to_playlist），人格可以在聊天中自己决定去听歌，而不是等指令。
