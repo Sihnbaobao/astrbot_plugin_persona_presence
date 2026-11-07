@@ -140,6 +140,11 @@ class AIResponseFilter:
         """
         if not response or not isinstance(response, str):
             return response
+        response = re.sub(
+            r"(?:(?:\.{3,})|…+)[ 	]+(?=[一-鿿])",
+            lambda match: match.group(0).rstrip(),
+            response,
+        )
         if style == "ascii":
             return re.sub(r"…+|\.{3,}", "...", response)
         if style == "chinese":

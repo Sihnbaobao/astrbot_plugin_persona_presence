@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.11
+
+- Removed the stray space after ellipses before Chinese text. Model output like “...还行吧... 脚画得不错” now becomes “...还行吧...脚画得不错”, even when the spacer was introduced on a single line rather than by newline collapse.
+
 ## 2.0.10
 
 - Queued follow-ups are now also scheduled from `on_decorating_result`, which is the hook that actually runs for agent tool-loop replies. The previous scheduling point was only reached by the non-tool generation path, so `queue_followup` could log “已排队” and still never deliver a second bubble.
