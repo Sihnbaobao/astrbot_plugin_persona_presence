@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.1
+
+- Moved the private/group scene label from the final user-message suffix into the LLM system prompt. The persona now receives the conversation mode as part of the system context, so it is much harder for the generic “online chat” persona wording to make a private chat feel like a group.
+
 ## 1.9.0
 
 - **Private image carryover**: when a private conversation has image-only messages followed by a separate text message, the recent private images are attached to the text turn. This fixes the “没图” reply when images were sent separately rather than merged.

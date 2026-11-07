@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.0（Persona Presence 参与判断重构）
+版本: 1.9.1（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.0"
+PLUGIN_VERSION = "1.9.1"
 
 
 @register(
@@ -7514,22 +7514,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             except Exception as e:
                 logger.warning(f"[口头禅抑制] 失败: {e}")
 
-        try:
-            if is_private:
-                scene = (
-                    "[当前场景] 这是一对一私聊，只有你和屏幕对面的这个人。"
-                    "不要把它当成群聊，也不要提群里的其他人或把对方当成一群人。"
-                )
-            else:
-                sender = str(event.get_sender_name() or "对方")
-                scene = (
-                    f"[当前场景] 这是群聊，当前说话的是「{sender}」，"
-                    "群里还有其他人在场；不要把它当成一对一私聊。"
-                )
-            final_message = f"{final_message}\n\n{scene}"
-        except Exception as e:
-            logger.debug(f"[场景] 注入失败: {e}")
-
         return final_message, state_chat_id
 
     async def _generate_speculative_private_reply(
@@ -8366,7 +8350,23 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             req.contexts = list(plugin_contexts or []) + extra_contexts
 
             # 3. system_prompt 保持现状：人格已在请求时传入，
-            #    框架（TOOL_CALL_PROMPT 等）与第三方插件只会追加，不会覆盖
+            #    框架（TOOL_CALL_PROMPT 等）与第三方插件只会追加，不会覆盖。
+            #    场景是事实上下文，放在 system 层比放在用户消息末尾更难被忽略。
+            try:
+                if event.is_private_chat():
+                    scene = (
+                        "[当前场景] 这是一对一私聊，只有你和屏幕对面的这个人。"
+                        "不要把它当成群聊，也不要提群里的其他人。"
+                    )
+                else:
+                    sender = str(event.get_sender_name() or "对方")
+                    scene = (
+                        f"[当前场景] 这是群聊，当前说话的是「{sender}」，"
+                        "群里还有其他人在场；不要把它当成一对一私聊。"
+                    )
+                req.system_prompt = (req.system_prompt or "").rstrip() + "\n\n" + scene
+            except Exception as scene_err:
+                logger.debug(f"[场景] 注入 system prompt 失败: {scene_err}")
 
             # 4. 图片/音频 URL 合并（保留第三方注入）
             # QQ 商城表情预览图为死链，绝不能进入最终视觉请求；
