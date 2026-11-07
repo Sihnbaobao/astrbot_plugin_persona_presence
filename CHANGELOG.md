@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.14
+
+- 回复链路接入音乐插件的工具（listen_music / listen_song / like_song / save_to_playlist），人格可以在聊天中自己决定去听歌，而不是等指令。
+
 ## 2.0.13
 
 - Fixed the proactive meme instruction: “只发一张表情” contradicted “可以带一句很短的话” and gave the model no reason to choose a meme over text. It now says “不想写字、或者只有情绪的时候，用一张表情冒泡”, with an optional short caption.

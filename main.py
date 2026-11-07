@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.13"
+PLUGIN_VERSION = "2.0.14"
 
 
 @register(
@@ -688,9 +688,16 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             manager = self.context.get_llm_tool_manager()
             names = [tool.name for tool in getattr(manager, "func_list", []) or []]
             recall = [n for n in names if "bili" in n.lower()]
+            music = [
+                n
+                for n in names
+                if n in {"listen_music", "listen_song", "like_song", "save_to_playlist"}
+            ]
             logger.info(
                 f"[工具] 可用 {len(names)} 个，B站相关 {len(recall)} 个: "
                 + (", ".join(recall) if recall else "（无）")
+                + f"；音乐相关 {len(music)} 个: "
+                + (", ".join(music) if music else "（无）")
             )
         except Exception as e:
             logger.warning(f"[工具] 读取失败: {e}")
@@ -1553,6 +1560,20 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 handler=web_lookup,
             )
         ]
+
+    def _music_tools(self) -> list:
+        """Return the music plugin's tools so the persona can listen on its own.
+
+        Returns:
+            Registered music tools, or an empty list when the plugin is absent.
+        """
+        try:
+            manager = self.context.get_llm_tool_manager()
+            tools = getattr(manager, "func_list", []) or []
+        except Exception:
+            return []
+        wanted = {"listen_music", "listen_song", "like_song", "save_to_playlist"}
+        return [tool for tool in tools if getattr(tool, "name", "") in wanted]
 
     def _followup_enabled(self, is_private: bool) -> bool:
         """Tell whether follow-up bubbles are enabled for this scope.
@@ -2579,9 +2600,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         text = AIResponseFilter.sanitize_reply_text(str(proposal.text or "")).strip()
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
         if self.reply_ellipsis_style != "keep":
-            text = AIResponseFilter.normalize_ellipsis(
-                text, self.reply_ellipsis_style
-            )
+            text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
         if not text and action != "meme":
             note("空内容")
             return False
@@ -7831,7 +7850,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     extra_tools=self._image_tools()
                     + self._lookup_tools()
                     + self._followup_tools(is_private)
-                    + self._meme_bridge_tools(is_private),
+                    + self._meme_bridge_tools(is_private)
+                    + self._music_tools(),
                 )
         except Exception as e:
             ai_error_flag = True
@@ -8101,9 +8121,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
                 except Exception:
                     pass
-            logger.info(
-                f"[多气泡] 发送前读取：{len(followups)} 条"
-            )
+            logger.info(f"[多气泡] 发送前读取：{len(followups)} 条")
             if (
                 not followups
                 and self._followup_enabled(is_private)
@@ -9077,9 +9095,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     _pid = ""
                 if _pid and _pid not in self._scheduled_followups:
                     self._scheduled_followups.add(_pid)
-                    logger.info(
-                        f"[多气泡] 装饰阶段安排补充发送：{len(followups)} 条"
-                    )
+                    logger.info(f"[多气泡] 装饰阶段安排补充发送：{len(followups)} 条")
                     asyncio.create_task(
                         self._deliver_followup_messages(event, followups, reply_text)
                     )
