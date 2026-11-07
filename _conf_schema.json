@@ -270,7 +270,7 @@
       "followup_max_messages": {
         "description": "最多补充几条",
         "type": "int",
-        "default": 1,
+        "default": 2,
         "hint": "仅在私聊生成方式=followup 时生效；一条主回复后面最多允许几条补充，建议先 1。"
       },
       "followup_min_delay_ms": {

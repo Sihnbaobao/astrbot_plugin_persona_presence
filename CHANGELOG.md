@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.4
+
+- Private multi-bubble now treats newlines as natural bubble boundaries as well as sentence punctuation, and allows up to two follow-up bubbles (three total). The rhythm hint explicitly permits a short tangent/status line when it arises naturally, while still forbidding forced splitting.
+
 ## 2.0.3
 
 - Raised the slow-reply quotation threshold from 30 to 45 seconds for the live configuration, which better matches normal fast replies while still catching 429/retry delays.

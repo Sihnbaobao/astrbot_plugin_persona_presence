@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.3（Persona Presence 参与判断重构）
+版本: 2.0.4（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.3"
+PLUGIN_VERSION = "2.0.4"
 
 
 @register(
@@ -487,7 +487,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "followup_scope", "private", {"private", "group", "both"}
         )
         self.followup_max_messages = self._cfg_int(
-            "followup_max_messages", 1, minimum=1, maximum=2
+            "followup_max_messages", 2, minimum=1, maximum=2
         )
         self.followup_min_delay_ms = self._cfg_int(
             "followup_min_delay_ms", 700, minimum=0, maximum=10_000
@@ -8211,7 +8211,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         clean = str(text or "").strip()
         if not clean or max_extra <= 0:
             return [clean] if clean else []
-        raw_parts = re.split(r"(?<=[。！？!?])", clean)
+        raw_parts = re.split(r"(?<=[。！？!?])|\n+", clean)
         parts = [part.strip() for part in raw_parts if part.strip()]
         if len(parts) <= 1:
             return [clean]
