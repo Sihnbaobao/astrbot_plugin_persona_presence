@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.6
+
+- `see_avatar` now accepts `self` (or “你/自己”) and explicitly allows the bot's own QQ id, so the persona can look at its own avatar without needing the user to mention it.
+
 ## 1.9.5
 
 - Added a `see_avatar` tool. It fetches the QQ avatar of the current speaker or an @-mentioned user, describes it through the vision provider, and caches the description for six hours. Arbitrary QQ ids outside the current conversation are rejected.

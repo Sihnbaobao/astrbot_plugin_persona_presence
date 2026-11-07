@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.5（Persona Presence 参与判断重构）
+版本: 1.9.6（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.5"
+PLUGIN_VERSION = "1.9.6"
 
 
 @register(
@@ -1826,9 +1826,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         async def see_avatar(event, user_id: str = "") -> str:
             target = str(user_id or event.get_sender_id() or "").strip()
+            if target.lower() in {"self", "me", "你", "自己"}:
+                target = str(event.get_self_id() or "").strip()
             if not target:
                 return "没有可看的对象。"
-            allowed = {str(event.get_sender_id() or "").strip()}
+            allowed = {
+                str(event.get_sender_id() or "").strip(),
+                str(event.get_self_id() or "").strip(),
+            }
             try:
                 mention_info = await self._check_mention_others(event)
                 for item in (mention_info or {}).get("other_mentions", []) or []:
@@ -1868,15 +1873,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="see_avatar",
                 description=(
-                    "看看当前说话者或被@到的人的QQ头像，并得到头像画面描述。"
-                    "不填 user_id 就是当前说话的人；不能看会话之外的人。"
+                    "看看当前说话者、你自己或被@到的人的QQ头像，并得到画面描述。"
+                    "不填 user_id 就是当前说话的人；填 self 是看你自己；不能看会话之外的人。"
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
                         "user_id": {
                             "type": "string",
-                            "description": "要看的QQ号；省略则看当前说话者。",
+                            "description": "要看的QQ号或 self；省略则看当前说话者。",
                         }
                     },
                 },
