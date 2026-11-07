@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.5
+
+- Rewrote the tangent hint as a permission rather than a checklist: “想补一句就换行接着写；跑题、自言自语、突然想起别的事都可以。不想补就停。” Removed the example phrases that nudged the model into manufacturing a second bubble.
+
 ## 2.0.4
 
 - Private multi-bubble now treats newlines as natural bubble boundaries as well as sentence punctuation, and allows up to two follow-up bubbles (three total). The rhythm hint explicitly permits a short tangent/status line when it arises naturally, while still forbidding forced splitting.
