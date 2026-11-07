@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.6（Persona Presence 参与判断重构）
+版本: 1.9.7（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.6"
+PLUGIN_VERSION = "1.9.7"
 
 
 @register(
@@ -1865,7 +1865,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 logger.debug(f"[头像] 识图失败: {exc}")
                 description = ""
             if not description:
-                return "头像看到了，但这次没看清。"
+                return "这次没拿到清晰的头像画面。"
             self._avatar_cache[target] = (now, description[:300])
             return f"头像：{description[:300]}"
 

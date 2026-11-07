@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.7
+
+- Avatar tool failure text is now honest: if the vision call returns nothing, it says it did not get a clear avatar image instead of claiming it saw one.
+
 ## 1.9.6
 
 - `see_avatar` now accepts `self` (or “你/自己”) and explicitly allows the bot's own QQ id, so the persona can look at its own avatar without needing the user to mention it.
