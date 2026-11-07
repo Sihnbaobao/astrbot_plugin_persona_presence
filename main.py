@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.8.8（Persona Presence 参与判断重构）
+版本: 1.8.9（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.8.8"
+PLUGIN_VERSION = "1.8.9"
 
 
 @register(
@@ -7907,6 +7907,25 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     self._agent_done_flags.add(message_id_for_error)
 
             followups = list(event.get_extra("_persona_followups") or [])
+            if (
+                not followups
+                and self._followup_enabled(is_private)
+                and not ai_error_flag
+                and reply_result is not None
+                and hasattr(reply_result, "chain")
+            ):
+                text_components = [
+                    comp for comp in reply_result.chain if hasattr(comp, "text")
+                ]
+                if len(text_components) == len(reply_result.chain) == 1:
+                    parts = self._split_natural_bubbles(
+                        reply_text, max_extra=self.followup_max_messages
+                    )
+                    if len(parts) > 1:
+                        text_components[0].text = parts[0]
+                        reply_text = parts[0]
+                        followups = parts[1:]
+                        logger.info(f"[多气泡] 按自然停顿拆成 {len(parts)} 条")
             yield reply_result
 
             if not is_private and not ai_error_flag:
@@ -8016,6 +8035,32 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if self.poke_after_reply_enabled:
             replied_user_id = event.get_sender_id()
             await self._do_poke_after_reply(event, replied_user_id, is_private, chat_id)
+
+    @staticmethod
+    def _split_natural_bubbles(text: str, max_extra: int = 1) -> list[str]:
+        """Split a text reply at natural sentence boundaries.
+
+        Args:
+            text: Full reply text.
+            max_extra: Maximum number of follow-up bubbles after the first.
+
+        Returns:
+            One or more bubbles, with the tail merged when it exceeds the cap.
+        """
+        clean = str(text or "").strip()
+        if not clean or max_extra <= 0:
+            return [clean] if clean else []
+        raw_parts = re.split(r"(?<=[。！？!?])", clean)
+        parts = [part.strip() for part in raw_parts if part.strip()]
+        if len(parts) <= 1:
+            return [clean]
+        head = parts[:1]
+        tail = parts[1:]
+        if len(tail) > max_extra:
+            tail = [" ".join(tail[: len(tail) - max_extra + 1])] + tail[
+                len(tail) - max_extra + 1 :
+            ]
+        return head + tail
 
     async def _deliver_followup_messages(
         self, event: AstrMessageEvent, texts: list[str], main_text: str = ""

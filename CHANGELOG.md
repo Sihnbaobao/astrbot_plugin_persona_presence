@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.8.9
+
+- Private multi-bubble replies no longer depend only on the model calling `queue_followup`. When a text reply already contains multiple natural sentence units, the first sentence is sent as the main message and the rest are delivered as follow-up bubbles after the configured delay. Single-sentence replies, ellipsis-heavy lines and image-bearing replies stay as one message.
+
 ## 1.8.8
 
 - Fixed proactive-speech lull measurement. The current message was recorded before the gate check, so `now - last_seen` was always near zero and the 90-second lull could never pass. The group state now keeps the quiet gap that preceded the latest message and the gate uses that value.
