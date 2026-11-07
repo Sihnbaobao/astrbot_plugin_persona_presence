@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.8（Persona Presence 参与判断重构）
+版本: 1.9.9（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.8"
+PLUGIN_VERSION = "1.9.9"
 
 
 @register(
@@ -572,6 +572,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # reference images that were sent as separate messages.
         self._recent_private_images: dict[str, list[tuple[float, str]]] = {}
         self._avatar_cache: dict[str, tuple[float, str]] = {}
+        self._recent_meme_paths: dict[str, list[str]] = {}
         # 会话级流程 owner {chat_id: {"owner": str, "processing_id": str, "started_at": float}}
         self._chat_flow_owners: dict[str, dict[str, Any]] = {}
         # 消息缓存快照（供 after_message_sent 使用）{message_id: cached_message_dict}
@@ -1678,13 +1679,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             pending = list(event.get_extra("_persona_queued_memes") or [])
             if len(pending) >= self.meme_bridge_max_per_turn:
                 return "当前回复里已经有表情了。"
+            chat_key = self._archive_chat_key(event)
+            recent = list(self._recent_meme_paths.get(chat_key, []))
             path = await select_meme_image(
-                self.context, event, cleaned, self.meme_bridge_min_score
+                self.context,
+                event,
+                cleaned,
+                self.meme_bridge_min_score,
+                avoid_paths=set(recent),
             )
             if not path:
                 return "没有找到合适的表情图。"
             pending.append(path)
             event.set_extra("_persona_queued_memes", pending)
+            if chat_key:
+                recent.append(Path(path).name)
+                self._recent_meme_paths[chat_key] = recent[-6:]
             logger.info(f"[表情桥接] 已选图：{Path(path).name}")
             return "已排进当前回复。"
 

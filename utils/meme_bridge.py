@@ -9,13 +9,18 @@ base reply flow.
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
 from typing import Any
 
 from astrbot.api import logger
 
 
 async def select_meme_image(
-    context: Any, event: Any, query: str, min_score: float = 0.25
+    context: Any,
+    event: Any,
+    query: str,
+    min_score: float = 0.25,
+    avoid_paths: set[str] | None = None,
 ) -> str | None:
     """Select one specific meme image with meme_manager's semantic index.
 
@@ -24,6 +29,7 @@ async def select_meme_image(
         event: Current message event, used for pack/persona resolution.
         query: Natural-language description of the intended expression.
         min_score: Minimum semantic similarity accepted by meme_manager.
+        avoid_paths: Recently used image basenames to skip when possible.
 
     Returns:
         An existing image path, or None when the bridge is unavailable.
@@ -80,15 +86,23 @@ async def select_meme_image(
             "meme_manager_semantic_candidates",
             {str(item.get("id")): item for item in records if item.get("id")},
         )
+        avoid = {str(item) for item in (avoid_paths or set()) if item}
+        fallback: str | None = None
         try:
             for record in records:
                 path = query_module.validate_selected_id(
                     event, str(record.get("id") or ""), plugin_context
                 )
-                if path is not None:
-                    return str(path)
+                if path is None:
+                    continue
+                path_text = str(path)
+                if fallback is None:
+                    fallback = path_text
+                if not avoid or Path(path_text).name not in avoid:
+                    return path_text
         finally:
             event.set_extra("meme_manager_semantic_candidates", old_candidates)
+        return fallback
     except Exception as exc:
         logger.info(f"[表情桥接] 选图不可用: {exc}")
     return None

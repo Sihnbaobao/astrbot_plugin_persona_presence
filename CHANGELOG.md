@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.9
+
+- Meme selection now keeps the last six used image basenames per conversation and skips them when another valid semantic candidate exists. This reduces the feeling that the same few memes are always chosen, without falling back to random category picks.
+
 ## 1.9.8
 
 - Rewrote the avatar tool description as a plain capability statement instead of an action prompt (“看看…并得到…”), so the persona decides whether looking at an avatar is appropriate rather than being nudged into it whenever the topic appears.
