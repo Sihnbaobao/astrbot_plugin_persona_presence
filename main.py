@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.9（Persona Presence 参与判断重构）
+版本: 2.0.0（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.9"
+PLUGIN_VERSION = "2.0.0"
 
 
 @register(
@@ -2555,9 +2555,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if callable(fn):
                 fn(ctx.group_id, reason)
 
+        action = str(getattr(proposal, "action", "react") or "react").lower()
         text = AIResponseFilter.sanitize_reply_text(str(proposal.text or "")).strip()
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
-        if not text:
+        if not text and action != "meme":
             note("空内容")
             return False
 
@@ -2582,7 +2583,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 note("正式回复刚说过话")
                 return False
 
-            if self.enable_duplicate_filter:
+            if text and self.enable_duplicate_filter:
                 recent = self.recent_replies_cache.setdefault(ctx.chat_key, [])
                 limit = max(60, self.duplicate_filter_time_limit)
                 recent[:] = [
@@ -2597,10 +2598,35 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         note("重复内容")
                         return False
 
-            delivered = await self.context.send_message(
-                ctx.umo,
-                MessageChain([Plain(text)]),
-            )
+            meme_path = ""
+            if action == "meme":
+                if not self._meme_bridge_enabled(False):
+                    note("表情桥接未开启")
+                    return False
+                meme_query = str(getattr(proposal, "meme_query", "") or "").strip()
+                if not meme_query:
+                    note("没有表情描述")
+                    return False
+                recent_memes = list(self._recent_meme_paths.get(ctx.chat_key, []))
+                meme_path = await select_meme_image(
+                    self.context,
+                    ctx.event,
+                    meme_query,
+                    self.meme_bridge_min_score,
+                    avoid_paths=set(recent_memes),
+                )
+                if not meme_path:
+                    note("没有合适表情")
+                    return False
+                recent_memes.append(Path(meme_path).name)
+                self._recent_meme_paths[ctx.chat_key] = recent_memes[-6:]
+
+            chain = []
+            if text:
+                chain.append(Plain(text))
+            if meme_path:
+                chain.append(Image.fromFileSystem(meme_path))
+            delivered = await self.context.send_message(ctx.umo, MessageChain(chain))
             if delivered is False:
                 logger.warning("[Feature] Proposal not delivered by the platform")
                 note("平台未送达")
@@ -2613,7 +2639,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._last_bot_reply_at[ctx.chat_key] = now_ts
         try:
             recent = self.recent_replies_cache.setdefault(ctx.chat_key, [])
-            recent.append({"content": text, "timestamp": now_ts})
+            recent.append({"content": text or "[表情包]", "timestamp": now_ts})
             max_cache_size = min(
                 max(10, self.duplicate_filter_check_count * 2),
                 self._DUPLICATE_CACHE_SIZE_LIMIT,
@@ -2623,8 +2649,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         except Exception:
             pass
 
+        saved_text = text or "[表情包]"
         try:
-            await ContextManager.save_bot_message(ctx.event, text, self.context)
+            await ContextManager.save_bot_message(ctx.event, saved_text, self.context)
         except Exception as exc:
             logger.warning(f"[Feature] Proposal history save failed: {exc}")
 
@@ -2633,7 +2660,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         except Exception as exc:
             logger.warning(f"[Feature] Proposal acknowledgement failed: {exc}")
 
-        logger.info(f"[Feature] Sent {proposal.source} proposal: {text[:60]}")
+        logger.info(
+            f"[Feature] Sent {proposal.source} proposal: {(text or '[表情包]')[:60]}"
+        )
         return True
 
     def _notebook_observe(self, event, reply_text: str) -> None:

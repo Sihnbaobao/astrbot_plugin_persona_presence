@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 2.0.0
+
+- **Proactive voice changed from self-reporting to group reaction**: the proactive pack now sees the last few group messages and chooses `react` (short roast/reaction), `meme` (semantic meme bubble, optionally with a short caption), or `silent`. It no longer defaults to narrating its own imaginary day.
+- Added meme proposals to the base delivery path: `react` sends text, `meme` selects through the same semantic bridge and sends an image (with optional caption), and `silent` sends nothing.
+- Replaced the old interest/experience prompt blocks with persona + recent group context; repeated-topic and grounding rules remain.
+
 ## 1.9.9
 
 - Meme selection now keeps the last six used image basenames per conversation and skips them when another valid semantic candidate exists. This reduces the feeling that the same few memes are always chosen, without falling back to random category picks.

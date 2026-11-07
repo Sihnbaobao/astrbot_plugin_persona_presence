@@ -51,6 +51,8 @@ class Proposal:
     Attributes:
         text: The line the pack wants to say.
         source: Stable pack identifier, used in logs and policy checks.
+        action: ``react`` for text, ``meme`` for an image bubble.
+        meme_query: Semantic description used when action is ``meme``.
         reason: Short diagnostic reason for the proposal.
         group_id: Group the proposal belongs to, if any.
         created_at: Unix timestamp when the proposal was produced.
@@ -58,6 +60,8 @@ class Proposal:
 
     text: str
     source: str
+    action: str = "react"
+    meme_query: str = ""
     reason: str = ""
     group_id: str = ""
     created_at: float = 0.0

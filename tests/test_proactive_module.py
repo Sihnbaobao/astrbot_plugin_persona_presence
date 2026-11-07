@@ -285,7 +285,7 @@ def test_zero_daily_cap_means_no_hard_limit(monkeypatch, tmp_path):
     assert asyncio.run(pack.propose(ctx)) is not None
 
 
-def test_interests_and_experience_reach_the_prompt(monkeypatch, tmp_path):
+def test_persona_and_recent_group_context_reach_the_prompt(monkeypatch, tmp_path):
     module = _load_module(monkeypatch)
     captured = {}
 
@@ -295,50 +295,37 @@ def test_interests_and_experience_reach_the_prompt(monkeypatch, tmp_path):
             return await super().llm_generate(**kwargs)
 
     pack = module.ProactiveModule(
-        _Recorder("沉默"),
-        _settings(module),
-        interest_provider=lambda: ["在意：妹妹泠", "喜欢：推理小说"],
-        state_provider=lambda: ["最近：5 小时前看了《奶龙》"],
-        data_dir=tmp_path,
+        _Recorder("沉默"), _settings(module), data_dir=tmp_path
     )
-    ctx = _ctx(module, _Event(), persona="一个安静的人格")
+    ctx = _ctx(module, _Event(text="群友说这游戏优化太烂了"), persona="一个安静的人格")
 
     asyncio.run(pack.on_event(ctx))
     asyncio.run(pack.propose(ctx))
 
     prompt = captured.get("prompt", "")
-    assert "妹妹泠" in prompt
-    assert "推理小说" in prompt
-    assert "奶龙" in prompt
     assert "一个安静的人格" in prompt
+    assert "优化太烂" in prompt
+    assert "不汇报自己的生活" in prompt
 
 
-def test_recent_knowledge_reaches_the_prompt(monkeypatch, tmp_path):
+def test_meme_action_is_parsed(monkeypatch, tmp_path):
     module = _load_module(monkeypatch)
-    captured = {}
-
-    class _Recorder(_Context):
-        async def llm_generate(self, **kwargs):
-            captured["prompt"] = kwargs.get("prompt", "")
-            return await super().llm_generate(**kwargs)
-
     pack = module.ProactiveModule(
-        _Recorder("沉默"),
+        _Context('{"action":"meme","text":"","meme_query":"无语地看着对方"}'),
         _settings(module),
-        knowledge_provider=lambda: ["提瓦特：游戏中的世界"],
         data_dir=tmp_path,
     )
-    ctx = _ctx(module, _Event())
+    ctx = _ctx(module, _Event(text="群友说这游戏优化太烂了"))
 
     asyncio.run(pack.on_event(ctx))
-    asyncio.run(pack.propose(ctx))
+    proposal = asyncio.run(pack.propose(ctx))
 
-    prompt = captured.get("prompt", "")
-    assert "你最近刚知道的" in prompt
-    assert "提瓦特" in prompt
+    assert proposal is not None
+    assert proposal.action == "meme"
+    assert proposal.meme_query == "无语地看着对方"
 
 
-def test_group_transcript_is_not_fed_to_the_model(monkeypatch, tmp_path):
+def test_group_context_is_fed_to_the_model(monkeypatch, tmp_path):
     module = _load_module(monkeypatch)
     captured = {}
 
@@ -356,8 +343,8 @@ def test_group_transcript_is_not_fed_to_the_model(monkeypatch, tmp_path):
     asyncio.run(pack.propose(ctx))
 
     prompt = captured.get("prompt", "")
-    assert "原神新版本" not in prompt
-    assert "你此刻有没有什么想主动跟群里说的" in prompt
+    assert "原神新版本" in prompt
+    assert "接一句很短的吐槽" in prompt
 
 
 def test_snapshot_explains_the_blocking_gate(monkeypatch, tmp_path):

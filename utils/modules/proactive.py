@@ -23,22 +23,21 @@ from .base import FeatureContext, ModuleManifest, PluginModule, Proposal
 _MAX_BUFFER = 24
 _STATE_VERSION = 1
 
-_SPEAK_PROMPT = """现在是 {clock}。你在一个群里，没人叫你，也不是在回答谁。
+_SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答谁。
 
 {room_block}
 {persona_block}
-{interest_block}
-{state_block}
-{knowledge_block}
+最近群里：
+{recent_messages}
 {recent_block}
-你此刻有没有什么想主动跟群里说的、属于你自己的事？
-- 只从上面“真实经历”“刚知道”“你平时在意”的内容里找由头；
-  不要编造没有出现在上面的场景、地点或事件。
-- 可以是刚经历的事、刚知道的东西、突然想到的感受或吐槽。
-- 只说自己的，不要接群里刚才的话题，也不要问“你们在聊什么”。
-- 最近说过的兴趣和句式不要再用；没有新由头就沉默，不要硬换词重复。
-- 不想说就只输出：沉默。
-- 想说就随口发一句，最多 {max_chars} 字，不要像汇报。"""
+你可以：
+- react：接一句很短的吐槽或反应，要贴着上面的内容；
+  不汇报自己的生活，不编造没发生的事。
+- meme：只发一张表情冒泡，meme_query 写想表达的感觉；可以带一句很短的话。
+- silent：没什么可接的就沉默，不要硬找话。
+
+只输出 JSON：
+{{"action":"react|meme|silent","text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
 
 
 @dataclass
@@ -237,24 +236,8 @@ class ProactiveModule(PluginModule):
                 logger.debug(f"[主动发言] 人格读取失败: {exc}")
         persona_block = f"你的人格设定：{persona[:400]}" if persona else ""
 
-        interests = self._collect(self.interest_provider, limit=10)
-        interest_block = (
-            "你平时在意这些：\n" + "\n".join("- " + line for line in interests)
-            if interests
-            else ""
-        )
-        recent = self._collect(self.state_provider, limit=3)
-        state_block = (
-            "你最近真实经历过的：\n" + "\n".join("- " + line for line in recent)
-            if recent
-            else ""
-        )
-        knowledge = self._collect(self.knowledge_provider, limit=3)
-        knowledge_block = (
-            "你最近刚知道的：\n" + "\n".join("- " + line for line in knowledge)
-            if knowledge
-            else ""
-        )
+        recent_lines = [str(line) for line in list(state.lines)[-8:]]
+        recent_messages = "\n".join("- " + line for line in recent_lines) or "（没有）"
         recent_attempts = self._recent_attempts(6)
         recent_block = (
             "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
@@ -268,9 +251,7 @@ class ProactiveModule(PluginModule):
             clock=ctx.now.strftime("%H:%M"),
             room_block=room_block,
             persona_block=persona_block,
-            interest_block=interest_block,
-            state_block=state_block,
-            knowledge_block=knowledge_block,
+            recent_messages=recent_messages,
             recent_block=recent_block,
             max_chars=self.settings.max_chars,
         )
@@ -285,7 +266,7 @@ class ProactiveModule(PluginModule):
             response = await self.context.llm_generate(
                 chat_provider_id=provider_id,
                 prompt=prompt,
-                max_tokens=120,
+                max_tokens=160,
             )
             reply = str(getattr(response, "completion_text", "") or "").strip()
         except Exception as exc:
@@ -294,25 +275,73 @@ class ProactiveModule(PluginModule):
             return None
 
         reply = reply.strip().strip('"“”')
-        if not reply or "沉默" in reply:
+        payload: dict[str, Any] | None = None
+        if reply.startswith("{"):
+            try:
+                parsed = json.loads(reply)
+                if isinstance(parsed, dict):
+                    payload = parsed
+            except (TypeError, ValueError):
+                payload = None
+
+        if isinstance(payload, dict):
+            action = str(payload.get("action") or "react").strip().lower()
+            text = str(payload.get("text") or "").strip()
+            meme_query = str(payload.get("meme_query") or "").strip()
+        else:
+            action = "react"
+            text = reply
+            meme_query = ""
+
+        if action == "silent" or (not payload and (not reply or "沉默" in reply)):
             self._record("silent", group)
             return None
-        if self._too_similar(reply):
-            self._record("skip", group, text=reply[:120], reason="repeat")
-            logger.info(f"[主动发言] 想说的和最近重复，跳过: {reply[:60]}")
+
+        if action == "meme":
+            if not meme_query:
+                self._record("skip", group, reason="meme_query_empty")
+                return None
+            meme_query = meme_query[:80]
+            if text and len(text) > self.settings.max_chars:
+                self._record("skip", group, text=text[:120], reason="too_long")
+                return None
+            if self._too_similar(text or meme_query):
+                self._record(
+                    "skip", group, text=(text or meme_query)[:120], reason="repeat"
+                )
+                return None
+            self._record("proposed", group, text=text or meme_query)
+            logger.info(f"[主动发言] 想冒泡表情: {meme_query[:60]}")
+            return Proposal(
+                text=text,
+                source="proactive",
+                action="meme",
+                meme_query=meme_query,
+                reason="meme",
+                group_id=group,
+                created_at=time.time(),
+            )
+
+        if not text or "沉默" in text:
+            self._record("silent", group)
             return None
-        if len(reply) > self.settings.max_chars:
-            self._record("skip", group, text=reply[:120], reason="too_long")
+        if len(text) > self.settings.max_chars:
+            self._record("skip", group, text=text[:120], reason="too_long")
             logger.info(
-                f"[主动发言] 想接但超过 {self.settings.max_chars} 字: {reply[:60]}"
+                f"[主动发言] 想接但超过 {self.settings.max_chars} 字: {text[:60]}"
             )
             return None
-        self._record("proposed", group, text=reply)
-        logger.info(f"[主动发言] 想接一句: {reply}")
+        if self._too_similar(text):
+            self._record("skip", group, text=text[:120], reason="repeat")
+            logger.info(f"[主动发言] 想说的和最近重复，跳过: {text[:60]}")
+            return None
+        self._record("proposed", group, text=text)
+        logger.info(f"[主动发言] 想接一句: {text}")
         return Proposal(
-            text=reply,
+            text=text,
             source="proactive",
-            reason="knowledge" if knowledge else "self",
+            action="react",
+            reason="react",
             group_id=group,
             created_at=time.time(),
         )
@@ -332,9 +361,10 @@ class ProactiveModule(PluginModule):
         self._last_spoke_any = state.last_spoke
         self._today_count(ctx.now)
         self._daily_count += 1
-        self._record("sent", group, text=proposal.text)
+        sent_text = proposal.text or proposal.meme_query or "[表情包]"
+        self._record("sent", group, text=sent_text)
         self._save_state()
-        logger.info(f"[主动发言] 群 {group} 插了一句: {proposal.text}")
+        logger.info(f"[主动发言] 群 {group} 插了一句: {sent_text}")
 
     def note_skip(self, group: str, reason: str) -> None:
         """Record a proposal the base chose not to deliver.
@@ -372,20 +402,10 @@ class ProactiveModule(PluginModule):
                 persona = await self.persona_provider("")
             except Exception:
                 persona = ""
-        interests = self._collect(self.interest_provider, limit=10)
-        recent = self._collect(self.state_provider, limit=3)
-        knowledge = self._collect(self.knowledge_provider, limit=3)
-        state_block = (
-            "你最近真实经历过的：\n" + "\n".join("- " + x for x in recent)
-            if recent
-            else ""
-        )
+        recent_lines = [str(line) for line in list(state.lines)[-8:]] if state else []
         if extra_context:
-            state_block = (
-                (state_block + "\n" if state_block else "")
-                + "此刻的由头：\n- "
-                + extra_context.strip()[:200]
-            )
+            recent_lines.append("（此刻的由头：" + extra_context.strip()[:200] + "）")
+        recent_messages = "\n".join("- " + line for line in recent_lines) or "（没有）"
         recent_attempts = self._recent_attempts(6)
         recent_block = (
             "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
@@ -397,17 +417,7 @@ class ProactiveModule(PluginModule):
             clock=datetime.now().strftime("%H:%M"),
             room_block=room_block,
             persona_block=("你的人格设定：" + persona[:400]) if persona else "",
-            interest_block=(
-                "你平时在意这些：\n" + "\n".join("- " + x for x in interests)
-                if interests
-                else ""
-            ),
-            state_block=state_block,
-            knowledge_block=(
-                "你最近刚知道的：\n" + "\n".join("- " + x for x in knowledge)
-                if knowledge
-                else ""
-            ),
+            recent_messages=recent_messages,
             recent_block=recent_block,
             max_chars=self.settings.max_chars,
         )
