@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.6（Persona Presence 参与判断重构）
+版本: 2.0.7（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.6"
+PLUGIN_VERSION = "2.0.7"
 
 
 @register(
@@ -580,6 +580,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._recent_private_images: dict[str, list[tuple[float, str]]] = {}
         self._avatar_cache: dict[str, tuple[float, str]] = {}
         self._recent_meme_paths: dict[str, list[str]] = {}
+        self._pending_followups: dict[str, list[str]] = {}
         # 会话级流程 owner {chat_id: {"owner": str, "processing_id": str, "started_at": float}}
         self._chat_flow_owners: dict[str, dict[str, Any]] = {}
         # 消息缓存快照（供 after_message_sent 使用）{message_id: cached_message_dict}
@@ -1593,6 +1594,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 return "这句已经排过了。"
             pending.append(cleaned[:160])
             event.set_extra("_persona_followups", pending)
+            try:
+                _pid = self._get_processing_id(event)
+                if _pid:
+                    self._pending_followups[_pid] = list(pending)
+            except Exception:
+                pass
             logger.info(f"[多气泡] 已排队：{cleaned[:60]}")
             return "已排在当前回复后面。"
 
@@ -8068,6 +8075,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     logger.debug(f"[慢回复] 引用失败: {quote_err}")
 
             followups = list(event.get_extra("_persona_followups") or [])
+            if not followups:
+                try:
+                    _pid = self._get_processing_id(event)
+                    followups = list(self._pending_followups.pop(_pid, []) or [])
+                except Exception:
+                    followups = []
+            else:
+                try:
+                    self._pending_followups.pop(self._get_processing_id(event), None)
+                except Exception:
+                    pass
             if (
                 not followups
                 and self._followup_enabled(is_private)
@@ -8087,6 +8105,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         reply_text = parts[0]
                         followups = parts[1:]
                         logger.info(f"[多气泡] 按自然停顿拆成 {len(parts)} 条")
+            if followups and not ai_error_flag:
+                logger.info(f"[多气泡] 安排补充发送：{len(followups)} 条")
+                asyncio.create_task(
+                    self._deliver_followup_messages(event, followups, reply_text)
+                )
             yield reply_result
 
             if not is_private and not ai_error_flag:
@@ -8150,11 +8173,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     logger.error(
                         f"[安全兜底] 兜底保存失败: {fallback_err}", exc_info=True
                     )
-
-            if followups and not ai_error_flag:
-                asyncio.create_task(
-                    self._deliver_followup_messages(event, followups, reply_text)
-                )
 
             if self.debug_mode:
                 logger.info("【步骤13.9】回复已通过yield发送")

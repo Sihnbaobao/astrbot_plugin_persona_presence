@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.7
+
+- Fixed queued follow-up delivery: the follow-up task is now scheduled before the reply generator yields, and the queued texts are backed up by processing id in case the event extra is cleared. Previously `queue_followup` logged “已排队” but the second bubble was never sent.
+
 ## 2.0.6
 
 - Clarified the multi-bubble hint: “另起一行写，那会作为下一条短消息发出去” instead of “换行”, so the model understands the line break is a message boundary. Removed the meta “不要为了凑气泡硬拆” phrasing.
