@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.10
+
+- Queued follow-ups are now also scheduled from `on_decorating_result`, which is the hook that actually runs for agent tool-loop replies. The previous scheduling point was only reached by the non-tool generation path, so `queue_followup` could log “已排队” and still never deliver a second bubble.
+
 ## 2.0.9
 
 - Collapse short separated duplicates such as “...行吧...行吧” into one phrase. The existing whole-sentence guard intentionally skipped short emphasis, but dotted repeats are usually a generation stutter.
