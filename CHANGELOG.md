@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.5
+
+- Added a `see_avatar` tool. It fetches the QQ avatar of the current speaker or an @-mentioned user, describes it through the vision provider, and caches the description for six hours. Arbitrary QQ ids outside the current conversation are rejected.
+
 ## 1.9.4
 
 - Added an outgoing punctuation style option (`reply_ellipsis_style`): keep the model's pause punctuation, normalise it to three ASCII dots, or normalise it to a Chinese ellipsis. This only affects delivered text, not the prompt or saved context. Live config is set to `ascii`.

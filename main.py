@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.4（Persona Presence 参与判断重构）
+版本: 1.9.5（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.4"
+PLUGIN_VERSION = "1.9.5"
 
 
 @register(
@@ -571,6 +571,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # Recent private images, kept so a later text message can still
         # reference images that were sent as separate messages.
         self._recent_private_images: dict[str, list[tuple[float, str]]] = {}
+        self._avatar_cache: dict[str, tuple[float, str]] = {}
         # 会话级流程 owner {chat_id: {"owner": str, "processing_id": str, "started_at": float}}
         self._chat_flow_owners: dict[str, dict[str, Any]] = {}
         # 消息缓存快照（供 after_message_sent 使用）{message_id: cached_message_dict}
@@ -1823,7 +1824,64 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             logger.info(f"[图片工具] 发送当前消息图片 #{pos + 1}")
             return "已把当前消息里的图片发回当前会话。"
 
+        async def see_avatar(event, user_id: str = "") -> str:
+            target = str(user_id or event.get_sender_id() or "").strip()
+            if not target:
+                return "没有可看的对象。"
+            allowed = {str(event.get_sender_id() or "").strip()}
+            try:
+                mention_info = await self._check_mention_others(event)
+                for item in (mention_info or {}).get("other_mentions", []) or []:
+                    mentioned = str((item or {}).get("user_id") or "").strip()
+                    if mentioned:
+                        allowed.add(mentioned)
+            except Exception:
+                pass
+            allowed.discard("")
+            if target not in allowed:
+                return "只能看当前说话的人或被@到的人的头像。"
+            now = time.time()
+            cached = self._avatar_cache.get(target)
+            if cached and now - cached[0] < 21600:
+                return f"头像：{cached[1]}"
+            url = f"https://q1.qlogo.cn/g?b=qq&nk={target}&s=640"
+            try:
+                described = await ImageHandler.describe_image_urls(
+                    self.context,
+                    [url],
+                    self.image_to_text_provider_id,
+                    "用两三句客观描述这个QQ头像：主体、颜色、表情和构图。"
+                    "不要猜身份，不要评价美丑。",
+                    timeout=max(10, self.image_to_text_timeout),
+                    session_id=str(getattr(event, "session_id", "") or ""),
+                )
+                description = str(described.get(url) or "").strip()
+            except Exception as exc:
+                logger.debug(f"[头像] 识图失败: {exc}")
+                description = ""
+            if not description:
+                return "头像看到了，但这次没看清。"
+            self._avatar_cache[target] = (now, description[:300])
+            return f"头像：{description[:300]}"
+
         return [
+            FunctionTool(
+                name="see_avatar",
+                description=(
+                    "看看当前说话者或被@到的人的QQ头像，并得到头像画面描述。"
+                    "不填 user_id 就是当前说话的人；不能看会话之外的人。"
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {
+                            "type": "string",
+                            "description": "要看的QQ号；省略则看当前说话者。",
+                        }
+                    },
+                },
+                handler=see_avatar,
+            ),
             FunctionTool(
                 name="search_saved_images",
                 description=(
