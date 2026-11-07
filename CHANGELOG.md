@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.6
+
+- Clarified the multi-bubble hint: “另起一行写，那会作为下一条短消息发出去” instead of “换行”, so the model understands the line break is a message boundary. Removed the meta “不要为了凑气泡硬拆” phrasing.
+
 ## 2.0.5
 
 - Rewrote the tangent hint as a permission rather than a checklist: “想补一句就换行接着写；跑题、自言自语、突然想起别的事都可以。不想补就停。” Removed the example phrases that nudged the model into manufacturing a second bubble.
