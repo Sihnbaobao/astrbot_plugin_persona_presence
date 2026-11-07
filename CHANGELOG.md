@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.8
+
+- Rewrote the avatar tool description as a plain capability statement instead of an action prompt (“看看…并得到…”), so the persona decides whether looking at an avatar is appropriate rather than being nudged into it whenever the topic appears.
+
 ## 1.9.7
 
 - Avatar tool failure text is now honest: if the vision call returns nothing, it says it did not get a clear avatar image instead of claiming it saw one.

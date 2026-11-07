@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.9.7（Persona Presence 参与判断重构）
+版本: 1.9.8（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.9.7"
+PLUGIN_VERSION = "1.9.8"
 
 
 @register(
@@ -1873,8 +1873,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="see_avatar",
                 description=(
-                    "看看当前说话者、你自己或被@到的人的QQ头像，并得到画面描述。"
-                    "不填 user_id 就是当前说话的人；填 self 是看你自己；不能看会话之外的人。"
+                    "当前说话者、你自己或被@者的QQ头像画面；仅限当前会话里出现的人。"
                 ),
                 parameters={
                     "type": "object",
