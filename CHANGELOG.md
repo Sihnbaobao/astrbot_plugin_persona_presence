@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 1.9.2
+
+- Rewrote the private/group scene note as a terse factual aside (“（私聊。对面只有对方一个人。）” / “（群聊。刚才说话的是「某某」，周围还有人。）”) instead of imperative assistant-style instructions.
+
 ## 1.9.1
 
 - Moved the private/group scene label from the final user-message suffix into the LLM system prompt. The persona now receives the conversation mode as part of the system context, so it is much harder for the generic “online chat” persona wording to make a private chat feel like a group.
