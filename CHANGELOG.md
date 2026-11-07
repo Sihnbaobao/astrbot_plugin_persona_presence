@@ -1,5 +1,13 @@
 ## 📝 更新日志
 
+## 2.0.9
+
+- Collapse short separated duplicates such as “...行吧...行吧” into one phrase. The existing whole-sentence guard intentionally skipped short emphasis, but dotted repeats are usually a generation stutter.
+
+## 2.0.8
+
+- Added a second follow-up backup keyed by chat id, plus send-time diagnostics. If the processing-id key or event extra is lost during the tool loop, the queued second bubble can still be recovered and scheduled.
+
 ## 2.0.7
 
 - Fixed queued follow-up delivery: the follow-up task is now scheduled before the reply generator yields, and the queued texts are backed up by processing id in case the event extra is cleared. Previously `queue_followup` logged “已排队” but the second bubble was never sent.

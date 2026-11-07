@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.7（Persona Presence 参与判断重构）
+版本: 2.0.9（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.7"
+PLUGIN_VERSION = "2.0.9"
 
 
 @register(
@@ -581,6 +581,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._avatar_cache: dict[str, tuple[float, str]] = {}
         self._recent_meme_paths: dict[str, list[str]] = {}
         self._pending_followups: dict[str, list[str]] = {}
+        self._pending_followups_by_chat: dict[str, list[str]] = {}
         # 会话级流程 owner {chat_id: {"owner": str, "processing_id": str, "started_at": float}}
         self._chat_flow_owners: dict[str, dict[str, Any]] = {}
         # 消息缓存快照（供 after_message_sent 使用）{message_id: cached_message_dict}
@@ -1598,9 +1599,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 _pid = self._get_processing_id(event)
                 if _pid:
                     self._pending_followups[_pid] = list(pending)
-            except Exception:
-                pass
-            logger.info(f"[多气泡] 已排队：{cleaned[:60]}")
+                _chat_key = self._archive_chat_key(event)
+                if _chat_key:
+                    self._pending_followups_by_chat[_chat_key] = list(pending)
+                logger.info(
+                    f"[多气泡] 已排队：{cleaned[:60]} pid={_pid or '-'} chat={_chat_key or '-'}"
+                )
+            except Exception as exc:
+                logger.warning(f"[多气泡] 备份失败: {exc}")
             return "已排在当前回复后面。"
 
         return [
@@ -8079,13 +8085,25 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 try:
                     _pid = self._get_processing_id(event)
                     followups = list(self._pending_followups.pop(_pid, []) or [])
-                except Exception:
+                    if not followups:
+                        _chat_key = self._archive_chat_key(event)
+                        followups = list(
+                            self._pending_followups_by_chat.pop(_chat_key, []) or []
+                        )
+                except Exception as exc:
+                    logger.warning(f"[多气泡] 读取备份失败: {exc}")
                     followups = []
             else:
                 try:
                     self._pending_followups.pop(self._get_processing_id(event), None)
+                    self._pending_followups_by_chat.pop(
+                        self._archive_chat_key(event), None
+                    )
                 except Exception:
                     pass
+            logger.info(
+                f"[多气泡] 发送前读取：{len(followups)} 条"
+            )
             if (
                 not followups
                 and self._followup_enabled(is_private)
@@ -8734,9 +8752,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             # a short "哈哈" is left alone by the six-character minimum.
             text_components = [comp for comp in result.chain if hasattr(comp, "text")]
             repeated = re.fullmatch(r"(.{6,})\1", reply_text, re.DOTALL)
+            stripped_repeat = reply_text.strip(" .。…·!！?？,，、~～-—")
+            short_repeated = re.fullmatch(
+                r"(.{2,8}?)[ .。…·!！?？,，、~～\-—]+\1",
+                stripped_repeat,
+                re.DOTALL,
+            )
             collapsed_text = ""
             if repeated:
                 collapsed_text = repeated.group(1).strip()
+            elif short_repeated:
+                collapsed_text = short_repeated.group(1).strip()
             else:
                 normalized = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", reply_text)
                 half = len(normalized) // 2
