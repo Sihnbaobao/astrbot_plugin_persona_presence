@@ -32,8 +32,11 @@ _SPEAK_PROMPT = """现在是 {clock}。你在一个群里，没人叫你，也�
 {knowledge_block}
 {recent_block}
 你此刻有没有什么想主动跟群里说的、属于你自己的事？
+- 只从上面“真实经历”“刚知道”“你平时在意”的内容里找由头；
+  不要编造没有出现在上面的场景、地点或事件。
 - 可以是刚经历的事、刚知道的东西、突然想到的感受或吐槽。
 - 只说自己的，不要接群里刚才的话题，也不要问“你们在聊什么”。
+- 最近说过的兴趣和句式不要再用；没有新由头就沉默，不要硬换词重复。
 - 不想说就只输出：沉默。
 - 想说就随口发一句，最多 {max_chars} 字，不要像汇报。"""
 
@@ -252,11 +255,11 @@ class ProactiveModule(PluginModule):
             if knowledge
             else ""
         )
-        recent_sent = self._recent_sent(3)
+        recent_attempts = self._recent_attempts(6)
         recent_block = (
-            "你最近已经主动说过这些，不要重复，除非确实有新变化：\n"
-            + "\n".join("- " + line for line in recent_sent)
-            if recent_sent
+            "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
+            + "\n".join("- " + line for line in recent_attempts)
+            if recent_attempts
             else ""
         )
 
@@ -383,11 +386,11 @@ class ProactiveModule(PluginModule):
                 + "此刻的由头：\n- "
                 + extra_context.strip()[:200]
             )
-        recent_sent = self._recent_sent(3)
+        recent_attempts = self._recent_attempts(6)
         recent_block = (
-            "你最近已经主动说过这些，不要重复，除非确实有新变化：\n"
-            + "\n".join("- " + line for line in recent_sent)
-            if recent_sent
+            "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
+            + "\n".join("- " + line for line in recent_attempts)
+            if recent_attempts
             else ""
         )
         prompt = _SPEAK_PROMPT.format(
@@ -460,6 +463,26 @@ class ProactiveModule(PluginModule):
                 break
         return lines
 
+    def _recent_attempts(self, limit: int = 6) -> list[str]:
+        """Read recent proposed and delivered lines for diversity checks.
+
+        Args:
+            limit: Maximum distinct non-empty lines.
+
+        Returns:
+            Newest first.
+        """
+        lines: list[str] = []
+        for item in reversed(self._history):
+            if item.get("kind") not in {"sent", "proposed", "skip"}:
+                continue
+            text = str(item.get("text") or "").strip()
+            if text and text not in lines:
+                lines.append(text)
+            if len(lines) >= max(1, int(limit)):
+                break
+        return lines
+
     @staticmethod
     def _bigrams(text: str) -> set[str]:
         """Tokenise text for a cheap near-duplicate check.
@@ -492,7 +515,7 @@ class ProactiveModule(PluginModule):
         tokens = self._bigrams(text)
         if len(tokens) < 2:
             return False
-        for old in self._recent_sent(6):
+        for old in self._recent_attempts(8):
             other = self._bigrams(old)
             if not other:
                 continue

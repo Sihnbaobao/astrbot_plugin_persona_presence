@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 1.8.9（Persona Presence 参与判断重构）
+版本: 1.9.0（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "1.8.9"
+PLUGIN_VERSION = "1.9.0"
 
 
 @register(
@@ -565,6 +565,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._arrival_seq_counter: int = 0
         # Smart 批次快照 {processing_id: [cached_message_dict, ...]}
         self._smart_batch_snapshots: dict[str, list[dict[str, Any]]] = {}
+        # Recent private images, kept so a later text message can still
+        # reference images that were sent as separate messages.
+        self._recent_private_images: dict[str, list[tuple[float, str]]] = {}
         # 会话级流程 owner {chat_id: {"owner": str, "processing_id": str, "started_at": float}}
         self._chat_flow_owners: dict[str, dict[str, Any]] = {}
         # 消息缓存快照（供 after_message_sent 使用）{message_id: cached_message_dict}
@@ -4667,6 +4670,33 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         private_boundary = (
             self._private_conversation_state.get(chat_id) if is_private else None
         )
+        if is_private:
+            try:
+                _image_components = [
+                    comp
+                    for comp in (
+                        getattr(getattr(event, "message_obj", None), "message", [])
+                        or []
+                    )
+                    if isinstance(comp, Image)
+                ]
+                if _image_components:
+                    _refs = await ImageHandler._extract_image_urls(
+                        _image_components, resolve_paths=False
+                    )
+                    if _refs:
+                        _now = time.time()
+                        _kept = [
+                            (_ts, _url)
+                            for _ts, _url in self._recent_private_images.get(
+                                chat_id, []
+                            )
+                            if _now - _ts <= 180
+                        ]
+                        _kept.extend((_now, str(_url)) for _url in _refs if _url)
+                        self._recent_private_images[chat_id] = _kept[-6:]
+            except Exception as _img_err:
+                logger.debug(f"[私聊图片] 记录失败: {_img_err}")
         if private_boundary and self.debug_mode:
             logger.info(
                 f"[Private boundary] state={private_boundary.kind}, "
@@ -5134,6 +5164,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             emoji_marker_applied,
         ) = result
 
+        if is_private and not image_urls:
+            _now = time.time()
+            _recent = [
+                _url
+                for _ts, _url in self._recent_private_images.get(chat_id, [])
+                if _now - _ts <= 180 and _url
+            ]
+            if _recent:
+                image_urls = list(dict.fromkeys(_recent))[
+                    -self.image_context_max_images :
+                ]
+                logger.info(f"[私聊图片] 补充 {len(image_urls)} 张最近图片")
         if image_urls and self.image_archive_scope == "all":
             self._schedule_image_archive(event, image_urls, chat_id, is_private)
 

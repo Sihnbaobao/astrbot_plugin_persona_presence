@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 1.9.0
+
+- **Private image carryover**: when a private conversation has image-only messages followed by a separate text message, the recent private images are attached to the text turn. This fixes the “没图” reply when images were sent separately rather than merged.
+- **Proactive quality**: proactive generation now sees recent proposed/skipped lines as well as sent lines, so near-duplicate attempts are rejected before delivery; the prompt also forbids inventing scenes and tells the persona to avoid reusing the same interest or sentence pattern. Grounding is limited to the supplied real state, recent knowledge and known interests.
+
 ## 1.8.9
 
 - Private multi-bubble replies no longer depend only on the model calling `queue_followup`. When a text reply already contains multiple natural sentence units, the first sentence is sent as the main message and the rest are delivered as follow-up bubbles after the configured delay. Single-sentence replies, ellipsis-heavy lines and image-bearing replies stay as one message.
