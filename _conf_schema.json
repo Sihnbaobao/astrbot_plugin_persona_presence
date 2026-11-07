@@ -344,8 +344,8 @@
       "quote_slow_reply_threshold_seconds": {
         "description": "慢回复阈值（秒）",
         "type": "int",
-        "default": 30,
-        "hint": "超过这个耗时才加引用；默认 30 秒。"
+        "default": 45,
+        "hint": "超过这个耗时才加引用；默认 45 秒。"
       }
     }
   },

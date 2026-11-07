@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.3
+
+- Raised the slow-reply quotation threshold from 30 to 45 seconds for the live configuration, which better matches normal fast replies while still catching 429/retry delays.
+
 ## 2.0.2
 
 - Added optional slow-reply quotation (`quote_slow_reply`, default off; live on). When a reply takes at least `quote_slow_reply_threshold_seconds` (default 30), it is sent with a Reply component pointing at the message that triggered it, so a late reply reads as a reply rather than an out-of-nowhere interjection.
