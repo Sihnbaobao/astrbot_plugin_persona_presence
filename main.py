@@ -28,7 +28,7 @@ Persona Presence - 人格自主参与插件
 动态时间段概率、工具提醒文本注入、SystemPromptRewriter 差分重写
 
 作者/维护: Sihnbaobao
-版本: 2.0.11（Persona Presence 参与判断重构）
+版本: 2.0.12（Persona Presence 参与判断重构）
 """
 
 import asyncio
@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.11"
+PLUGIN_VERSION = "2.0.12"
 
 
 @register(
@@ -1614,8 +1614,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="queue_followup",
                 description=(
-                    "把一句补充排到当前回复之后；主回复发出后会自动接着发送。"
-                    "不会单独生成，也不会立即发送。"
+                    "在当前回复后追加一句补充，等主回复发出后再发；用不用由你判断。"
                 ),
                 parameters={
                     "type": "object",

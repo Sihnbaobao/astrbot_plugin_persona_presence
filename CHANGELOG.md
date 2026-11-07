@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.12
+
+- Reworded `queue_followup` as a neutral capability: “在当前回复后追加一句补充，等主回复发出后再发；用不用由你判断。” This removes the action-like “短话” wording while keeping the send timing explicit.
+
 ## 2.0.11
 
 - Removed the stray space after ellipses before Chinese text. Model output like “...还行吧... 脚画得不错” now becomes “...还行吧...脚画得不错”, even when the spacer was introduced on a single line rather than by newline collapse.
