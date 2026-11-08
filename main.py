@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.27"
+PLUGIN_VERSION = "2.0.28"
 
 
 @register(
@@ -8390,7 +8390,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
-                "想接着这句补半句就写；没有就只输出：沉默。\n"
+                "这句话已经说完了，大多数时候不用再补。\n"
+                "确实还有半句没说完，就写；没有就只输出：沉默。\n"
                 "只能补充、改口、吐槽刚才这件事。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
@@ -9265,9 +9266,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         self._deliver_followup_messages(event, followups, reply_text)
                     )
 
+            main_has_media = any(
+                isinstance(comp, Image) for comp in (result.chain or [])
+            )
             if (
                 self.afterthought_enabled
                 and not followups
+                and not main_has_media
                 and reply_text
                 and (
                     self.afterthought_scope == "both"

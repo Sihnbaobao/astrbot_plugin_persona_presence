@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.28
+
+- Afterthought is skipped when the main reply already contains an image/meme, so a meme reply no longer gets a second, unrelated meme bubble. The prompt also now says most replies are already finished; only a genuinely unfinished half-line should be added.
+
 ## 2.0.27
 
 - Removed the 60-character main-reply gate and the 180-second afterthought cooldown. Afterthought is now offered after every eligible main reply, and the persona decides whether a second line exists; only structural guards remain (main text, no already-queued followups, newer user message during generation).
