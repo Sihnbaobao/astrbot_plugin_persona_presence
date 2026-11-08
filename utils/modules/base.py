@@ -62,6 +62,7 @@ class Proposal:
     source: str
     action: str = "react"
     meme_query: str = ""
+    quote_id: str = ""
     reason: str = ""
     group_id: str = ""
     created_at: float = 0.0

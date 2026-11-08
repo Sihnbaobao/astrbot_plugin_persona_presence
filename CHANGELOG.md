@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.32
+
+- Proactive lines now quote the last text message when the newest message is media (image/sticker), so a reaction to a sentence several messages back no longer looks attached to the latest picture.
+
 ## 2.0.31
 
 - Actually applied the slow-reply quote in `on_decorating_result`. The 2.0.30 release only carried the version/changelog edit; the runtime path still lacked the quote code, so 140–195 second replies were still sent without it.

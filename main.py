@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.31"
+PLUGIN_VERSION = "2.0.32"
 
 
 @register(
@@ -2668,6 +2668,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._recent_meme_paths[ctx.chat_key] = recent_memes[-6:]
 
             chain = []
+            quote_id = str(getattr(proposal, "quote_id", "") or "").strip()
+            if quote_id:
+                chain.append(Reply(id=quote_id))
+                logger.info(f"[主动发言] 引用锚点消息：{quote_id}")
             if text:
                 chain.append(Plain(text))
             if meme_path:

@@ -95,6 +95,8 @@ class _GroupState:
     last_gap: float = 0.0
     last_spoke: float = 0.0
     last_try: float = 0.0
+    last_text_id: str = ""
+    last_was_media: bool = False
 
 
 class ProactiveModule(PluginModule):
@@ -183,8 +185,18 @@ class ProactiveModule(PluginModule):
             sender = str(ctx.event.get_sender_name() or "").strip()
         except Exception:
             sender = ""
-        if not text:
+        is_media = not text
+        if is_media:
             text = "[图片或表情]"
+        else:
+            try:
+                state.last_text_id = str(
+                    getattr(getattr(ctx.event, "message_obj", None), "message_id", "")
+                    or ""
+                ).strip()
+            except Exception:
+                state.last_text_id = ""
+        state.last_was_media = is_media
         state.lines.append(f"{sender}：{text}" if sender else text)
         now = time.time()
         state.last_gap = max(0.0, now - state.last_seen) if state.last_seen else 0.0
@@ -318,6 +330,7 @@ class ProactiveModule(PluginModule):
                 source="proactive",
                 action="meme",
                 meme_query=meme_query,
+                quote_id=state.last_text_id if state.last_was_media else "",
                 reason="meme",
                 group_id=group,
                 created_at=time.time(),
@@ -342,6 +355,7 @@ class ProactiveModule(PluginModule):
             text=text,
             source="proactive",
             action="react",
+            quote_id=state.last_text_id if state.last_was_media else "",
             reason="react",
             group_id=group,
             created_at=time.time(),
