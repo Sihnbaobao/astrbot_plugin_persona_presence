@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.16"
+PLUGIN_VERSION = "2.0.17"
 
 
 @register(
@@ -1584,13 +1584,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         Returns:
             True when the configured scope includes this conversation.
         """
-        if not self.enable_followup_reply:
-            return False
-        if self.followup_scope == "private":
-            return is_private
-        if self.followup_scope == "group":
-            return not is_private
-        return True
+        if is_private:
+            if not self.enable_followup_reply:
+                return False
+            return self.followup_scope in {"private", "both"}
+        return self.followup_scope in {"group", "both"}
 
     def _followup_tools(self, is_private: bool) -> list:
         """Build the optional follow-up queue tool for multi-bubble replies.

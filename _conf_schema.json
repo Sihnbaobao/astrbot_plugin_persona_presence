@@ -259,13 +259,13 @@
       "followup_scope": {
         "description": "补充生效范围",
         "type": "string",
-        "default": "private",
+        "default": "both",
         "options": [
           "private",
           "group",
           "both"
         ],
-        "hint": "private=只私聊；group=只群聊；both=都生效。群聊多气泡容易刷屏，建议先 private。"
+        "hint": "private=只私聊；group=只群聊；both=都生效。群聊多气泡可能刷屏，延迟已内置。"
       },
       "followup_max_messages": {
         "description": "最多补充几条",

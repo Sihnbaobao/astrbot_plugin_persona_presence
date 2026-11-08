@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.17
+
+- Group multi-bubble now actually works. `followup_scope=group/both` was previously ignored for groups because the enable flag was tied to the private generation mode; group turns now get the follow-up hint/tool, queued second bubbles, and natural newline/sentence splitting independently. Live scope set to `both`.
+
 ## 2.0.16
 
 - Allowed a natural exception in the group decision prompt: a concrete public topic with a real hook can be answered without being @-mentioned, if the persona genuinely wants to react. This is a judgment rule, not a probability override; `participation=none`, one-to-one chats, noise, and repeated topics still stay silent.
