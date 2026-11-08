@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.19
+
+- Constrained the afterthought pass to the just-sent exchange. It no longer receives the full persona block or permission to “跑题”, which caused a music question to be followed by an unrelated “…蓝色星原…快了”. It now only supplements, corrects, or comments on the line it just sent.
+
 ## 2.0.18
 
 - Added a real afterthought pass: after a short main reply, the plugin waits briefly, asks the persona once whether a short follow-up naturally follows, and sends it as a separate bubble. It is a second model call, not queue_followup. It stays silent when nothing comes, is discarded if a newer user message arrives, and has a per-chat cooldown.
