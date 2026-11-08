@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.28"
+PLUGIN_VERSION = "2.0.29"
 
 
 @register(
@@ -9254,6 +9254,30 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
                 except Exception:
                     pass
+            if (
+                not followups
+                and self._followup_enabled(is_private)
+                and hasattr(result, "chain")
+            ):
+                text_components = [
+                    comp
+                    for comp in result.chain
+                    if hasattr(comp, "text") and str(comp.text or "").strip()
+                ]
+                if len(text_components) > 1:
+                    extras = [str(comp.text).strip() for comp in text_components[1:]]
+                    max_extra = max(1, self.followup_max_messages)
+                    if len(extras) > max_extra:
+                        extras = extras[: max_extra - 1] + [
+                            " ".join(extras[max_extra - 1 :])
+                        ]
+                    for comp in text_components[1:]:
+                        result.chain.remove(comp)
+                    text_components[0].text = str(text_components[0].text).strip()
+                    reply_text = text_components[0].text
+                    followups = extras
+                    logger.info(f"[多气泡] 多段文本拆成 {len(extras) + 1} 条")
+
             if followups:
                 try:
                     _pid = self._get_processing_id(event)

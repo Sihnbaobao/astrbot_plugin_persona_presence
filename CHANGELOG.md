@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.29
+
+- Split multi-component text replies into separate bubbles. When a main result contains more than one non-empty Plain segment, the first stays in the main message and the rest are queued as delayed follow-ups, instead of appearing as one message with internal line breaks.
+
 ## 2.0.28
 
 - Afterthought is skipped when the main reply already contains an image/meme, so a meme reply no longer gets a second, unrelated meme bubble. The prompt also now says most replies are already finished; only a genuinely unfinished half-line should be added.
