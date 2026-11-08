@@ -364,12 +364,6 @@
         ],
         "hint": "private=只私聊；group=只群聊；both=都生效。"
       },
-      "afterthought_cooldown_seconds": {
-        "description": "补一句冷却(秒)",
-        "type": "int",
-        "default": 180,
-        "hint": "同一会话至少间隔这么久才会再尝试补一句，避免每轮都追加。"
-      },
       "afterthought_delay_ms": {
         "description": "补一句延迟(毫秒)",
         "type": "int",

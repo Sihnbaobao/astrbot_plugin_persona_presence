@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.26"
+PLUGIN_VERSION = "2.0.27"
 
 
 @register(
@@ -499,13 +499,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self.afterthought_scope = self._cfg_choice(
             "afterthought_scope", "both", {"private", "group", "both"}
         )
-        self.afterthought_cooldown_seconds = self._cfg_int(
-            "afterthought_cooldown_seconds", 180, minimum=0, maximum=86_400
-        )
         self.afterthought_delay_ms = self._cfg_int(
             "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
         )
-        self._afterthought_last_at: dict[str, float] = {}
         self._last_user_message_at: dict[str, float] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
@@ -9273,18 +9269,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self.afterthought_enabled
                 and not followups
                 and reply_text
-                and len(reply_text) <= 60
                 and (
                     self.afterthought_scope == "both"
                     or (is_private and self.afterthought_scope == "private")
                     or (not is_private and self.afterthought_scope == "group")
                 )
-                and time.time()
-                - self._afterthought_last_at.get(state_chat_id, 0.0)
-                >= self.afterthought_cooldown_seconds
             ):
                 scheduled_at = time.time()
-                self._afterthought_last_at[state_chat_id] = scheduled_at
                 asyncio.create_task(
                     self._deliver_afterthought(
                         event, reply_text, is_private, state_chat_id, scheduled_at

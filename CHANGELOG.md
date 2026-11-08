@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.27
+
+- Removed the 60-character main-reply gate and the 180-second afterthought cooldown. Afterthought is now offered after every eligible main reply, and the persona decides whether a second line exists; only structural guards remain (main text, no already-queued followups, newer user message during generation).
+
 ## 2.0.26
 
 - Removed the afterthought hard length cap entirely. Length is left to the persona; the plugin no longer silently drops a second bubble because it exceeded an arbitrary character count.
