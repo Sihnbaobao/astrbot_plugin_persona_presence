@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.22
+
+- Gave the afterthought pass the same recent conversation the main reply saw: last eight speaker-labelled messages plus the just-sent main line. Kept the full persona; the instruction now follows that context instead of replacing it.
+
 ## 2.0.21
 
 - Restored the full persona block in the afterthought prompt and removed the extra “don’t start a new topic / don’t mention unseen works” lines. The preceding main reply and user message are enough; the afterthought should sound like the same person, not a stripped-down continuation.

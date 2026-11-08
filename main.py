@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.21"
+PLUGIN_VERSION = "2.0.22"
 
 
 @register(
@@ -8366,6 +8366,33 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             prompt_parts = []
             if persona:
                 prompt_parts.append("你的人格设定：" + persona[:800])
+            history_lines: list[str] = []
+            try:
+                history = await ContextManager.get_history_messages_with_fallback(
+                    event, 12, self.context
+                )
+                self_id = str(event.get_self_id() or "")
+                for item in list(history)[-8:]:
+                    item_text = str(
+                        getattr(item, "message_str", "") or ""
+                    ).strip()
+                    if not item_text or item_text == main_text.strip():
+                        continue
+                    sender = getattr(item, "sender", None)
+                    sender_id = str(
+                        getattr(sender, "user_id", "") or ""
+                    ).strip()
+                    sender_name = str(
+                        getattr(sender, "nickname", "") or ""
+                    ).strip()
+                    speaker = "你" if sender_id == self_id else (
+                        sender_name or "群友"
+                    )
+                    history_lines.append(f"{speaker}：{item_text[:120]}")
+            except Exception as exc:
+                logger.debug(f"[补一句] 读取上下文失败: {exc}")
+            if history_lines:
+                prompt_parts.append("最近对话：\n" + "\n".join(history_lines))
             prompt_parts.append(f"你在{scene}里刚说完：{main_text}")
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
