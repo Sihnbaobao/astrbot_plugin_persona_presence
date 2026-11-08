@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.25"
+PLUGIN_VERSION = "2.0.26"
 
 
 @register(
@@ -504,9 +504,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self.afterthought_delay_ms = self._cfg_int(
             "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
-        )
-        self.afterthought_max_chars = self._cfg_int(
-            "afterthought_max_chars", 100, minimum=1, maximum=300
         )
         self._afterthought_last_at: dict[str, float] = {}
         self._last_user_message_at: dict[str, float] = {}
@@ -8451,7 +8448,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             self._last_bot_reply_at[chat_key] = time.time()
             logger.info(f"[补一句] 发送表情：{Path(path).name}")
             return
-        if not text or len(text) > self.afterthought_max_chars:
+        if not text:
             return
         if text == main_text.strip():
             return

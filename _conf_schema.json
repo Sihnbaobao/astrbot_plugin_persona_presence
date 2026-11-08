@@ -375,12 +375,6 @@
         "type": "int",
         "default": 1200,
         "hint": "主回复发出后先停一下，再开始想。"
-      },
-      "afterthought_max_chars": {
-        "description": "补一句最长字数",
-        "type": "int",
-        "default": 100,
-        "hint": "补一句的硬上限；话多的人格可以调高，超过则丢弃，不会截断发送。"
       }
     }
   },

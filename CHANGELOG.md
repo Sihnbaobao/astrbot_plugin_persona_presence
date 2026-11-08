@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.26
+
+- Removed the afterthought hard length cap entirely. Length is left to the persona; the plugin no longer silently drops a second bubble because it exceeded an arbitrary character count.
+
 ## 2.0.25
 
 - Raised the afterthought hard cap from 30 to 100 characters (configurable up to 300) because verbose personas were having every second bubble dropped. The cap is a runaway guard, not a style rule; prompting still leaves length to the persona.
