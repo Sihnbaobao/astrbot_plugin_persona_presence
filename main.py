@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.30"
+PLUGIN_VERSION = "2.0.31"
 
 
 @register(
@@ -503,6 +503,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
         )
         self._last_user_message_at: dict[str, float] = {}
+        self._processing_started_at: dict[str, float] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
         self.enable_meme_bridge = self._cfg_bool("enable_meme_bridge", False)
@@ -7787,6 +7788,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
 
         self._last_user_message_at[state_chat_id] = time.time()
+        self._processing_started_at[state_chat_id] = _process_start_time
 
         if self._followup_enabled(is_private):
             final_message += (
@@ -8936,6 +8938,27 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            if (
+                self.quote_slow_reply
+                and self._processing_started_at.get(state_chat_id, 0.0) > 0
+                and time.time()
+                - self._processing_started_at.get(state_chat_id, 0.0)
+                >= self.quote_slow_reply_threshold_seconds
+                and not any(isinstance(comp, Reply) for comp in result.chain)
+            ):
+                try:
+                    source_message_id = str(
+                        getattr(getattr(event, "message_obj", None), "message_id", "")
+                        or ""
+                    ).strip()
+                    if source_message_id:
+                        result.chain = [Reply(id=source_message_id)] + list(
+                            result.chain or []
+                        )
+                        logger.info("[慢回复] 已引用原消息")
+                except Exception as quote_err:
+                    logger.debug(f"[慢回复] 引用失败: {quote_err}")
 
             # Short replies sometimes get emitted as the same sentence twice.
             # Collapse only an exact whole-text repetition; normal emphasis or

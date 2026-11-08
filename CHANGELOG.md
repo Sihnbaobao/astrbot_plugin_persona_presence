@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.31
+
+- Actually applied the slow-reply quote in `on_decorating_result`. The 2.0.30 release only carried the version/changelog edit; the runtime path still lacked the quote code, so 140–195 second replies were still sent without it.
+
 ## 2.0.30
 
 - Slow-reply quotation now runs in `on_decorating_result`, which is the path used by agent/tool-loop replies. Previously the quote was added only in the non-tool generator path, so 140–195 second group replies were sent without quoting the source message.
