@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.23
+
+- Afterthought now reuses the exact context prompt from the main reply (last 6000 chars) instead of rebuilding a short last-8 history. It keeps the persona and appends the just-sent line plus the afterthought instruction, with history fallback if the main context is unavailable.
+
 ## 2.0.22
 
 - Gave the afterthought pass the same recent conversation the main reply saw: last eight speaker-labelled messages plus the just-sent main line. Kept the full persona; the instruction now follows that context instead of replacing it.
