@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.23"
+PLUGIN_VERSION = "2.0.24"
 
 
 @register(
@@ -8397,11 +8397,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
-                "现在手机还在手里，停了一下。\n"
                 "想接着这句补半句就写；没有就只输出：沉默。\n"
                 "只能补充、改口、吐槽刚才这件事。\n"
-                "想补一张表情时，只写：（表情包：想表达的表情）\n"
-                f"最多 {self.afterthought_max_chars} 字，不要提问，不要解释。"
+                "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(
                 chat_provider_id=provider_id,

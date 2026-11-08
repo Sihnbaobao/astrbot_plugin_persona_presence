@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.24
+
+- Trimmed the afterthought task text to the useful parts. Removed the staged “phone in hand” line and the redundant length/no-question/no-explanation rules; the persona and the “only supplement/correct/roast this” line already carry that.
+
 ## 2.0.23
 
 - Afterthought now reuses the exact context prompt from the main reply (last 6000 chars) instead of rebuilding a short last-8 history. It keeps the persona and appends the just-sent line plus the afterthought instruction, with history fallback if the main context is unavailable.
