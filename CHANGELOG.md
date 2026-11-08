@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.33
+
+- Proactive messages now carry an explicit anchor. The prompt numbers the last eight group messages, the model outputs the index it is reacting to (or 0 for no target), and the base maps it to that message's id for the Reply quote. The old “last text” heuristic remains only as a compatibility fallback.
+
 ## 2.0.32
 
 - Proactive lines now quote the last text message when the newest message is media (image/sticker), so a reaction to a sentence several messages back no longer looks attached to the latest picture.

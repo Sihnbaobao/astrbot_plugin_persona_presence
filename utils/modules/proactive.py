@@ -27,7 +27,7 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
 
 {room_block}
 {persona_block}
-最近群里：
+最近群里（按顺序编号）：
 {recent_messages}
 {recent_block}
 你可以：
@@ -37,8 +37,11 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
   meme_query 描述想要的表情画面或感觉，也可以附一句很短的话。
 - silent：没什么可接的就沉默，不要硬找话。
 
+如果你是在接其中某一条，anchor 写那条的编号；
+不是针对某一条就写 0。
+
 只输出 JSON：
-{{"action":"react|meme|silent","text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
+{{"action":"react|meme|silent","anchor":0,"text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
 
 
 @dataclass
@@ -91,6 +94,7 @@ class _GroupState:
     """
 
     lines: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
+    line_ids: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     last_seen: float = 0.0
     last_gap: float = 0.0
     last_spoke: float = 0.0
@@ -197,7 +201,15 @@ class ProactiveModule(PluginModule):
             except Exception:
                 state.last_text_id = ""
         state.last_was_media = is_media
+        try:
+            message_id = str(
+                getattr(getattr(ctx.event, "message_obj", None), "message_id", "")
+                or ""
+            ).strip()
+        except Exception:
+            message_id = ""
         state.lines.append(f"{sender}：{text}" if sender else text)
+        state.line_ids.append(message_id)
         now = time.time()
         state.last_gap = max(0.0, now - state.last_seen) if state.last_seen else 0.0
         state.last_seen = now
@@ -250,7 +262,16 @@ class ProactiveModule(PluginModule):
         persona_block = f"你的人格设定：{persona[:400]}" if persona else ""
 
         recent_lines = [str(line) for line in list(state.lines)[-8:]]
-        recent_messages = "\n".join("- " + line for line in recent_lines) or "（没有）"
+        recent_ids = [str(item) for item in list(state.line_ids)[-8:]]
+        if len(recent_ids) < len(recent_lines):
+            recent_ids = [""] * (len(recent_lines) - len(recent_ids)) + recent_ids
+        recent_messages = (
+            "\n".join(
+                f"{index}. {line}"
+                for index, line in enumerate(recent_lines, start=1)
+            )
+            or "（没有）"
+        )
         recent_attempts = self._recent_attempts(6)
         recent_block = (
             "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
@@ -297,14 +318,30 @@ class ProactiveModule(PluginModule):
             except (TypeError, ValueError):
                 payload = None
 
+        anchor = 0
+        anchor_given = False
         if isinstance(payload, dict):
             action = str(payload.get("action") or "react").strip().lower()
             text = str(payload.get("text") or "").strip()
             meme_query = str(payload.get("meme_query") or "").strip()
+            raw_anchor = payload.get("anchor")
+            if raw_anchor not in (None, ""):
+                anchor_given = True
+                try:
+                    anchor = int(raw_anchor)
+                except (TypeError, ValueError):
+                    anchor = 0
         else:
             action = "react"
             text = reply
             meme_query = ""
+
+        quote_id = ""
+        if anchor_given:
+            if 1 <= anchor <= len(recent_ids):
+                quote_id = recent_ids[anchor - 1]
+        elif state.last_was_media:
+            quote_id = state.last_text_id
 
         if action == "silent" or (not payload and (not reply or "沉默" in reply)):
             self._record("silent", group)
@@ -330,7 +367,7 @@ class ProactiveModule(PluginModule):
                 source="proactive",
                 action="meme",
                 meme_query=meme_query,
-                quote_id=state.last_text_id if state.last_was_media else "",
+                quote_id=quote_id,
                 reason="meme",
                 group_id=group,
                 created_at=time.time(),
@@ -355,7 +392,7 @@ class ProactiveModule(PluginModule):
             text=text,
             source="proactive",
             action="react",
-            quote_id=state.last_text_id if state.last_was_media else "",
+            quote_id=quote_id,
             reason="react",
             group_id=group,
             created_at=time.time(),
