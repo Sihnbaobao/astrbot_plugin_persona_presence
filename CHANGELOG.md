@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.21
+
+- Restored the full persona block in the afterthought prompt and removed the extra “don’t start a new topic / don’t mention unseen works” lines. The preceding main reply and user message are enough; the afterthought should sound like the same person, not a stripped-down continuation.
+
 ## 2.0.20
 
 - Afterthought meme text like “（表情包：冷笑猫）” is now converted into a real meme image through the semantic bridge instead of being sent literally as a parenthetical message. If the bridge is off or no image matches, the afterthought is dropped rather than leaking the annotation.

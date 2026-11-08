@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.20"
+PLUGIN_VERSION = "2.0.21"
 
 
 @register(
@@ -8360,17 +8360,19 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             provider_id = await self._resolve_feature_provider_id(event)
             if not provider_id:
                 return
+            persona = await self._resolve_active_persona_prompt(event)
             user_text = str(event.get_message_str() or "").strip()
             scene = "私聊" if is_private else "群里"
             prompt_parts = []
+            if persona:
+                prompt_parts.append("你的人格设定：" + persona[:800])
             prompt_parts.append(f"你在{scene}里刚说完：{main_text}")
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
                 "现在手机还在手里，停了一下。\n"
                 "想接着这句补半句就写；没有就只输出：沉默。\n"
-                "只能补充、改口、吐槽刚才这件事；不要另起话题，"
-                "不要提刚才没有出现的作品、游戏或计划。\n"
+                "只能补充、改口、吐槽刚才这件事。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）\n"
                 f"最多 {self.afterthought_max_chars} 字，不要提问，不要解释。"
             )
