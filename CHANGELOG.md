@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.30
+
+- Slow-reply quotation now runs in `on_decorating_result`, which is the path used by agent/tool-loop replies. Previously the quote was added only in the non-tool generator path, so 140–195 second group replies were sent without quoting the source message.
+
 ## 2.0.29
 
 - Split multi-component text replies into separate bubbles. When a main result contains more than one non-empty Plain segment, the first stays in the main message and the rest are queued as delayed follow-ups, instead of appearing as one message with internal line breaks.
