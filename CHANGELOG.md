@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.16
+
+- Allowed a natural exception in the group decision prompt: a concrete public topic with a real hook can be answered without being @-mentioned, if the persona genuinely wants to react. This is a judgment rule, not a probability override; `participation=none`, one-to-one chats, noise, and repeated topics still stay silent.
+
 ## 2.0.15
 
 - Reworked built-in tool descriptions into capability statements instead of imperative instructions. `web_lookup`, `queue_meme`, and the image archive tools now describe what exists (“作品、角色…的资料检索”, “你图库里的一张图…”) rather than telling the persona to search/send/queue. This reduces the assistant-like pull of the always-injected tool schema.
