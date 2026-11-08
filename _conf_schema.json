@@ -379,8 +379,8 @@
       "afterthought_max_chars": {
         "description": "补一句最长字数",
         "type": "int",
-        "default": 30,
-        "hint": "超过这个长度就不发。"
+        "default": 100,
+        "hint": "补一句的硬上限；话多的人格可以调高，超过则丢弃，不会截断发送。"
       }
     }
   },

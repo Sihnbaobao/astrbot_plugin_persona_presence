@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.25
+
+- Raised the afterthought hard cap from 30 to 100 characters (configurable up to 300) because verbose personas were having every second bubble dropped. The cap is a runaway guard, not a style rule; prompting still leaves length to the persona.
+
 ## 2.0.24
 
 - Trimmed the afterthought task text to the useful parts. Removed the staged “phone in hand” line and the redundant length/no-question/no-explanation rules; the persona and the “only supplement/correct/roast this” line already carry that.
