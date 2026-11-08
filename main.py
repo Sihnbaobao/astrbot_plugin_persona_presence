@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.19"
+PLUGIN_VERSION = "2.0.20"
 
 
 @register(
@@ -8371,6 +8371,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "想接着这句补半句就写；没有就只输出：沉默。\n"
                 "只能补充、改口、吐槽刚才这件事；不要另起话题，"
                 "不要提刚才没有出现的作品、游戏或计划。\n"
+                "想补一张表情时，只写：（表情包：想表达的表情）\n"
                 f"最多 {self.afterthought_max_chars} 字，不要提问，不要解释。"
             )
             response = await self.context.llm_generate(
@@ -8388,6 +8389,41 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
         if self.reply_ellipsis_style != "keep":
             text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
+        meme_match = re.fullmatch(r"[（(]\s*表情包?\s*[:：]\s*(.+?)\s*[）)]", text)
+        if meme_match:
+            if not self._meme_bridge_enabled(is_private):
+                return
+            meme_query = meme_match.group(1).strip()
+            if not meme_query or self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
+                return
+            recent_memes = list(self._recent_meme_paths.get(chat_key, []))
+            path = await select_meme_image(
+                self.context,
+                event,
+                meme_query,
+                self.meme_bridge_min_score,
+                avoid_paths=set(recent_memes),
+            )
+            if not path:
+                return
+            recent_memes.append(Path(path).name)
+            self._recent_meme_paths[chat_key] = recent_memes[-6:]
+            try:
+                delivered = await self.context.send_message(
+                    event.unified_msg_origin,
+                    MessageChain([Image.fromFileSystem(path)]),
+                )
+                if delivered is False:
+                    return
+                await ContextManager.save_bot_message(
+                    event, "[表情包]", self.context
+                )
+            except Exception as exc:
+                logger.debug(f"[补一句] 表情发送失败: {exc}")
+                return
+            self._last_bot_reply_at[chat_key] = time.time()
+            logger.info(f"[补一句] 发送表情：{Path(path).name}")
+            return
         if not text or len(text) > self.afterthought_max_chars:
             return
         if text == main_text.strip():

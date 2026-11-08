@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.20
+
+- Afterthought meme text like “（表情包：冷笑猫）” is now converted into a real meme image through the semantic bridge instead of being sent literally as a parenthetical message. If the bridge is off or no image matches, the afterthought is dropped rather than leaking the annotation.
+
 ## 2.0.19
 
 - Constrained the afterthought pass to the just-sent exchange. It no longer receives the full persona block or permission to “跑题”, which caused a music question to be followed by an unrelated “…蓝色星原…快了”. It now only supplements, corrects, or comments on the line it just sent.
