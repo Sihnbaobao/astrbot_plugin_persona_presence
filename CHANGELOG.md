@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.18
+
+- Added a real afterthought pass: after a short main reply, the plugin waits briefly, asks the persona once whether a short follow-up naturally follows, and sends it as a separate bubble. It is a second model call, not queue_followup. It stays silent when nothing comes, is discarded if a newer user message arrives, and has a per-chat cooldown.
+
 ## 2.0.17
 
 - Group multi-bubble now actually works. `followup_scope=group/both` was previously ignored for groups because the enable flag was tied to the private generation mode; group turns now get the follow-up hint/tool, queued second bubbles, and natural newline/sentence splitting independently. Live scope set to `both`.

@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.17"
+PLUGIN_VERSION = "2.0.18"
 
 
 @register(
@@ -495,6 +495,21 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self.followup_max_delay_ms = self._cfg_int(
             "followup_max_delay_ms", 2200, minimum=0, maximum=10_000
         )
+        self.afterthought_enabled = self._cfg_bool("afterthought_enabled", True)
+        self.afterthought_scope = self._cfg_choice(
+            "afterthought_scope", "both", {"private", "group", "both"}
+        )
+        self.afterthought_cooldown_seconds = self._cfg_int(
+            "afterthought_cooldown_seconds", 180, minimum=0, maximum=86_400
+        )
+        self.afterthought_delay_ms = self._cfg_int(
+            "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
+        )
+        self.afterthought_max_chars = self._cfg_int(
+            "afterthought_max_chars", 30, minimum=1, maximum=120
+        )
+        self._afterthought_last_at: dict[str, float] = {}
+        self._last_user_message_at: dict[str, float] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
         self.enable_meme_bridge = self._cfg_bool("enable_meme_bridge", False)
@@ -7778,11 +7793,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 platform_name, is_private, chat_id
             )
 
+        self._last_user_message_at[state_chat_id] = time.time()
+
         if self._followup_enabled(is_private):
             final_message += (
-                "\n\n[回复节奏] 一句话说完就够了就正常结束；"
-                "如果确实还有半句自然想补的，可以交给 queue_followup，"
-                "等主回复发出后再接着发。不要为了凑第二条硬拆一句话。"
+                "\n\n[回复节奏] 想补一句，就另起一行写，"
+                "那会作为下一条短消息发出去。"
+                "跑题、自言自语、突然想起别的事都可以；不想补就到这里。"
             )
         if self._meme_bridge_enabled(is_private):
             final_message += (
@@ -8312,6 +8329,106 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     logger.warning(f"[多气泡] 补充保存失败: {save_err}")
             except Exception as send_err:
                 logger.warning(f"[多气泡] 补充发送失败: {send_err}")
+
+    async def _deliver_afterthought(
+        self,
+        event: AstrMessageEvent,
+        main_text: str,
+        is_private: bool,
+        chat_key: str,
+        scheduled_at: float,
+    ) -> None:
+        """Ask once, after the main reply, whether a short afterthought follows.
+
+        This is a real second model call, not the same-turn queue_followup
+        tool. It stays silent by default and is discarded if a newer user
+        message arrived while it was thinking.
+
+        Args:
+            event: Turn that produced the main reply.
+            main_text: Already-sent main reply.
+            is_private: Whether this is a private chat.
+            chat_key: Stable chat key used for cooldowns and freshness.
+            scheduled_at: When this task was scheduled.
+        """
+        delay = max(0, self.afterthought_delay_ms) / 1000
+        if delay:
+            await asyncio.sleep(delay)
+        if self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
+            return
+        try:
+            provider_id = await self._resolve_feature_provider_id(event)
+            if not provider_id:
+                return
+            persona = await self._resolve_active_persona_prompt(event)
+            user_text = str(event.get_message_str() or "").strip()
+            scene = "私聊" if is_private else "群里"
+            prompt_parts = []
+            if persona:
+                prompt_parts.append("你的人格设定：" + persona[:800])
+            prompt_parts.append(f"你在{scene}里刚说完：{main_text}")
+            if user_text:
+                prompt_parts.append(f"对方刚才说：{user_text[:300]}")
+            prompt_parts.append(
+                "现在手机还在手里，停了一下。\n"
+                "想再补一句就写；没有就只输出：沉默。\n"
+                "可以跑题、改口、突然想起别的事。"
+                f"最多 {self.afterthought_max_chars} 字，不要提问，不要解释。"
+            )
+            response = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt="\n\n".join(prompt_parts),
+                max_tokens=100,
+            )
+            text = str(getattr(response, "completion_text", "") or "").strip()
+        except Exception as exc:
+            logger.debug(f"[补一句] 生成失败: {exc}")
+            return
+        if not text or text.strip("。.！!？? ") == "沉默":
+            return
+        text = AIResponseFilter.sanitize_reply_text(text).strip()
+        text = AIResponseFilter.strip_leaked_system_tags(text).strip()
+        if self.reply_ellipsis_style != "keep":
+            text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
+        if not text or len(text) > self.afterthought_max_chars:
+            return
+        if text == main_text.strip():
+            return
+        if self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
+            return
+        try:
+            recent = self.recent_replies_cache.get(chat_key, [])
+            check_count = max(1, self.duplicate_filter_check_count)
+            if any(
+                text == str(item.get("content", "")).strip()
+                for item in recent[-check_count:]
+            ):
+                return
+        except Exception:
+            pass
+        try:
+            delivered = await self.context.send_message(
+                event.unified_msg_origin, MessageChain([Plain(text)])
+            )
+            if delivered is False:
+                return
+            await ContextManager.save_bot_message(event, text, self.context)
+        except Exception as exc:
+            logger.debug(f"[补一句] 发送失败: {exc}")
+            return
+        self._last_bot_reply_at[chat_key] = time.time()
+        try:
+            recent = self.recent_replies_cache.setdefault(chat_key, [])
+            recent.append({"content": text, "timestamp": time.time()})
+            limit = min(
+                max(10, self.duplicate_filter_check_count * 2),
+                self._DUPLICATE_CACHE_SIZE_LIMIT,
+            )
+            if len(recent) > limit:
+                recent[:] = recent[-limit:]
+        except Exception:
+            pass
+        logger.info(f"[补一句] 发送：{text[:60]}")
 
     async def _refresh_history_after_wait(
         self,
@@ -9093,6 +9210,28 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     asyncio.create_task(
                         self._deliver_followup_messages(event, followups, reply_text)
                     )
+
+            if (
+                self.afterthought_enabled
+                and not followups
+                and reply_text
+                and len(reply_text) <= 60
+                and (
+                    self.afterthought_scope == "both"
+                    or (is_private and self.afterthought_scope == "private")
+                    or (not is_private and self.afterthought_scope == "group")
+                )
+                and time.time()
+                - self._afterthought_last_at.get(state_chat_id, 0.0)
+                >= self.afterthought_cooldown_seconds
+            ):
+                scheduled_at = time.time()
+                self._afterthought_last_at[state_chat_id] = scheduled_at
+                asyncio.create_task(
+                    self._deliver_afterthought(
+                        event, reply_text, is_private, state_chat_id, scheduled_at
+                    )
+                )
 
         except Exception as e:
             logger.error(f"[装饰阶段] 去重处理失败: {e}", exc_info=True)

@@ -346,6 +346,41 @@
         "type": "int",
         "default": 45,
         "hint": "超过这个耗时才加引用；默认 45 秒。"
+      },
+      "afterthought_enabled": {
+        "description": "主回复后的补一句",
+        "type": "bool",
+        "default": true,
+        "hint": "主回复发出后，再让模型想一次要不要补一句；没有就保持沉默。"
+      },
+      "afterthought_scope": {
+        "description": "补一句生效范围",
+        "type": "string",
+        "default": "both",
+        "options": [
+          "private",
+          "group",
+          "both"
+        ],
+        "hint": "private=只私聊；group=只群聊；both=都生效。"
+      },
+      "afterthought_cooldown_seconds": {
+        "description": "补一句冷却(秒)",
+        "type": "int",
+        "default": 180,
+        "hint": "同一会话至少间隔这么久才会再尝试补一句，避免每轮都追加。"
+      },
+      "afterthought_delay_ms": {
+        "description": "补一句延迟(毫秒)",
+        "type": "int",
+        "default": 1200,
+        "hint": "主回复发出后先停一下，再开始想。"
+      },
+      "afterthought_max_chars": {
+        "description": "补一句最长字数",
+        "type": "int",
+        "default": 30,
+        "hint": "超过这个长度就不发。"
       }
     }
   },
