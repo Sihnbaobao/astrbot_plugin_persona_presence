@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.40
+
+- Proactive speech no longer interjects when DecisionAI marked the current message as targeting another user (`target=other/unclear`). The previous gate only checked that the base declined, so a message @-ing a third party could still trigger an ambient roast.
+
 ## 2.0.39
 
 - Proactive turns can now call `web_lookup` through a narrow tool loop. The tool description stays curiosity-only; code caps it at two searches per proactive turn and keeps the latest image input. Without a Tavily key, proactive falls back to the normal text-only call.

@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.39"
+PLUGIN_VERSION = "2.0.40"
 
 
 @register(
@@ -2542,6 +2542,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         *,
         decision_ai_failed: bool = False,
         decision_source: str = "ai",
+        decision_target: str = "",
+        decision_participation: str = "",
     ) -> bool:
         """Offer feature packs a turn after the base decided to stay silent.
 
@@ -2563,6 +2565,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if module is None or is_private or decision_ai_failed:
             return False
         if decision_source not in {"ai", "legacy"}:
+            return False
+        if decision_target in {"other", "unclear"}:
+            return False
+        if decision_participation == "none" and decision_target == "other":
             return False
         if not self.takeover_group_reply or self.group_reply_scope != "ambient":
             return False
@@ -6307,6 +6313,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         raw_chat_id,
                         decision_ai_failed=decision_ai_failed,
                         decision_source=decision_result.source,
+                        decision_target=str(
+                            getattr(decision_result, "target", "") or ""
+                        ),
+                        decision_participation=str(
+                            getattr(decision_result, "participation", "") or ""
+                        ),
                     )
                 except Exception as exc:
                     logger.warning(f"[Feature] Proposal gate failed: {exc}")
