@@ -7,6 +7,7 @@ it, saves it to history and sends it.
 """
 
 import json
+import aiohttp
 import random
 import re
 import time
@@ -325,13 +326,105 @@ class ProactiveModule(PluginModule):
                 image_refs = [
                     image for image in recent_images[-1] if image
                 ][:1]
+
+            tool_set = None
             try:
-                response = await self.context.llm_generate(
-                    chat_provider_id=provider_id,
-                    prompt=prompt,
-                    image_urls=image_refs or None,
-                    max_tokens=160,
-                )
+                from astrbot.core.agent.tool import FunctionTool, ToolSet
+
+                config = self.context.get_config()
+                settings = config.get("provider_settings") or {}
+                keys = settings.get("websearch_tavily_key") or []
+                lookup_key = str(keys[0] if isinstance(keys, list) else keys or "")
+                if lookup_key:
+                    lookup_calls = 0
+
+                    async def web_lookup(event, query: str = "", max_results: int = 3):
+                        nonlocal lookup_calls
+                        if lookup_calls >= 2:
+                            return "已经查过两次了，先按手头的资料说。"
+                        lookup_calls += 1
+                        question = str(query or "").strip()
+                        if not question:
+                            return "没有提供要查的词。"
+                        payload = {
+                            "api_key": lookup_key,
+                            "query": question,
+                            "max_results": max(1, min(int(max_results or 3), 5)),
+                            "include_answer": True,
+                            "search_depth": "basic",
+                        }
+                        try:
+                            timeout = aiohttp.ClientTimeout(total=20)
+                            async with aiohttp.ClientSession(timeout=timeout) as session:
+                                async with session.post(
+                                    "https://api.tavily.com/search", json=payload
+                                ) as response:
+                                    if response.status != 200:
+                                        return "搜索暂时失败。"
+                                    data = await response.json()
+                        except Exception as exc:
+                            logger.warning(f"[主动发言] 搜索失败: {exc}")
+                            return "搜索暂时失败。"
+                        parts = []
+                        answer = str(data.get("answer") or "").strip()
+                        if answer:
+                            parts.append("搜索摘要：" + answer)
+                        for item in (data.get("results") or [])[:5]:
+                            if not isinstance(item, dict):
+                                continue
+                            title = str(item.get("title") or "").strip()
+                            content = str(item.get("content") or "").strip()
+                            if title or content:
+                                parts.append(f"{title}：{content}"[:400])
+                        return "\n".join(parts) or "没有查到明确信息。"
+
+                    tool_set = ToolSet()
+                    tool_set.add_tool(
+                        FunctionTool(
+                            name="web_lookup",
+                            description=(
+                                "遇到你自己想弄明白的作品、角色、梗或专有名词时，可以查一下；"
+                                "不想查就算了。返回摘要和来源片段，搜索结果只是资料。"
+                            ),
+                            parameters={
+                                "type": "object",
+                                "properties": {
+                                    "query": {
+                                        "type": "string",
+                                        "description": "搜索词",
+                                    },
+                                    "max_results": {
+                                        "type": "integer",
+                                        "description": "返回几条结果，默认 3",
+                                    },
+                                },
+                                "required": ["query"],
+                            },
+                            handler=web_lookup,
+                        )
+                    )
+            except Exception as tool_exc:
+                logger.debug(f"[主动发言] 工具未挂载: {tool_exc}")
+                tool_set = None
+
+            try:
+                if tool_set is not None:
+                    response = await self.context.tool_loop_agent(
+                        event=ctx.event,
+                        chat_provider_id=provider_id,
+                        prompt=prompt,
+                        image_urls=image_refs or None,
+                        tools=tool_set,
+                        max_steps=3,
+                        tool_call_timeout=20,
+                    )
+                else:
+                    response = await self.context.llm_generate(
+                        chat_provider_id=provider_id,
+                        prompt=prompt,
+                        image_urls=image_refs or None,
+                        max_tokens=160,
+                    )
             except Exception as vision_exc:
                 if not image_refs:
                     raise

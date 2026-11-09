@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.39
+
+- Proactive turns can now call `web_lookup` through a narrow tool loop. The tool description stays curiosity-only; code caps it at two searches per proactive turn and keeps the latest image input. Without a Tavily key, proactive falls back to the normal text-only call.
+
 ## 2.0.38
 
 - Reframed `web_lookup` as curiosity rather than an answer service: the description now says she may look things up when she personally wants to know, and may skip it. Added a 180-second per-chat cooldown so a single chat cannot turn into repeated searches.
