@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.36"
+PLUGIN_VERSION = "2.0.37"
 
 
 @register(
@@ -8398,6 +8398,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             prompt_parts.append(
                 "这句话已经说完了，大多数时候不用再补。\n"
                 "确实还有半句没说完，就写；没有就只输出：沉默。\n"
+                "主回复已经说过的内容不要再补；\n"
+                "不要重复、改写或总结上一句。\n"
                 "只能补充、改口、吐槽刚才这件事。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )

@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.37
+
+- Added an explicit no-repeat rule to the afterthought prompt: do not repeat, rewrite, or summarize the main reply. The string guard remains, but the model should now choose silence instead of producing a paraphrase.
+
 ## 2.0.36
 
 - Reject afterthoughts that merely repeat the main reply. The guard now compares punctuation-stripped text and skips when one is contained in the other, so a main “...知道... E站客户端...你问这个干嘛” no longer gets a second “...知道...问这干嘛...”.
