@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.36
+
+- Reject afterthoughts that merely repeat the main reply. The guard now compares punctuation-stripped text and skips when one is contained in the other, so a main “...知道... E站客户端...你问这个干嘛” no longer gets a second “...知道...问这干嘛...”.
+
 ## 2.0.35
 
 - Limited proactive vision input to one image, and only when the latest group message is itself media. This avoids pairing an old image with a newer text message and letting the model conflate two unrelated things.

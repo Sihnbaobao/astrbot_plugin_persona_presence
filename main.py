@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.35"
+PLUGIN_VERSION = "2.0.36"
 
 
 @register(
@@ -8453,7 +8453,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return
         if not text:
             return
-        if text == main_text.strip():
+        normalized_text = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", text)
+        normalized_main = re.sub(
+            r"[\s.。…·!！?？,，、~～\-—]+", "", main_text
+        )
+        if (
+            text == main_text.strip()
+            or (
+                normalized_text
+                and normalized_main
+                and (
+                    normalized_text in normalized_main
+                    or normalized_main in normalized_text
+                )
+            )
+        ):
+            logger.info("[补一句] 与主回复重复，跳过")
             return
         if self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
             return
