@@ -320,14 +320,11 @@ class ProactiveModule(PluginModule):
             self._record("skip", group, reason="no_provider")
             return None
         try:
-            image_refs = list(
-                dict.fromkeys(
-                    image
-                    for images in recent_images
-                    for image in images
-                    if image
-                )
-            )[:2]
+            image_refs: list[str] = []
+            if state.last_was_media and recent_images:
+                image_refs = [
+                    image for image in recent_images[-1] if image
+                ][:1]
             try:
                 response = await self.context.llm_generate(
                     chat_provider_id=provider_id,

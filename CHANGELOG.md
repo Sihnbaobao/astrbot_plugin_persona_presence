@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.35
+
+- Limited proactive vision input to one image, and only when the latest group message is itself media. This avoids pairing an old image with a newer text message and letting the model conflate two unrelated things.
+
 ## 2.0.34
 
 - Proactive generation now passes up to two recent group images directly to the chat model as `image_urls` instead of only recording `[图片或表情]`. If the provider rejects image input, it retries text-only once instead of failing the proactive turn.
