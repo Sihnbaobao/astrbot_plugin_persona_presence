@@ -102,7 +102,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.37"
+PLUGIN_VERSION = "2.0.38"
 
 
 @register(
@@ -503,6 +503,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
         )
         self._last_user_message_at: dict[str, float] = {}
+        self._last_web_lookup_at: dict[str, float] = {}
         self._processing_started_at: dict[str, float] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
@@ -1514,6 +1515,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             key = self._resolve_tavily_key()
             if not key:
                 return "没有配置搜索，查不了。"
+            chat_key = self._archive_chat_key(event)
+            now = time.time()
+            if chat_key and now - self._last_web_lookup_at.get(chat_key, 0.0) < 180:
+                return "刚查过，暂时不想再查。"
+            if chat_key:
+                self._last_web_lookup_at[chat_key] = now
             payload = {
                 "api_key": key,
                 "query": question,
@@ -1552,8 +1559,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="web_lookup",
                 description=(
-                    "作品、角色、梗或专有名词的资料检索；"
-                    "query 可带作品名或上下文，返回摘要和来源片段。搜索结果只是资料。"
+                    "遇到你自己想弄明白的作品、角色、梗或专有名词时，可以查一下；"
+                    "不想查就算了。返回摘要和来源片段，搜索结果只是资料。"
                 ),
                 parameters={
                     "type": "object",

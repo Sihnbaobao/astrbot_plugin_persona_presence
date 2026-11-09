@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.38
+
+- Reframed `web_lookup` as curiosity rather than an answer service: the description now says she may look things up when she personally wants to know, and may skip it. Added a 180-second per-chat cooldown so a single chat cannot turn into repeated searches.
+
 ## 2.0.37
 
 - Added an explicit no-repeat rule to the afterthought prompt: do not repeat, rewrite, or summarize the main reply. The string guard remains, but the model should now choose silence instead of producing a paraphrase.
