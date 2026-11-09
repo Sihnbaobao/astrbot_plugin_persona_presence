@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.34
+
+- Proactive generation now passes up to two recent group images directly to the chat model as `image_urls` instead of only recording `[图片或表情]`. If the provider rejects image input, it retries text-only once instead of failing the proactive turn.
+
 ## 2.0.33
 
 - Proactive messages now carry an explicit anchor. The prompt numbers the last eight group messages, the model outputs the index it is reacting to (or 0 for no target), and the base maps it to that message's id for the Reply quote. The old “last text” heuristic remains only as a compatibility fallback.

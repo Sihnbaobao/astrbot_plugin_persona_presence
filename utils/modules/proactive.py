@@ -95,6 +95,7 @@ class _GroupState:
 
     lines: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     line_ids: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
+    line_images: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     last_seen: float = 0.0
     last_gap: float = 0.0
     last_spoke: float = 0.0
@@ -210,6 +211,25 @@ class ProactiveModule(PluginModule):
             message_id = ""
         state.lines.append(f"{sender}：{text}" if sender else text)
         state.line_ids.append(message_id)
+        images: list[str] = []
+        try:
+            components = list(
+                getattr(getattr(ctx.event, "message_obj", None), "message", []) or []
+            )
+            image_components = [
+                component
+                for component in components
+                if component.__class__.__name__ == "Image"
+            ]
+            if image_components:
+                from ..image_handler import ImageHandler
+
+                images = await ImageHandler._extract_image_urls(
+                    image_components, resolve_paths=False
+                )
+        except Exception as exc:
+            logger.debug(f"[主动发言] 图片读取失败: {exc}")
+        state.line_images.append(images[:2])
         now = time.time()
         state.last_gap = max(0.0, now - state.last_seen) if state.last_seen else 0.0
         state.last_seen = now
@@ -265,6 +285,9 @@ class ProactiveModule(PluginModule):
         recent_ids = [str(item) for item in list(state.line_ids)[-8:]]
         if len(recent_ids) < len(recent_lines):
             recent_ids = [""] * (len(recent_lines) - len(recent_ids)) + recent_ids
+        recent_images = [list(item) for item in list(state.line_images)[-8:]]
+        if len(recent_images) < len(recent_lines):
+            recent_images = [[]] * (len(recent_lines) - len(recent_images)) + recent_images
         recent_messages = (
             "\n".join(
                 f"{index}. {line}"
@@ -297,11 +320,32 @@ class ProactiveModule(PluginModule):
             self._record("skip", group, reason="no_provider")
             return None
         try:
-            response = await self.context.llm_generate(
-                chat_provider_id=provider_id,
-                prompt=prompt,
-                max_tokens=160,
-            )
+            image_refs = list(
+                dict.fromkeys(
+                    image
+                    for images in recent_images
+                    for image in images
+                    if image
+                )
+            )[:2]
+            try:
+                response = await self.context.llm_generate(
+                    chat_provider_id=provider_id,
+                    prompt=prompt,
+                    image_urls=image_refs or None,
+                    max_tokens=160,
+                )
+            except Exception as vision_exc:
+                if not image_refs:
+                    raise
+                logger.warning(
+                    f"[主动发言] 图片输入失败，退回纯文本: {vision_exc}"
+                )
+                response = await self.context.llm_generate(
+                    chat_provider_id=provider_id,
+                    prompt=prompt,
+                    max_tokens=160,
+                )
             reply = str(getattr(response, "completion_text", "") or "").strip()
         except Exception as exc:
             logger.warning(f"[主动发言] 生成失败: {exc}")
