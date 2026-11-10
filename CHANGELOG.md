@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.41
+
+- Fixed marketplace review findings: all logging now imports `logger` from `astrbot.api`; the per-message scene note is appended as a temporary `TextPart` in `extra_user_content_parts` instead of mutating `system_prompt`, preserving prefix-cache hits.
+
 ## 2.0.40
 
 - Proactive speech no longer interjects when DecisionAI marked the current message as targeting another user (`target=other/unclear`). The previous gate only checked that the base declined, so a message @-ing a third party could still trigger an ambient roast.

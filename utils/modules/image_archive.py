@@ -8,13 +8,12 @@ conversation that originally received the image.
 
 import hashlib
 import json
-import logging
 import shutil
 import time
+from astrbot.api import logger
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-logger = logging.getLogger("astrbot")
 
 _MAX_ENTRIES = 2000
 

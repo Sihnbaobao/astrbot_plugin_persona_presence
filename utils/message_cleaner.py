@@ -33,10 +33,10 @@ v1.2.1 更新：
 版本: V1.2.3.hotfix.2
 """
 
-import logging
 import re
 from typing import Any
 
+from astrbot.api import logger
 from astrbot.api.all import *
 from astrbot.api.message_components import At, AtAll, Image, Plain, Reply
 from astrbot.core.message.components import Forward
@@ -52,7 +52,6 @@ except ImportError:
         Record = None
         File = None
 
-logger = logging.getLogger(__name__)
 AstrMessageEvent = Any
 
 # 详细日志开关（与 main.py 同款方式：单独用 if 控制）

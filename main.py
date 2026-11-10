@@ -53,6 +53,7 @@ import aiohttp
 from astrbot.api import logger
 from astrbot.api.all import *
 from astrbot.api.event import filter
+from astrbot.core.agent.message import TextPart
 from astrbot.core.message.components import Image, Plain, Reply
 from astrbot.core.message.message_event_result import ResultContentType
 from astrbot.core.provider.entities import ProviderRequest
@@ -8756,18 +8757,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     extra_contexts = list(req.contexts)
             req.contexts = list(plugin_contexts or []) + extra_contexts
 
-            # 3. system_prompt 保持现状：人格已在请求时传入，
-            #    框架（TOOL_CALL_PROMPT 等）与第三方插件只会追加，不会覆盖。
-            #    场景是事实上下文，放在 system 层比放在用户消息末尾更难被忽略。
+            # 3. 场景是临时用户内容，不写进 system prompt，避免破坏前缀缓存。
             try:
                 if event.is_private_chat():
                     scene = "（私聊。对面只有对方一个人。）"
                 else:
                     sender = str(event.get_sender_name() or "对方")
                     scene = f"（群聊。刚才说话的是「{sender}」，周围还有人。）"
-                req.system_prompt = (req.system_prompt or "").rstrip() + "\n\n" + scene
+                parts = list(getattr(req, "extra_user_content_parts", None) or [])
+                parts.append(TextPart(text=scene).mark_as_temp())
+                req.extra_user_content_parts = parts
             except Exception as scene_err:
-                logger.debug(f"[场景] 注入 system prompt 失败: {scene_err}")
+                logger.debug(f"[场景] 注入临时内容失败: {scene_err}")
 
             # 4. 图片/音频 URL 合并（保留第三方注入）
             # QQ 商城表情预览图为死链，绝不能进入最终视觉请求；
