@@ -58,7 +58,8 @@ _SUMMARISE_PROMPT = """你是这个人格本人：
 2. 只写资料里能支持的内容，资料不足就明确说“资料里没有明确说法”，不要硬凑。
 3. 不要编造、不要补充资料外的知识。
 4. 只输出一段连续的笔记，不要写成聊天对话、不要分行角色扮演、不要写“璃月：”“我：”这种说话人标签。
-5. 不要说“作为助手”“为您查询”“以下是资料”这种助手口吻；这就是你自己看完之后在心里记下的一笔，用第一人称，可以带自己的偏好和感受。"""
+5. 不要说“作为助手”“为您查询”“以下是资料”这种助手口吻；这就是你自己看完之后在心里记下的一笔，用第一人称，可以带自己的偏好和感受。
+6. 总长度控制在 {limit} 字以内，最后一句必须是完整句子，不要写到一半停住。"""
 
 
 _BAD_TERM_FRAGMENTS = (
@@ -573,11 +574,13 @@ class CuriosityModule(PluginModule):
         provider_id = await self._resolve_provider_id(ctx)
         if not provider_id:
             return ""
+        limit = int(getattr(self.settings, "max_chars", 400) or 400)
         persona_text = await self._persona_text(ctx, umo=umo)
         prompt = _SUMMARISE_PROMPT.format(
             persona=persona_text or "（未提供人格，但仍以自己的第一人称）",
             term=term,
             material=material[:2000],
+            limit=limit,
         )
         # 推理型模型偶尔把额度花在思考上，正文为空，给一次更大的机会。
         for budget in (400, 900):
@@ -592,8 +595,15 @@ class CuriosityModule(PluginModule):
                 continue
             text = str(getattr(response, "completion_text", "") or "").strip()
             if text:
-                limit = int(getattr(self.settings, "max_chars", 400) or 400)
-                return text[:limit]
+                if len(text) <= limit:
+                    return text
+                clipped = text[:limit]
+                boundary = max(
+                    clipped.rfind(mark) for mark in "。！？!?；;" + chr(10)
+                )
+                if boundary >= limit // 2:
+                    return clipped[: boundary + 1].rstrip()
+                return clipped.rstrip() + "…"
         return ""
 
     async def _persona_text(

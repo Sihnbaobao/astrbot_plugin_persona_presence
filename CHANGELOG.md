@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.45
+
+- Curiosity summaries now ask for a complete sentence within the length budget and clip at the last sentence boundary instead of cutting mid-sentence. The default limit remains 400 characters.
+
 ## 2.0.44
 
 - Normalise ellipses on every text component in `on_decorating_result`, including replies that bypass `on_llm_response` through the agent tool loop. Mixed `……` and `...` in one reply no longer leaks through.
