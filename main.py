@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.49"
+PLUGIN_VERSION = "2.0.50"
 
 
 @register(
@@ -8323,6 +8323,41 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             ]
         return head + tail
 
+    @staticmethod
+    def _dedupe_repeated_text(text: str) -> str:
+        """Collapse an immediately repeated phrase in one reply.
+
+        Args:
+            text: Reply text before sending.
+
+        Returns:
+            Text with one repeated block removed.
+        """
+        if not text:
+            return text
+        pattern = re.compile(r"([^\n]{8,80}?)\1")
+        for _ in range(3):
+            match = pattern.search(text)
+            if not match:
+                break
+            block = match.group(1)
+            if not re.search(r"[\u4e00-\u9fff]", block):
+                break
+            text = text[: match.start()] + block + text[match.end() :]
+        return text
+
+    @staticmethod
+    def _followup_text_key(text: str) -> str:
+        """Normalise text for follow-up duplicate checks.
+
+        Args:
+            text: Reply or follow-up text.
+
+        Returns:
+            Text without whitespace or punctuation.
+        """
+        return re.sub(r"[\s\W_]+", "", str(text or ""))
+
     async def _deliver_followup_messages(
         self, event: AstrMessageEvent, texts: list[str], main_text: str = ""
     ) -> None:
@@ -8336,13 +8371,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         low = min(self.followup_min_delay_ms, self.followup_max_delay_ms)
         high = max(self.followup_min_delay_ms, self.followup_max_delay_ms)
         main_clean = str(main_text or "").strip()
+        main_key = self._followup_text_key(main_clean)
         for text in texts:
             cleaned = str(text or "").strip()
             if self.reply_ellipsis_style != "keep":
                 cleaned = AIResponseFilter.normalize_ellipsis(
                     cleaned, self.reply_ellipsis_style
                 )
-            if not cleaned or cleaned == main_clean:
+            if (
+                not cleaned
+                or cleaned == main_clean
+                or self._followup_text_key(cleaned) in main_key
+            ):
                 continue
             delay = random.randint(low, high) / 1000 if high > 0 else 0
             if delay > 0:
@@ -9000,6 +9040,21 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            deduped_components = False
+            for comp in result.chain:
+                if not hasattr(comp, "text"):
+                    continue
+                original = str(getattr(comp, "text", None) or "")
+                cleaned = self._dedupe_repeated_text(original)
+                if cleaned != original:
+                    comp.text = cleaned
+                    deduped_components = True
+            if deduped_components:
+                reply_text = "".join(
+                    self._coerce_component_text(getattr(comp, "text", None))
+                    for comp in result.chain
+                ).strip()
 
             if self.reply_ellipsis_style != "keep":
                 normalized_components = False

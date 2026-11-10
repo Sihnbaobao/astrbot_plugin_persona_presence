@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.50
+
+- Collapse an immediately repeated phrase in the outgoing reply, and drop a queued follow-up when its normalized text is already contained in the main reply. This removes the duplicate main bubble and the duplicate follow-up sent after it.
+
 ## 2.0.49
 
 - Proactive quotes now require `quote_excerpt`: the model copies a short exact snippet from the chosen line. The code matches that text against the recent lines and uses the matching message id, so a wrong anchor number can no longer attach an unrelated quote.
