@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.51
+
+- Exclude laughter and single-character repetition from the duplicate-collapse guard, so “哈哈哈哈……” is not folded into a shorter laugh. Only repeated blocks with at least three distinct characters are collapsed.
+
 ## 2.0.50
 
 - Collapse an immediately repeated phrase in the outgoing reply, and drop a queued follow-up when its normalized text is already contained in the main reply. This removes the duplicate main bubble and the duplicate follow-up sent after it.

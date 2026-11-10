@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.50"
+PLUGIN_VERSION = "2.0.51"
 
 
 @register(
@@ -8341,7 +8341,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if not match:
                 break
             block = match.group(1)
+            core = re.sub(r"[\s\W_]+", "", block)
             if not re.search(r"[\u4e00-\u9fff]", block):
+                break
+            # Do not collapse laughter or a single character repeated on purpose.
+            if len(set(core)) < 3:
                 break
             text = text[: match.start()] + block + text[match.end() :]
         return text
