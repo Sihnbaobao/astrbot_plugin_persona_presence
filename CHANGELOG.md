@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.47
+
+- Slang validation now gives the model 800 tokens per step instead of 260/400, and logs each candidate verdict (is_jargon, confidence, scope) or the point where parsing failed. This makes it visible whether recent candidates are being rejected as ordinary words or the model is returning unparseable JSON.
+
 ## 2.0.46
 
 - Curiosity summaries now use a larger output budget (1200, then 2000) and retry when the model returns under 80 characters, instead of accepting a one-line fragment as a finished note.

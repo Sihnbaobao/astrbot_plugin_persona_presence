@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.46"
+PLUGIN_VERSION = "2.0.47"
 
 
 @register(
@@ -2805,12 +2805,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         try:
             picked = parse_json_block(
-                await ask(build_extract_prompt(candidates, lines))
+                await ask(build_extract_prompt(candidates, lines), 800)
             )
         except Exception as e:
             logger.warning(f"[黑话] 候选校验失败: {e}")
             return
         if not isinstance(picked, list):
+            logger.info("[黑话] 候选过滤没有返回可解析的 JSON")
             return
 
         added = 0
@@ -2830,12 +2831,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 term, sample, lines, web=web
             )
             try:
-                with_ctx = parse_json_block(await ask(ctx_prompt, 260))
+                with_ctx = parse_json_block(await ask(ctx_prompt, 800))
                 if isinstance(with_ctx, dict) and with_ctx.get("no_info"):
                     continue
                 meaning_a = str((with_ctx or {}).get("meaning") or "").strip()
                 alt = str((with_ctx or {}).get("alt") or "").strip()
-                only = parse_json_block(await ask(only_prompt, 260))
+                only = parse_json_block(await ask(only_prompt, 800))
                 if isinstance(only, dict) and not only.get("no_info"):
                     meaning_b = str(only.get("meaning") or "").strip()
                 else:
@@ -2848,15 +2849,24 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             b=meaning_b or "（无）",
                             web=web or "（没有搜到可用资料）",
                         ),
-                        260,
+                        800,
                     )
                 )
             except Exception as e:
                 logger.warning(f"[黑话] 推断「{term}」失败: {e}")
                 continue
 
-            if not isinstance(verdict, dict) or verdict.get("no_info"):
+            if not isinstance(verdict, dict):
+                logger.info(f"[黑话] 「{term}」对比推断没有返回 JSON")
                 continue
+            if verdict.get("no_info"):
+                logger.info(f"[黑话] 「{term}」对比推断无信息")
+                continue
+            logger.info(
+                f"[黑话] 「{term}」判定：is_jargon={verdict.get('is_jargon')} "
+                f"confidence={verdict.get('confidence')} "
+                f"scope={verdict.get('scope')}"
+            )
             if not bool(verdict.get("is_jargon")):
                 continue
             meaning = str(verdict.get("meaning") or "").strip()
