@@ -582,8 +582,9 @@ class CuriosityModule(PluginModule):
             material=material[:2000],
             limit=limit,
         )
-        # 推理型模型偶尔把额度花在思考上，正文为空，给一次更大的机会。
-        for budget in (400, 900):
+        # 推理型模型可能把额度花在思考上，正文很短；给两次更大的预算。
+        last_text = ""
+        for budget in (1200, 2000):
             try:
                 response = await self.context.llm_generate(
                     chat_provider_id=provider_id,
@@ -594,17 +595,22 @@ class CuriosityModule(PluginModule):
                 logger.debug(f"[好奇心] 总结失败: {exc}")
                 continue
             text = str(getattr(response, "completion_text", "") or "").strip()
-            if text:
-                if len(text) <= limit:
-                    return text
-                clipped = text[:limit]
-                boundary = max(
-                    clipped.rfind(mark) for mark in "。！？!?；;" + chr(10)
-                )
-                if boundary >= limit // 2:
-                    return clipped[: boundary + 1].rstrip()
-                return clipped.rstrip() + "…"
-        return ""
+            if not text:
+                continue
+            last_text = text
+            if len(text) >= 80:
+                break
+        if not last_text:
+            return ""
+        if len(last_text) <= limit:
+            return last_text
+        clipped = last_text[:limit]
+        boundary = max(
+            clipped.rfind(mark) for mark in "。！？!?；;" + chr(10)
+        )
+        if boundary >= limit // 2:
+            return clipped[: boundary + 1].rstrip()
+        return clipped.rstrip() + "…"
 
     async def _persona_text(
         self, ctx: FeatureContext | None = None, umo: str = ""

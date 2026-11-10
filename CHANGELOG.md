@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.46
+
+- Curiosity summaries now use a larger output budget (1200, then 2000) and retry when the model returns under 80 characters, instead of accepting a one-line fragment as a finished note.
+
 ## 2.0.45
 
 - Curiosity summaries now ask for a complete sentence within the length budget and clip at the last sentence boundary instead of cutting mid-sentence. The default limit remains 400 characters.
