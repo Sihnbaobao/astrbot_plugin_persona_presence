@@ -1,5 +1,10 @@
 ## 📝 更新日志
 
+## 2.0.42
+
+- Afterthought meme parsing now accepts an annotation followed by a caption, e.g. “（表情包：无语）
+...去听歌了”. It sends the real meme image plus the caption instead of leaking the annotation as text.
+
 ## 2.0.41
 
 - Fixed marketplace review findings: all logging now imports `logger` from `astrbot.api`; the per-message scene note is appended as a temporary `TextPart` in `extra_user_content_parts` instead of mutating `system_prompt`, preserving prefix-cache hits.

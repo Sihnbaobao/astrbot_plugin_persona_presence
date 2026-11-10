@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.41"
+PLUGIN_VERSION = "2.0.42"
 
 
 @register(
@@ -8438,11 +8438,16 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
         if self.reply_ellipsis_style != "keep":
             text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
-        meme_match = re.fullmatch(r"[（(]\s*表情包?\s*[:：]\s*(.+?)\s*[）)]", text)
+        meme_match = re.match(
+            r"^[（(]\s*表情包?\s*[:：]\s*(.+?)\s*[）)](?:\s*(.*))?$",
+            text,
+            re.DOTALL,
+        )
         if meme_match:
             if not self._meme_bridge_enabled(is_private):
                 return
             meme_query = meme_match.group(1).strip()
+            caption = (meme_match.group(2) or "").strip()
             if not meme_query or self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
                 return
             recent_memes = list(self._recent_meme_paths.get(chat_key, []))
@@ -8458,14 +8463,19 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             recent_memes.append(Path(path).name)
             self._recent_meme_paths[chat_key] = recent_memes[-6:]
             try:
+                chain = [Image.fromFileSystem(path)]
+                if caption:
+                    chain.append(Plain(caption))
                 delivered = await self.context.send_message(
                     event.unified_msg_origin,
-                    MessageChain([Image.fromFileSystem(path)]),
+                    MessageChain(chain),
                 )
                 if delivered is False:
                     return
                 await ContextManager.save_bot_message(
-                    event, "[表情包]", self.context
+                    event,
+                    "[表情包]" + (" " + caption if caption else ""),
+                    self.context,
                 )
             except Exception as exc:
                 logger.debug(f"[补一句] 表情发送失败: {exc}")
