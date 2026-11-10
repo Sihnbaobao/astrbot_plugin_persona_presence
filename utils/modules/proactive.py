@@ -38,11 +38,12 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
   meme_query 描述想要的表情画面或感觉，也可以附一句很短的话。
 - silent：没什么可接的就沉默，不要硬找话。
 
-如果你是在接其中某一条，anchor 写那条的编号；
-不是针对某一条就写 0。
+如果你是在接其中某一条，anchor 写那条的编号，
+quote_excerpt 从那条里原样抄一小段，不要改写；
+不是针对某一条就写 anchor 0、quote_excerpt 留空。
 
 只输出 JSON：
-{{"action":"react|meme|silent","anchor":0,"text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
+{{"action":"react|meme|silent","anchor":0,"quote_excerpt":"从编号消息里原样抄的短句","text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
 
 
 @dataclass
@@ -458,6 +459,7 @@ class ProactiveModule(PluginModule):
             action = str(payload.get("action") or "react").strip().lower()
             text = str(payload.get("text") or "").strip()
             meme_query = str(payload.get("meme_query") or "").strip()
+            quote_excerpt = str(payload.get("quote_excerpt") or "").strip()
             raw_anchor = payload.get("anchor")
             if raw_anchor not in (None, ""):
                 anchor_given = True
@@ -469,38 +471,28 @@ class ProactiveModule(PluginModule):
             action = "react"
             text = reply
             meme_query = ""
+            quote_excerpt = ""
 
         quote_id = ""
         explicit_anchor = anchor_given and anchor != 0
-        if explicit_anchor and 1 <= anchor <= len(recent_ids):
-            quote_id = recent_ids[anchor - 1]
-            # The model can pick the wrong number. If its own line shares no
-            # meaningful token with that anchor, quote the current message
-            # instead of attaching an unrelated quote.
-            if anchor != len(recent_lines):
-                anchor_line = recent_lines[anchor - 1]
-                if "[图片" not in anchor_line and "[表情" not in anchor_line:
-                    pattern = r"[一-鿿]{2,}|[A-Za-z0-9]{2,}"
-                    anchor_tokens = {
-                        token.lower()
-                        for token in re.findall(pattern, anchor_line)
-                    }
-                    reply_tokens = {
-                        token.lower() for token in re.findall(pattern, text)
-                    }
-                    if not (anchor_tokens & reply_tokens):
-                        quote_id = ""
+        if explicit_anchor and quote_excerpt:
+            cleaned_excerpt = re.sub(r"[\s\W_]+", "", quote_excerpt)
+            if len(cleaned_excerpt) >= 2:
+                matching_indexes = [
+                    index
+                    for index, line in enumerate(recent_lines)
+                    if cleaned_excerpt
+                    in re.sub(r"[\s\W_]+", "", line)
+                ]
+                if len(matching_indexes) == 1:
+                    quote_id = recent_ids[matching_indexes[0]]
+                elif anchor - 1 in matching_indexes:
+                    quote_id = recent_ids[anchor - 1]
         elif not explicit_anchor and state.last_was_media:
             quote_id = state.last_text_id
 
         if explicit_anchor and not quote_id:
-            quote_id = (
-                state.last_text_id
-                if state.last_was_media
-                else (recent_ids[-1] if recent_ids else "")
-            )
-            if quote_id:
-                logger.debug("[主动发言] 锚点不匹配，改引用最新消息")
+            logger.debug("[主动发言] 引用摘录对不上，取消引用")
 
         if action == "silent" or (not payload and (not reply or "沉默" in reply)):
             self._record("silent", group)

@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.49
+
+- Proactive quotes now require `quote_excerpt`: the model copies a short exact snippet from the chosen line. The code matches that text against the recent lines and uses the matching message id, so a wrong anchor number can no longer attach an unrelated quote.
+
 ## 2.0.48
 
 - Validate proactive quote anchors against the generated line. If the model picks an older message that shares no meaningful token, the quote falls back to the current message instead of attaching an unrelated quote.
