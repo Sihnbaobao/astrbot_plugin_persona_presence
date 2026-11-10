@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.48
+
+- Validate proactive quote anchors against the generated line. If the model picks an older message that shares no meaningful token, the quote falls back to the current message instead of attaching an unrelated quote.
+
 ## 2.0.47
 
 - Slang validation now gives the model 800 tokens per step instead of 260/400, and logs each candidate verdict (is_jargon, confidence, scope) or the point where parsing failed. This makes it visible whether recent candidates are being rejected as ordinary words or the model is returning unparseable JSON.

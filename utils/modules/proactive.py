@@ -471,11 +471,36 @@ class ProactiveModule(PluginModule):
             meme_query = ""
 
         quote_id = ""
-        if anchor_given:
-            if 1 <= anchor <= len(recent_ids):
-                quote_id = recent_ids[anchor - 1]
-        elif state.last_was_media:
+        explicit_anchor = anchor_given and anchor != 0
+        if explicit_anchor and 1 <= anchor <= len(recent_ids):
+            quote_id = recent_ids[anchor - 1]
+            # The model can pick the wrong number. If its own line shares no
+            # meaningful token with that anchor, quote the current message
+            # instead of attaching an unrelated quote.
+            if anchor != len(recent_lines):
+                anchor_line = recent_lines[anchor - 1]
+                if "[图片" not in anchor_line and "[表情" not in anchor_line:
+                    pattern = r"[一-鿿]{2,}|[A-Za-z0-9]{2,}"
+                    anchor_tokens = {
+                        token.lower()
+                        for token in re.findall(pattern, anchor_line)
+                    }
+                    reply_tokens = {
+                        token.lower() for token in re.findall(pattern, text)
+                    }
+                    if not (anchor_tokens & reply_tokens):
+                        quote_id = ""
+        elif not explicit_anchor and state.last_was_media:
             quote_id = state.last_text_id
+
+        if explicit_anchor and not quote_id:
+            quote_id = (
+                state.last_text_id
+                if state.last_was_media
+                else (recent_ids[-1] if recent_ids else "")
+            )
+            if quote_id:
+                logger.debug("[主动发言] 锚点不匹配，改引用最新消息")
 
         if action == "silent" or (not payload and (not reply or "沉默" in reply)):
             self._record("silent", group)
