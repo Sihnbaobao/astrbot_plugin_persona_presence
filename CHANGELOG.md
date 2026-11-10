@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.44
+
+- Normalise ellipses on every text component in `on_decorating_result`, including replies that bypass `on_llm_response` through the agent tool loop. Mixed `……` and `...` in one reply no longer leaks through.
+
 ## 2.0.43
 
 - Meme annotations inside an afterthought are now parsed anywhere in the text, not only when they occupy the whole message. “...反着念也还是个傻子...（表情包：无语）” becomes a real meme image plus the remaining caption.

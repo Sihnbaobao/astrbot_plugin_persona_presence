@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.43"
+PLUGIN_VERSION = "2.0.44"
 
 
 @register(
@@ -8990,6 +8990,24 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._coerce_component_text(getattr(comp, "text", None))
                 for comp in result.chain
             ).strip()
+
+            if self.reply_ellipsis_style != "keep":
+                normalized_components = False
+                for comp in result.chain:
+                    if not hasattr(comp, "text"):
+                        continue
+                    original = str(getattr(comp, "text", None) or "")
+                    normalized = AIResponseFilter.normalize_ellipsis(
+                        original, self.reply_ellipsis_style
+                    )
+                    if normalized != original:
+                        comp.text = normalized
+                        normalized_components = True
+                if normalized_components:
+                    reply_text = "".join(
+                        self._coerce_component_text(getattr(comp, "text", None))
+                        for comp in result.chain
+                    ).strip()
 
             if (
                 self.quote_slow_reply
