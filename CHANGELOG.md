@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 2.0.52
+
+- Collapse blank lines inside a reply text component into a single space before sending, so a text-plus-image reply does not arrive as “...所以...
+
+你才发现”.
+
 ## 2.0.51
 
 - Exclude laughter and single-character repetition from the duplicate-collapse guard, so “哈哈哈哈……” is not folded into a shorter laugh. Only repeated blocks with at least three distinct characters are collapsed.
