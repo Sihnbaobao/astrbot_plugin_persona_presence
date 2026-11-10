@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.43
+
+- Meme annotations inside an afterthought are now parsed anywhere in the text, not only when they occupy the whole message. “...反着念也还是个傻子...（表情包：无语）” becomes a real meme image plus the remaining caption.
+
 ## 2.0.42
 
 - Afterthought meme parsing now accepts an annotation followed by a caption, e.g. “（表情包：无语）

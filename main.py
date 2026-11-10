@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.42"
+PLUGIN_VERSION = "2.0.43"
 
 
 @register(
@@ -8438,16 +8438,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
         if self.reply_ellipsis_style != "keep":
             text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
-        meme_match = re.match(
-            r"^[（(]\s*表情包?\s*[:：]\s*(.+?)\s*[）)](?:\s*(.*))?$",
+        meme_match = re.search(
+            r"[（(]\s*表情包?\s*[:：]\s*(.+?)\s*[）)]",
             text,
-            re.DOTALL,
         )
         if meme_match:
             if not self._meme_bridge_enabled(is_private):
                 return
             meme_query = meme_match.group(1).strip()
-            caption = (meme_match.group(2) or "").strip()
+            caption = (
+                text[: meme_match.start()] + " " + text[meme_match.end() :]
+            ).strip()
             if not meme_query or self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
                 return
             recent_memes = list(self._recent_meme_paths.get(chat_key, []))
