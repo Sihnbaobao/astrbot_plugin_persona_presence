@@ -105,6 +105,26 @@ class AIResponseFilter:
             return response
 
         cleaned = html.unescape(response)
+        tool_tags = (
+            r"(?:queue_meme|queue_followup|queue_saved_image|queue_image|"
+            r"web_lookup|search_songs|send_song_card|listen_song|"
+            r"listen_music|like_song|save_to_playlist)"
+        )
+        cleaned = re.sub(
+            rf"<{tool_tags}[^>]*>.*?</{tool_tags}>",
+            "",
+            cleaned,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        cleaned = re.sub(
+            rf"<{tool_tags}[^>]*>.*$",
+            "",
+            cleaned,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        cleaned = re.sub(
+            rf"</?{tool_tags}[^>]*>", "", cleaned, flags=re.IGNORECASE
+        )
         cleaned = re.sub(r"^\s*<[a-z_]+>\s*", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"\s*</[a-z_]+>\s*$", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)

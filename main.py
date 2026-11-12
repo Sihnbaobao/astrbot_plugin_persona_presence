@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.52"
+PLUGIN_VERSION = "2.0.53"
 
 
 @register(
@@ -9049,7 +9049,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             for comp in result.chain:
                 if not hasattr(comp, "text"):
                     continue
-                original = str(getattr(comp, "text", None) or "")
+                original = AIResponseFilter.sanitize_reply_text(
+                    str(getattr(comp, "text", None) or "")
+                )
                 original = re.sub(r"\n\s*\n+", " ", original)
                 cleaned = self._dedupe_repeated_text(original)
                 if cleaned != original:

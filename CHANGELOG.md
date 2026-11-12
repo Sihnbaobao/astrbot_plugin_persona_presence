@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.53
+
+- Strip leaked tool tags such as `<queue_meme>...</queue_meme>` and unclosed `<queue_meme>...` from outgoing text, so a model that writes tool markup inline cannot send it to the chat.
+
 ## 2.0.52
 
 - Collapse blank lines inside a reply text component into a single space before sending, so a text-plus-image reply does not arrive as “...所以...
