@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.54
+
+- Tightened DecisionAI ownership rules for the pronoun “你/你的”: without an @ or reply to the bot, when the previous turn is another user talking to someone else, it should not become `target=bot` just because the word “你” appears.
+
 ## 2.0.53
 
 - Strip leaked tool tags such as `<queue_meme>...</queue_meme>` and unclosed `<queue_meme>...` from outgoing text, so a model that writes tool markup inline cannot send it to the chat.
