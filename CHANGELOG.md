@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.59
+
+- Music topics now recall the music plugin's recommendation memory (who, when, how many times) before replying, so a song recommended a few days ago can be remembered instead of repeated as new.
+
 ## 2.0.58
 
 - Track song titles mentioned in the last seven days per chat and add them to the repeat guard, so a song recommended a few days ago is not pushed again as if it were new.

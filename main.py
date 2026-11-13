@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.58"
+PLUGIN_VERSION = "2.0.59"
 
 
 @register(
@@ -7674,6 +7674,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         except Exception as e:
             logger.debug(f"[图片库] 自身图片记忆注入失败: {e}")
 
+        try:
+            music_memory = self._music_memory_block(event)
+            if music_memory:
+                final_message = f"{final_message}\n\n{music_memory}"
+                logger.info("[音乐记忆] 已注入推荐记录")
+        except Exception as e:
+            logger.debug(f"[音乐记忆] 注入失败: {e}")
+
         # 人格里某个设定容易被说成口头禅（发呆/别吵/笨蛋），把最近几次摆出来。
         if getattr(self, "enable_repeat_guard", False):
             try:
@@ -9858,4 +9866,61 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if song and item.get("at", 0) >= cutoff and song not in songs:
                 songs.append(song)
         return songs
+
+    def _music_memory_block(self, event) -> str:
+        """Read the music plugin's recommendation memory for music topics.
+
+        Args:
+            event: Current message event.
+
+        Returns:
+            A memory block, or an empty string when the topic is unrelated.
+        """
+        text = str(getattr(event, "message_str", "") or "")
+        if not re.search(r"(推荐|歌单|好听的歌|听什么歌|有什么歌|想听|听歌)", text):
+            return ""
+        path = (
+            Path(self.plugin_data_dir).parent
+            / "astrbot_plugin_music_card"
+            / "recommendations.json"
+        )
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return ""
+        if not isinstance(data, dict) or not data:
+            return ""
+        items = sorted(
+            [
+                {"song": song, **entry}
+                for song, entry in data.items()
+                if isinstance(entry, dict)
+            ],
+            key=lambda item: (
+                int(item.get("count") or 0),
+                str(item.get("last_at") or ""),
+            ),
+            reverse=True,
+        )[:5]
+        parts = []
+        for item in items:
+            song = str(item.get("song") or "").strip()
+            if not song:
+                continue
+            when = str(item.get("last_at") or "")[:10]
+            who = str(item.get("last_user") or "").strip()
+            count = int(item.get("count") or 0)
+            detail = f"{song}（{when}"
+            if who:
+                detail += f" 给 {who}"
+            detail += f"，共 {count} 次）"
+            parts.append(detail)
+        if not parts:
+            return ""
+        return (
+            "[音乐记忆] 你之前推荐过："
+            + "；".join(parts)
+            + "。聊到相关话题时可以自然想起来，不用硬提。"
+        )
+
 
