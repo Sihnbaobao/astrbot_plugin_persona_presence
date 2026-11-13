@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.58
+
+- Track song titles mentioned in the last seven days per chat and add them to the repeat guard, so a song recommended a few days ago is not pushed again as if it were new.
+
 ## 2.0.57
 
 - The repeat guard now lists song titles from the last few replies and asks the persona not to push the same song again unless it is actually necessary.

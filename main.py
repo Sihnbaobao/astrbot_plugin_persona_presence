@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.57"
+PLUGIN_VERSION = "2.0.58"
 
 
 @register(
@@ -603,6 +603,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # 最近回复缓存（去重）{chat_id: [{"content": str, "timestamp": float}]}
         self.recent_replies_cache: dict[str, list[dict[str, Any]]] = {}
         self.raw_reply_cache: dict[str, str] = {}
+        self._song_mentions_path = Path(self.plugin_data_dir) / "song_mentions.json"
+        self._song_mentions: dict[str, list[dict]] | None = None
         # Recent private emoji signatures {chat_id: {signature: monotonic_time}}.
         self._private_recent_emoji: dict[str, dict[str, float]] = {}
         # 多轮工具调用累积AI回复文本 {message_id: [text, ...]}
@@ -7705,6 +7707,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             f"\n\n[最近提过的歌]\n{'、'.join(songs)}\n"
                             "（不是非提不可的话，换一首，别反复推同一首。）"
                         )
+                long_term = self._recent_song_mentions(state_chat_id)
+                if long_term:
+                    final_message += (
+                        f"\n\n[最近几天提过的歌]\n{'、'.join(long_term)}\n"
+                        "（不是非提不可的话，换一首，别反复推同一首。）"
+                    )
             except Exception as e:
                 logger.warning(f"[口头禅抑制] 失败: {e}")
 
@@ -8275,6 +8283,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # 记录已发送的回复（用于后续去重检查）
         if reply_text and not is_provider_request and not is_duplicate_blocked:
             self._notebook_observe(event, reply_text)
+            self._record_song_mentions(state_chat_id, reply_text)
             if state_chat_id not in self.recent_replies_cache:
                 self.recent_replies_cache[state_chat_id] = []
             self.recent_replies_cache[state_chat_id].append(
@@ -9791,3 +9800,62 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return arrival_seq, arrival_monotonic
         except Exception:
             return 0, time.monotonic()
+
+    def _load_song_mentions(self) -> dict:
+        """Load per-chat song mentions from disk."""
+        if self._song_mentions is None:
+            try:
+                data = json.loads(
+                    self._song_mentions_path.read_text(encoding="utf-8")
+                )
+                self._song_mentions = data if isinstance(data, dict) else {}
+            except Exception:
+                self._song_mentions = {}
+        return self._song_mentions
+
+    def _record_song_mentions(self, chat_key: str, text: str) -> None:
+        """Record song titles mentioned in a reply.
+
+        Args:
+            chat_key: Scoped chat key.
+            text: Reply text to scan.
+        """
+        songs = [
+            str(match).strip()
+            for match in re.findall(r"《([^》]{1,20})》", text or "")
+            if str(match).strip()
+        ]
+        if not songs:
+            return
+        data = self._load_song_mentions()
+        now = time.time()
+        items = data.setdefault(chat_key, [])
+        for song in songs:
+            items.append({"song": song, "at": now})
+        cutoff = now - 7 * 86400
+        data[chat_key] = [item for item in items if item.get("at", 0) >= cutoff]
+        try:
+            self._song_mentions_path.write_text(
+                json.dumps(data, ensure_ascii=False), encoding="utf-8"
+            )
+        except Exception as exc:
+            logger.warning(f"[歌曲提及] 保存失败: {exc}")
+
+    def _recent_song_mentions(self, chat_key: str, days: int = 7) -> list[str]:
+        """Return distinct song titles mentioned in the last few days.
+
+        Args:
+            chat_key: Scoped chat key.
+            days: Look-back window in days.
+
+        Returns:
+            Distinct song titles, newest first.
+        """
+        cutoff = time.time() - days * 86400
+        songs = []
+        for item in self._load_song_mentions().get(chat_key, []):
+            song = str(item.get("song") or "").strip()
+            if song and item.get("at", 0) >= cutoff and song not in songs:
+                songs.append(song)
+        return songs
+
