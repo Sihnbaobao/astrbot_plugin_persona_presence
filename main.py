@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.59"
+PLUGIN_VERSION = "2.0.60"
 
 
 @register(
@@ -1760,8 +1760,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             FunctionTool(
                 name="queue_meme",
                 description=(
-                    "表情图库里符合描述的一张图，可以放进当前回复；"
-                    "也可以只发表情。"
+                    "表情图库里符合描述的一张图，可以放进当前回复；也可以只发表情。"
                 ),
                 parameters={
                     "type": "object",
@@ -8473,21 +8472,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
                 self_id = str(event.get_self_id() or "")
                 for item in list(history)[-8:]:
-                    item_text = str(
-                        getattr(item, "message_str", "") or ""
-                    ).strip()
+                    item_text = str(getattr(item, "message_str", "") or "").strip()
                     if not item_text or item_text == main_text.strip():
                         continue
                     sender = getattr(item, "sender", None)
-                    sender_id = str(
-                        getattr(sender, "user_id", "") or ""
-                    ).strip()
-                    sender_name = str(
-                        getattr(sender, "nickname", "") or ""
-                    ).strip()
-                    speaker = "你" if sender_id == self_id else (
-                        sender_name or "群友"
-                    )
+                    sender_id = str(getattr(sender, "user_id", "") or "").strip()
+                    sender_name = str(getattr(sender, "nickname", "") or "").strip()
+                    speaker = "你" if sender_id == self_id else (sender_name or "群友")
                     history_lines.append(f"{speaker}：{item_text[:120]}")
             except Exception as exc:
                 logger.debug(f"[补一句] 读取上下文失败: {exc}")
@@ -8530,7 +8521,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             caption = (
                 text[: meme_match.start()] + " " + text[meme_match.end() :]
             ).strip()
-            if not meme_query or self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:
+            if (
+                not meme_query
+                or self._last_user_message_at.get(chat_key, 0.0) > scheduled_at
+            ):
                 return
             recent_memes = list(self._recent_meme_paths.get(chat_key, []))
             path = await select_meme_image(
@@ -8568,18 +8562,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if not text:
             return
         normalized_text = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", text)
-        normalized_main = re.sub(
-            r"[\s.。…·!！?？,，、~～\-—]+", "", main_text
-        )
-        if (
-            text == main_text.strip()
-            or (
-                normalized_text
-                and normalized_main
-                and (
-                    normalized_text in normalized_main
-                    or normalized_main in normalized_text
-                )
+        normalized_main = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", main_text)
+        if text == main_text.strip() or (
+            normalized_text
+            and normalized_main
+            and (
+                normalized_text in normalized_main or normalized_main in normalized_text
             )
         ):
             logger.info("[补一句] 与主回复重复，跳过")
@@ -9111,8 +9099,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if (
                 self.quote_slow_reply
                 and self._processing_started_at.get(state_chat_id, 0.0) > 0
-                and time.time()
-                - self._processing_started_at.get(state_chat_id, 0.0)
+                and time.time() - self._processing_started_at.get(state_chat_id, 0.0)
                 >= self.quote_slow_reply_threshold_seconds
                 and not any(isinstance(comp, Reply) for comp in result.chain)
             ):
@@ -9813,9 +9800,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         """Load per-chat song mentions from disk."""
         if self._song_mentions is None:
             try:
-                data = json.loads(
-                    self._song_mentions_path.read_text(encoding="utf-8")
-                )
+                data = json.loads(self._song_mentions_path.read_text(encoding="utf-8"))
                 self._song_mentions = data if isinstance(data, dict) else {}
             except Exception:
                 self._song_mentions = {}
@@ -9917,10 +9902,4 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             parts.append(detail)
         if not parts:
             return ""
-        return (
-            "[音乐记忆] 你之前推荐过："
-            + "；".join(parts)
-            + "。聊到相关话题时可以自然想起来，不用硬提。"
-        )
-
-
+        return "[音乐记忆] 你推过这些歌：" + "；".join(parts) + "。"

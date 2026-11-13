@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.60
+
+- The music memory block now states facts only (song, time, recipient, count) and drops the meta instruction about remembering naturally.
+
 ## 2.0.59
 
 - Music topics now recall the music plugin's recommendation memory (who, when, how many times) before replying, so a song recommended a few days ago can be remembered instead of repeated as new.
