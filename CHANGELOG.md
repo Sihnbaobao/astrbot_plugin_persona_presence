@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.55
+
+- Proactive speech now quotes the latest image/emote itself when the trigger is media, instead of falling back to the last text message id. The prompt also asks the model to anchor the newest media and use `[图片]` as the excerpt.
+
 ## 2.0.54
 
 - Tightened DecisionAI ownership rules for the pronoun “你/你的”: without an @ or reply to the bot, when the previous turn is another user talking to someone else, it should not become `target=bot` just because the word “你” appears.

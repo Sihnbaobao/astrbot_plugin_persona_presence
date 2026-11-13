@@ -40,6 +40,8 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
 
 如果你是在接其中某一条，anchor 写那条的编号，
 quote_excerpt 从那条里原样抄一小段，不要改写；
+如果接的是最新那张图片/表情，anchor 写最新编号，quote_excerpt 写 [图片]；
+不要因为上一句有文字就引用上一句。
 不是针对某一条就写 anchor 0、quote_excerpt 留空。
 
 只输出 JSON：
@@ -103,6 +105,7 @@ class _GroupState:
     last_spoke: float = 0.0
     last_try: float = 0.0
     last_text_id: str = ""
+    last_media_id: str = ""
     last_was_media: bool = False
 
 
@@ -211,6 +214,8 @@ class ProactiveModule(PluginModule):
             ).strip()
         except Exception:
             message_id = ""
+        if is_media and message_id:
+            state.last_media_id = message_id
         state.lines.append(f"{sender}：{text}" if sender else text)
         state.line_ids.append(message_id)
         images: list[str] = []
@@ -475,7 +480,13 @@ class ProactiveModule(PluginModule):
 
         quote_id = ""
         explicit_anchor = anchor_given and anchor != 0
-        if explicit_anchor and quote_excerpt:
+        latest_is_media = bool(
+            recent_lines
+            and ("[图片" in recent_lines[-1] or "[表情" in recent_lines[-1])
+        )
+        if explicit_anchor and latest_is_media and anchor == len(recent_lines):
+            quote_id = recent_ids[-1]
+        elif explicit_anchor and quote_excerpt:
             cleaned_excerpt = re.sub(r"[\s\W_]+", "", quote_excerpt)
             if len(cleaned_excerpt) >= 2:
                 matching_indexes = [
@@ -489,7 +500,7 @@ class ProactiveModule(PluginModule):
                 elif anchor - 1 in matching_indexes:
                     quote_id = recent_ids[anchor - 1]
         elif not explicit_anchor and state.last_was_media:
-            quote_id = state.last_text_id
+            quote_id = state.last_media_id or state.last_text_id
 
         if explicit_anchor and not quote_id:
             logger.debug("[主动发言] 引用摘录对不上，取消引用")
