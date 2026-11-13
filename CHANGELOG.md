@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.61
+
+- Remove spaces before an ellipsis when the preceding character is Chinese or Chinese punctuation, so “想干什么 ...有点烦了” becomes “想干什么...有点烦了”.
+
 ## 2.0.60
 
 - The music memory block now states facts only (song, time, recipient, count) and drops the meta instruction about remembering naturally.
