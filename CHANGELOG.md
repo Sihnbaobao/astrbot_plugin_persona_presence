@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.56
+
+- Proactive context now records a shared music card as `[音乐卡片：歌名 - 歌手]` instead of a generic media placeholder, so a later image reaction can see that a song was shared just before it.
+
 ## 2.0.55
 
 - Proactive speech now quotes the latest image/emote itself when the trigger is media, instead of falling back to the last text message id. The prompt also asks the model to anchor the newest media and use `[图片]` as the excerpt.

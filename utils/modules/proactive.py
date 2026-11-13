@@ -196,8 +196,24 @@ class ProactiveModule(PluginModule):
         except Exception:
             sender = ""
         is_media = not text
+        card_label = ""
+        try:
+            for component in list(
+                getattr(getattr(ctx.event, "message_obj", None), "message", []) or []
+            ):
+                if component.__class__.__name__ != "Music":
+                    continue
+                title = str(getattr(component, "title", "") or "").strip()
+                artist = str(getattr(component, "content", "") or "").strip()
+                if title or artist:
+                    card_label = "[音乐卡片：" + " - ".join(
+                        part for part in (title, artist) if part
+                    ) + "]"
+                    break
+        except Exception as exc:
+            logger.debug(f"[主动发言] 音乐卡片读取失败: {exc}")
         if is_media:
-            text = "[图片或表情]"
+            text = card_label or "[图片或表情]"
         else:
             try:
                 state.last_text_id = str(
