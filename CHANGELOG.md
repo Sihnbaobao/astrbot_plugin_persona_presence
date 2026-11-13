@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.57
+
+- The repeat guard now lists song titles from the last few replies and asks the persona not to push the same song again unless it is actually necessary.
+
 ## 2.0.56
 
 - Proactive context now records a shared music card as `[音乐卡片：歌名 - 歌手]` instead of a generic media placeholder, so a later image reaction can see that a song was shared just before it.

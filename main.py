@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.56"
+PLUGIN_VERSION = "2.0.57"
 
 
 @register(
@@ -7695,6 +7695,16 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         "（上面是你最近几次的回复。如果这次要表达的意思和其中某句接近，"
                         "换一种说法，不要沿用同样的措辞；同一个词不要连着反复出现。）"
                     )
+                    songs = []
+                    for text in recent:
+                        for match in re.findall(r"《([^》]{1,20})》", text):
+                            if match not in songs:
+                                songs.append(match)
+                    if songs:
+                        final_message += (
+                            f"\n\n[最近提过的歌]\n{'、'.join(songs)}\n"
+                            "（不是非提不可的话，换一首，别反复推同一首。）"
+                        )
             except Exception as e:
                 logger.warning(f"[口头禅抑制] 失败: {e}")
 
