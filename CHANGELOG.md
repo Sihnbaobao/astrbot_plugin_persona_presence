@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.63
+
+- Clarify proactive quoting when a reply mixes an older text line with the latest image: quote the older text, not only the image. Quoting the image remains reserved for replies that are purely about the image itself.
+
 ## 2.0.62
 
 - Extend the pronoun ownership rule: if the same sender just @-mentioned or quoted someone else, a following “你…” is normally still aimed at that person, not the bot, unless this message explicitly @s/replies to the bot or uses its name.
