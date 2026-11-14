@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.62
+
+- Extend the pronoun ownership rule: if the same sender just @-mentioned or quoted someone else, a following “你…” is normally still aimed at that person, not the bot, unless this message explicitly @s/replies to the bot or uses its name.
+
 ## 2.0.61
 
 - Remove spaces before an ellipsis when the preceding character is Chinese or Chinese punctuation, so “想干什么 ...有点烦了” becomes “想干什么...有点烦了”.
