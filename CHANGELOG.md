@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.64
+
+- Quote the original anchor when a reply is delayed because newer group messages arrived, not only when it exceeds the slow-reply threshold. Follow-up bubbles remain unquoted.
+
 ## 2.0.63
 
 - Clarify proactive quoting when a reply mixes an older text line with the latest image: quote the older text, not only the image. Quoting the image remains reserved for replies that are purely about the image itself.

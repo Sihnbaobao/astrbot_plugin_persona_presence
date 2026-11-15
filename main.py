@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.63"
+PLUGIN_VERSION = "2.0.64"
 
 
 @register(
@@ -506,6 +506,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._last_user_message_at: dict[str, float] = {}
         self._last_web_lookup_at: dict[str, float] = {}
         self._processing_started_at: dict[str, float] = {}
+        self._reply_anchor_ids: dict[str, str] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
         self.enable_meme_bridge = self._cfg_bool("enable_meme_bridge", False)
@@ -7827,6 +7828,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             生成器，用于yield回复
         """
         _process_start_time = time.time()
+        try:
+            _anchor_pid = self._get_processing_id(event)
+            _anchor_mid = str(
+                getattr(getattr(event, "message_obj", None), "message_id", "") or ""
+            ).strip()
+            if _anchor_pid and _anchor_mid:
+                self._reply_anchor_ids[_anchor_pid] = _anchor_mid
+        except Exception:
+            pass
 
         if image_urls is None:
             image_urls = []
@@ -8145,23 +8155,44 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 if precomputed_reply_text is not None and message_id_for_error:
                     self._agent_done_flags.add(message_id_for_error)
 
-            if (
-                self.quote_slow_reply
-                and time.time() - _process_start_time
-                >= self.quote_slow_reply_threshold_seconds
-                and reply_result is not None
-                and hasattr(reply_result, "chain")
-            ):
+            try:
+                _quote_pid = self._get_processing_id(event)
+                _quote_anchor_id = self._reply_anchor_ids.get(_quote_pid, "")
+            except Exception:
+                _quote_anchor_id = ""
+            if not _quote_anchor_id:
                 try:
-                    source_message_id = str(
+                    _quote_anchor_id = str(
                         getattr(getattr(event, "message_obj", None), "message_id", "")
                         or ""
                     ).strip()
-                    if source_message_id:
-                        reply_result.chain = [Reply(id=source_message_id)] + list(
+                except Exception:
+                    _quote_anchor_id = ""
+            _overtaken = (
+                self._last_user_message_at.get(state_chat_id, 0.0)
+                > _process_start_time + 0.5
+            )
+            if (
+                self.quote_slow_reply
+                and (
+                    time.time() - _process_start_time
+                    >= self.quote_slow_reply_threshold_seconds
+                    or _overtaken
+                )
+                and reply_result is not None
+                and hasattr(reply_result, "chain")
+                and not any(isinstance(comp, Reply) for comp in reply_result.chain)
+            ):
+                try:
+                    if _quote_anchor_id:
+                        reply_result.chain = [Reply(id=_quote_anchor_id)] + list(
                             reply_result.chain or []
                         )
-                        logger.info("[慢回复] 已引用原消息")
+                        logger.info(
+                            "[延迟回复] 已引用原消息"
+                            if _overtaken
+                            else "[慢回复] 已引用原消息"
+                        )
                 except Exception as quote_err:
                     logger.debug(f"[慢回复] 引用失败: {quote_err}")
 
@@ -9096,23 +9127,43 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         for comp in result.chain
                     ).strip()
 
-            if (
-                self.quote_slow_reply
-                and self._processing_started_at.get(state_chat_id, 0.0) > 0
-                and time.time() - self._processing_started_at.get(state_chat_id, 0.0)
-                >= self.quote_slow_reply_threshold_seconds
-                and not any(isinstance(comp, Reply) for comp in result.chain)
-            ):
+            _started_at = self._processing_started_at.get(state_chat_id, 0.0)
+            try:
+                _quote_pid = self._get_processing_id(event)
+                _quote_anchor_id = self._reply_anchor_ids.get(_quote_pid, "")
+            except Exception:
+                _quote_anchor_id = ""
+            if not _quote_anchor_id:
                 try:
-                    source_message_id = str(
+                    _quote_anchor_id = str(
                         getattr(getattr(event, "message_obj", None), "message_id", "")
                         or ""
                     ).strip()
-                    if source_message_id:
-                        result.chain = [Reply(id=source_message_id)] + list(
+                except Exception:
+                    _quote_anchor_id = ""
+            _overtaken = (
+                self._last_user_message_at.get(state_chat_id, 0.0) > _started_at + 0.5
+            )
+            if (
+                self.quote_slow_reply
+                and _started_at > 0
+                and (
+                    time.time() - _started_at
+                    >= self.quote_slow_reply_threshold_seconds
+                    or _overtaken
+                )
+                and not any(isinstance(comp, Reply) for comp in result.chain)
+            ):
+                try:
+                    if _quote_anchor_id:
+                        result.chain = [Reply(id=_quote_anchor_id)] + list(
                             result.chain or []
                         )
-                        logger.info("[慢回复] 已引用原消息")
+                        logger.info(
+                            "[延迟回复] 已引用原消息"
+                            if _overtaken
+                            else "[慢回复] 已引用原消息"
+                        )
                 except Exception as quote_err:
                     logger.debug(f"[慢回复] 引用失败: {quote_err}")
 
