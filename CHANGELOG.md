@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.66
+
+- Raise the delayed-quote threshold from three newer messages to four.
+
 ## 2.0.65
 
 - Raise the overtaken-quote threshold to three newer messages, and stop proactive replies from quoting the immediately previous text message. This reduces constant quote decorations while keeping quotes for genuinely displaced replies.

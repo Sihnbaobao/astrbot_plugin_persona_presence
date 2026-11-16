@@ -339,7 +339,7 @@
         "description": "慢回复引用原消息",
         "type": "bool",
         "default": false,
-        "hint": "生成超过阈值，或等待期间群里又来了至少 3 条新消息时，在回复前引用触发它的原消息；即时回复和补充气泡不带引用。"
+        "hint": "生成超过阈值，或等待期间群里又来了至少 4 条新消息时，在回复前引用触发它的原消息；即时回复和补充气泡不带引用。"
       },
       "quote_slow_reply_threshold_seconds": {
         "description": "慢回复阈值（秒）",

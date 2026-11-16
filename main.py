@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.65"
+PLUGIN_VERSION = "2.0.66"
 
 
 @register(
@@ -8185,7 +8185,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
             except Exception:
                 _newer_count = 0
-            _overtaken = _newer_count >= 3
+            _overtaken = _newer_count >= 4
             if (
                 self.quote_slow_reply
                 and (
@@ -9165,7 +9165,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
             except Exception:
                 _newer_count = 0
-            _overtaken = _newer_count >= 3
+            _overtaken = _newer_count >= 4
             if (
                 self.quote_slow_reply
                 and _started_at > 0
