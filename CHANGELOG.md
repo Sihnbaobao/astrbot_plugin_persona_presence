@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.65
+
+- Raise the overtaken-quote threshold to three newer messages, and stop proactive replies from quoting the immediately previous text message. This reduces constant quote decorations while keeping quotes for genuinely displaced replies.
+
 ## 2.0.64
 
 - Quote the original anchor when a reply is delayed because newer group messages arrived, not only when it exceeds the slow-reply threshold. Follow-up bubbles remain unquoted.

@@ -103,7 +103,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.64"
+PLUGIN_VERSION = "2.0.65"
 
 
 @register(
@@ -507,6 +507,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         self._last_web_lookup_at: dict[str, float] = {}
         self._processing_started_at: dict[str, float] = {}
         self._reply_anchor_ids: dict[str, str] = {}
+        self._reply_anchor_seqs: dict[str, tuple[str, int]] = {}
+        self._chat_arrival_seq: dict[str, int] = {}
 
         # ========== 表情桥接（可选，依赖 meme_manager） ==========
         self.enable_meme_bridge = self._cfg_bool("enable_meme_bridge", False)
@@ -7835,6 +7837,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             ).strip()
             if _anchor_pid and _anchor_mid:
                 self._reply_anchor_ids[_anchor_pid] = _anchor_mid
+                _anchor_seq, _ = self._ensure_arrival_metadata(event)
+                self._reply_anchor_seqs[_anchor_pid] = (
+                    str(event.unified_msg_origin),
+                    _anchor_seq,
+                )
         except Exception:
             pass
 
@@ -8168,10 +8175,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     ).strip()
                 except Exception:
                     _quote_anchor_id = ""
-            _overtaken = (
-                self._last_user_message_at.get(state_chat_id, 0.0)
-                > _process_start_time + 0.5
-            )
+            try:
+                _anchor_origin, _anchor_seq = self._reply_anchor_seqs.get(
+                    _quote_pid, ("", 0)
+                )
+                _newer_count = (
+                    self._chat_arrival_seq.get(_anchor_origin, _anchor_seq)
+                    - _anchor_seq
+                )
+            except Exception:
+                _newer_count = 0
+            _overtaken = _newer_count >= 3
             if (
                 self.quote_slow_reply
                 and (
@@ -9141,9 +9155,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     ).strip()
                 except Exception:
                     _quote_anchor_id = ""
-            _overtaken = (
-                self._last_user_message_at.get(state_chat_id, 0.0) > _started_at + 0.5
-            )
+            try:
+                _anchor_origin, _anchor_seq = self._reply_anchor_seqs.get(
+                    _quote_pid, ("", 0)
+                )
+                _newer_count = (
+                    self._chat_arrival_seq.get(_anchor_origin, _anchor_seq)
+                    - _anchor_seq
+                )
+            except Exception:
+                _newer_count = 0
+            _overtaken = _newer_count >= 3
             if (
                 self.quote_slow_reply
                 and _started_at > 0
@@ -9837,6 +9859,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             self._arrival_seq_counter += 1
             arrival_seq = self._arrival_seq_counter
             arrival_monotonic = time.monotonic()
+            try:
+                self._chat_arrival_seq[event.unified_msg_origin] = arrival_seq
+            except Exception:
+                pass
 
             try:
                 event._plugin_arrival_seq = arrival_seq
