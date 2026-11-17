@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.67
+
+- Strip inline `&& meme:... &&` (and unclosed variants) from outgoing replies; this custom markup was never a real tool call and must not reach the chat.
+
 ## 2.0.66
 
 - Raise the delayed-quote threshold from three newer messages to four.
