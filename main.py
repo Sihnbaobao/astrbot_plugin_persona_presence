@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.84"
+PLUGIN_VERSION = "2.0.85"
 
 
 @register(
@@ -5042,7 +5042,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         is_reply_to_bot = bool(bot_id and reply_target_id and reply_target_id == bot_id)
         is_reply_to_other = bool(reply_target_id and reply_target_id != bot_id)
         # 戳一戳不是命令，按普通消息处理，由参与判断自己决定理不理。
-        is_explicitly_addressed = bool(is_at_message or is_reply_to_bot)
+        is_at_ai = bool(
+            isinstance(mention_info, dict) and mention_info.get("has_at_ai")
+        )
+        is_explicitly_addressed = bool(is_at_ai or is_reply_to_bot)
         # Keyword matches enter the ambient decision flow but are not proof that
         # the sender is talking to the bot.
         is_direct_address = bool(is_explicitly_addressed or has_trigger_keyword)
@@ -6084,24 +6087,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         decision_context_for_ai += _floor + "\n</话轮事实>"
                 except Exception as _floor_err:
                     logger.debug(f"[话轮事实] 构造失败: {_floor_err}")
-            # A message that explicitly @s someone else is their conversation,
-            # not an invitation to side-comment.  @all and replies to the bot
-            # are different: those still leave room for the persona.
-            if (
-                not is_private
-                and isinstance(mention_info, dict)
-                and mention_info.get("has_at_others")
-                and not mention_info.get("has_at_ai")
-                and not mention_info.get("has_at_all")
-                and not is_reply_to_bot
-                and not has_trigger_keyword
-                and decision_result.reply
-            ):
-                decision_result = decision_result.with_reply(
-                    False, source="policy", reason_code="none"
-                )
-                logger.info("[@他人] 消息在跟别人说话，不插话")
-
             image_question_requested = bool(
                 self.image_read_mode == "lazy"
                 and merged_image_urls

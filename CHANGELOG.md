@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.85
+
+- Remove the broad “never comment on an @someone-else message” boundary. The real issue was that any @ was being passed to DecisionAI as if the bot had been addressed. Now only @bot or a reply to the bot counts as direct address; messages aimed at another user remain their conversation, but the persona can still choose a natural side comment.
+
 ## 2.0.84
 
 - Do not join a group conversation that explicitly @s someone else. Side comments are still allowed when the bot is also mentioned, mentioned by name through a trigger, @all is used, or the message replies to the bot.
