@@ -335,7 +335,9 @@ class EmotionModule(PluginModule):
             text,
         )
         praise = re.search(
-            r"(?<!不)(?:喜欢|可爱|好看|漂亮|厉害|聪明|谢谢|温柔|有趣|牛)", text
+            r"(?:你|璃月).{0,6}(?:可爱|好看|漂亮|厉害|聪明|温柔|有趣|牛|强)"
+            r"|(?<!不)(?:喜欢|爱)(?:你|璃月)|谢谢(?:你|璃月)?",
+            text,
         )
         apology = re.search(r"对不起|抱歉|别生气|我错|抱抱|安慰", text)
         dismiss = re.search(r"随便|无所谓|懒得|不理|别烦|爱怎样怎样", text)
@@ -382,7 +384,17 @@ class EmotionModule(PluginModule):
         self._last_seen[key] = (text, now)
 
         if changed:
-            mood.cause = re.sub(r"\s+", " ", cause).strip()[:60]
+            dominant = max(mood.base, key=mood.base.get)
+            cause_is_relevant = (
+                (bool(severe) and dominant in {"anger", "disgust"})
+                or (bool(conflict) and dominant in {"anger", "disgust", "fear"})
+                or (bool(praise) and dominant == "joy")
+                or (bool(apology) and dominant in {"anger", "sadness"})
+                or (bool(dismiss) and dominant in {"sadness", "disgust"})
+                or (bool(surprise) and dominant == "surprise")
+            )
+            if cause_is_relevant and cause:
+                mood.cause = re.sub(r"\s+", " ", cause).strip()[:60]
             mood.updated_at = now
         return changed
 

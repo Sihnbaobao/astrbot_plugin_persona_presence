@@ -183,3 +183,20 @@ def test_snapshot_is_json_serialisable(tmp_path):
     assert payload["counts"]["moods"] == 1
     assert payload["counts"]["relations"] == 1
     assert isinstance(json.dumps(payload, ensure_ascii=False), str)
+
+def test_media_comment_is_not_praise(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("给我找几个好看的百合")
+    asyncio.run(pack.on_event(_ctx(event)))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["joy"] == 0.0
+
+
+def test_harassment_comment_is_not_praise(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("没意思，现在这璃月喜欢被骚扰")
+    asyncio.run(pack.on_event(_ctx(event)))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["joy"] == 0.0

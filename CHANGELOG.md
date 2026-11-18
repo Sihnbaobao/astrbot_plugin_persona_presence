@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.86
+
+- Require praise to be aimed at the persona (“你/璃月” plus the compliment, or “喜欢你/璃月”). “好看的百合” and “喜欢被骚扰” no longer count as praise. Also stop a later negative event from overwriting the cause of a still-dominant earlier joy; the UI now says “最近一次” rather than implying direct causation.
+
 ## 2.0.85
 
 - Remove the broad “never comment on an @someone-else message” boundary. The real issue was that any @ was being passed to DecisionAI as if the bot had been addressed. Now only @bot or a reply to the bot counts as direct address; messages aimed at another user remain their conversation, but the persona can still choose a natural side comment.

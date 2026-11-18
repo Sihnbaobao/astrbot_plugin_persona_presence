@@ -1098,7 +1098,7 @@ function _emotionHero(moods, enabled) {
   host.innerHTML = '<div class="emotion-hero-inner" style="--mood-color:' + accent + '">' +
     '<div class="emotion-hero-copy"><div class="emotion-eyebrow">此刻主导</div>' +
       '<h2>' + esc(mood.label || "复杂") + '</h2>' +
-      '<p class="emotion-hero-cause"><span class="emotion-cause-label">因为</span>' + esc(mood.cause || "没有明确原因") + '</p>' +
+      '<p class="emotion-hero-cause"><span class="emotion-cause-label">最近一次</span>' + esc(mood.cause || "没有明确原因") + '</p>' +
       '<div class="emotion-hero-meta">' + esc(who) + ' · ' + esc(shortChat(mood.umo)) + ' · ' + _formatEmotionTime(mood.updated_at) + '</div>' +
       '<div class="emotion-hero-topline">' + esc(top || "情绪成分不足") + '</div>' +
       _emotionComposition(base) +
