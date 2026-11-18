@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.87
+
+- Re-appraise group praise that might be teasing an AI. The semantic prompt now distinguishes sincere praise from “调侃” (testing/playing with the character); a teasing “夸奖” reverses the joy gain and adds a little irritation instead of being taken literally.
+
 ## 2.0.86
 
 - Require praise to be aimed at the persona (“你/璃月” plus the compliment, or “喜欢你/璃月”). “好看的百合” and “喜欢被骚扰” no longer count as praise. Also stop a later negative event from overwriting the cause of a still-dominant earlier joy; the UI now says “最近一次” rather than implying direct causation.

@@ -76,10 +76,11 @@ _APPRAISAL_CUES = re.compile(
 _APPRAISAL_PROMPT = """你是角色 {name} 的内心判断器，不是客服，也不是在回复。
 
 看这句话对她意味着什么，只输出一个 JSON，不要解释：
-{{"intent":"挑衅|羞辱|命令|越界|玩笑|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"不超过30字"}}
+{{"intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"不超过30字"}}
 
 规则：
 - 玩笑和熟人互损不要判成羞辱。
+- 如果对方把你当成 AI、机器人或角色在逗、测试反应、玩梗，不要判成真心夸奖；这种是“调侃”。
 - 只有真的越界、命令、贬低才叫挑衅/羞辱。
 - 普通陈述就输出普通。
 - intensity 表示这件事对她有多重，0.1 到 1.0。
@@ -322,6 +323,24 @@ class EmotionModule(PluginModule):
             value = mood.base[emotion] + float(delta) * self.sensitivity
             mood.base[emotion] = max(0.0, min(1.0, value))
 
+    @staticmethod
+    def _praise_match(text: str) -> bool:
+        """Tell whether the text is a compliment aimed at the persona.
+
+        Args:
+            text: Incoming message text.
+
+        Returns:
+            True when the compliment has a plausible second-person target.
+        """
+        return bool(
+            re.search(
+                r"(?:你|璃月).{0,6}(?:可爱|好看|漂亮|厉害|聪明|温柔|有趣|牛|强)"
+                r"|(?<!不)(?:喜欢|爱)(?:你|璃月)|谢谢(?:你|璃月)?",
+                text,
+            )
+        )
+
     def _appraise(self, text: str, mood: _Mood, umo: str, user_id: str) -> bool:
         now = time.time()
         self._decay(mood, now)
@@ -334,11 +353,7 @@ class EmotionModule(PluginModule):
             r"(?:你|真|好|别|少)烦|烦死|讨厌",
             text,
         )
-        praise = re.search(
-            r"(?:你|璃月).{0,6}(?:可爱|好看|漂亮|厉害|聪明|温柔|有趣|牛|强)"
-            r"|(?<!不)(?:喜欢|爱)(?:你|璃月)|谢谢(?:你|璃月)?",
-            text,
-        )
+        praise = self._praise_match(text)
         apology = re.search(r"对不起|抱歉|别生气|我错|抱抱|安慰", text)
         dismiss = re.search(r"随便|无所谓|懒得|不理|别烦|爱怎样怎样", text)
         conflict = re.search(r"吵|争|怼|凭什么|你算|不服|来啊", text)
@@ -422,7 +437,9 @@ class EmotionModule(PluginModule):
             group_name=group_name,
         ):
             self.ledger.save()
-        if not locally_changed:
+        if not locally_changed or (
+            not ctx.is_private and self._praise_match(text)
+        ):
             self._schedule_semantic(ctx, text, user_id)
 
     def _schedule_semantic(
@@ -535,6 +552,7 @@ class EmotionModule(PluginModule):
             "命令",
             "越界",
             "玩笑",
+            "调侃",
             "关心",
             "夸奖",
             "敷衍",
@@ -593,6 +611,9 @@ class EmotionModule(PluginModule):
             self._add(mood, anger=0.22 * intensity, disgust=0.08 * intensity)
         elif intent == "玩笑":
             self._add(mood, joy=0.12 * intensity, anger=0.04 * intensity)
+        elif intent == "调侃":
+            # A compliment that is really teasing an AI is not affection.
+            self._add(mood, joy=-0.20 * intensity, anger=0.08 * intensity)
         elif intent == "关心":
             self._add(mood, joy=0.14 * intensity, sadness=-0.08 * intensity)
         elif intent == "夸奖":

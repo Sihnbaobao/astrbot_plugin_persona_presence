@@ -200,3 +200,31 @@ def test_harassment_comment_is_not_praise(tmp_path):
     asyncio.run(pack.on_event(_ctx(event)))
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] == 0.0
+
+class _TeaseResponse:
+    completion_text = '{"intent":"调侃","intensity":0.8,"cause":"在逗AI玩"}'
+
+
+class _TeaseProvider:
+    async def text_chat(self, **_kwargs):
+        return _TeaseResponse()
+
+
+class _TeaseContext:
+    async def get_using_provider_async(self, *_args):
+        return _TeaseProvider()
+
+
+def test_group_praise_can_be_reappraised_as_teasing(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(
+        tmp_path, sensitivity=1.0, context=_TeaseContext()
+    )
+    event = _Event("你好可爱", private=False, at=True)
+    asyncio.run(pack.on_event(_ctx(event)))
+    pending = list(pack._appraisal_tasks)
+    if pending:
+        asyncio.run(asyncio.gather(*pending))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["joy"] < 0.1
+    assert "逗AI" in mood.cause
