@@ -1000,10 +1000,10 @@ function emotionRadar(base) {
   const labels = keys.map((key, i) => {
     const p = _radarPoint(43, i);
     const meta = EMOTION_META[key];
-    return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="6">' + meta.label + '</text>';
+    return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + ' ' + Math.round(values[i] * 100) + '</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪雷达图">' +
-    rings + axes + '<polygon points="' + points + '" fill="var(--mood-color, var(--accent))" fill-opacity="0.18" stroke="var(--mood-color, var(--accent))" stroke-width="1.6"/>' +
+    rings + axes + '<polygon points="' + points + '" style="fill:var(--mood-color, var(--accent));fill-opacity:.34;stroke:var(--mood-color, var(--accent));stroke-width:2"/>' +
     dots + labels + '</svg>';
 }
 
@@ -1094,6 +1094,7 @@ function _emotionHero(moods, enabled) {
     '</div>' +
     '<div class="emotion-hero-radar">' + emotionRadar(base) + '</div>' +
     '<div class="emotion-hero-side"><div class="emotion-chips">' + _emotionChips(base) + '</div>' +
+      '<div class="emotion-radar-caption">轴上的数字是这一项的强度（0–100），面积越大越强。</div>' +
       '<div class="emotion-hero-intensity"><div class="emotion-intensity-label"><span>强度</span><strong>' + intensity + '%</strong></div>' +
         '<div class="emotion-intensity-track"><i style="width:' + intensity + '%;background:' + accent + '"></i></div></div>' +
     '</div>' +

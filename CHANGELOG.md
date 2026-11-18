@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.79
+
+- Make the emotion radar an actual filled area, show axis labels with percentages, and add a short explanation of what the axes mean.
+
 ## 2.0.78
 
 - Improve emotion dashboard readability: rename the relationship metric to “不满”, label cause text as “最近一次”, soften the hero tint, and enlarge radar axis labels (hidden on tiny cards where bars carry the labels).

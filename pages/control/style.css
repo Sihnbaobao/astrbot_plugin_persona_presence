@@ -1387,3 +1387,12 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   vertical-align: 1px;
 }
 .emotion-hero-cause .emotion-cause-label { margin-right: 7px; }
+
+.emotion-radar-axis-label { font-size: 7px; font-weight: 600; letter-spacing: -0.1px; }
+.emotion-radar-caption {
+  margin-top: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+.emotion-hero-radar .emotion-radar-svg { max-width: 230px; }
