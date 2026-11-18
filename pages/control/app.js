@@ -1037,16 +1037,19 @@ function _emotionHero(moods, enabled) {
   const host = document.getElementById("emotionHero");
   if (!host) return;
   if (!enabled) {
+    host.style.removeProperty("--mood-color");
     host.innerHTML = '<div class="emotion-hero-empty"><span class="emotion-hero-mark">☺</span><div><strong>情绪未装载</strong><p>在「资料片」里打开情绪后，这里会显示她此刻的心情。</p></div></div>';
     return;
   }
   if (!moods.length) {
+    host.style.removeProperty("--mood-color");
     host.innerHTML = '<div class="emotion-hero-empty"><span class="emotion-hero-mark">◌</span><div><strong>现在很平静</strong><p>没有足够强的情绪。普通群聊不会随便改变她的心情。</p></div></div>';
     return;
   }
   const mood = moods[0];
   const base = mood.base || {};
   const accent = _emotionAccent(base);
+  host.style.setProperty("--mood-color", accent);
   host.innerHTML = '<div class="emotion-hero-inner" style="--mood-color:' + accent + '">' +
     '<div class="emotion-hero-copy"><div class="emotion-eyebrow">此刻主导</div>' +
       '<h2>' + esc(mood.label || "复杂") + '</h2>' +

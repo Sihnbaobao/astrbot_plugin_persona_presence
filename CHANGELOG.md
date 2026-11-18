@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.76
+
+- Apply the dominant emotion colour to the emotion hero background, so the visual accent follows the current mood.
+
 ## 2.0.75
 
 - Redesign the emotion view: dominant-mood hero with a six-axis radar, compact emotion chips and intensity, per-mood radar cards, relationship rings, and group withdrawal gauges.
