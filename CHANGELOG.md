@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.80
+
+- Add percent units to radar axis labels and keep the labels just outside the filled area.
+
 ## 2.0.79
 
 - Make the emotion radar an actual filled area, show axis labels with percentages, and add a short explanation of what the axes mean.

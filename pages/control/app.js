@@ -998,9 +998,9 @@ function emotionRadar(base) {
     return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.2" fill="currentColor"/>';
   }).join("");
   const labels = keys.map((key, i) => {
-    const p = _radarPoint(43, i);
+    const p = _radarPoint(40, i);
     const meta = EMOTION_META[key];
-    return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + ' ' + Math.round(values[i] * 100) + '</text>';
+    return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + Math.round(values[i] * 100) + '%</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪雷达图">' +
     rings + axes + '<polygon points="' + points + '" style="fill:var(--mood-color, var(--accent));fill-opacity:.34;stroke:var(--mood-color, var(--accent));stroke-width:2"/>' +
