@@ -39,6 +39,9 @@ class _Event:
     def get_sender_id(self):
         return self._uid
 
+    def get_group_id(self):
+        return "" if "private" in self.unified_msg_origin else "g1"
+
 
 def _ctx(event):
     base = _load().base
@@ -103,3 +106,24 @@ def test_state_is_separate_per_sender(tmp_path):
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     asyncio.run(pack.on_event(_ctx(_Event("你真烦", uid="a", private=True))))
     assert pack.block_for(_Event("", uid="b"), True) == ""
+def test_relationship_can_bottom_out_and_stay(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=2.0)
+    event = _Event("你真是傻，闭嘴")
+    for _ in range(3):
+        asyncio.run(pack.on_event(_ctx(event)))
+    relation = pack.ledger.relations[event.unified_msg_origin][event.get_sender_id()]
+    assert relation.bottomed_out
+    asyncio.run(pack.on_event(_ctx(_Event("对不起，我错了"))))
+    assert relation.bottomed_out
+    assert "不想再给这个人好脸色" in pack.block_for(event, True)
+
+
+def test_group_can_become_uncomfortable(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=2.0)
+    event = _Event("你真是傻，闭嘴", private=False, at=True)
+    for _ in range(4):
+        asyncio.run(pack.on_event(_ctx(event)))
+    assert pack.should_withdraw(event.get_group_id())
+    assert "不太想在这里开口" in pack.block_for(event, False)

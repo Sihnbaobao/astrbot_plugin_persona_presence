@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.69"
+PLUGIN_VERSION = "2.0.70"
 
 
 @register(
@@ -2593,6 +2593,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return False
         if decision_source not in {"ai", "legacy"}:
             return False
+        emotion = getattr(self, "emotion_module", None)
+        if emotion is not None:
+            try:
+                _group_id = str(event.get_group_id() or "")
+            except Exception:
+                _group_id = ""
+            if emotion.should_withdraw(_group_id):
+                return False
         if decision_target in {"other", "unclear"}:
             return False
         if decision_participation == "none" and decision_target == "other":

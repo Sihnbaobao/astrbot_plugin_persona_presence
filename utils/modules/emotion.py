@@ -18,6 +18,7 @@ from typing import Any
 from astrbot.api import logger
 
 from .base import FeatureContext, ModuleManifest, PluginModule
+from .emotion_relations import RelationLedger
 
 _BASE_EMOTIONS = ("joy", "anger", "sadness", "fear", "disgust", "surprise")
 _HALF_LIFE_MINUTES = {
@@ -114,6 +115,10 @@ class EmotionModule(PluginModule):
         self.decay_minutes = max(5, int(decay_minutes))
         self.chats: dict[str, dict[str, _Mood]] = {}
         self._last_seen: dict[tuple[str, str], tuple[str, float]] = {}
+        self.ledger = RelationLedger(
+            self.data_dir / "relations.json" if self.data_dir else None,
+            sensitivity=self.sensitivity,
+        )
         self._load()
 
     def _load(self) -> None:
@@ -286,8 +291,17 @@ class EmotionModule(PluginModule):
         user_id = self._sender_id(ctx.event) or "unknown"
         bucket = self.chats.setdefault(ctx.umo, {})
         mood = bucket.setdefault(user_id, _Mood())
-        if self._appraise(self._text(ctx.event), mood, ctx.umo, user_id):
+        text = self._text(ctx.event)
+        if self._appraise(text, mood, ctx.umo, user_id):
             self._save()
+        if self.ledger.appraise(
+            ctx.umo,
+            user_id,
+            text,
+            is_private=ctx.is_private,
+            group_id=ctx.group_id,
+        ):
+            self.ledger.save()
 
     def block_for(self, event: Any, is_private: bool) -> str:
         try:
@@ -297,18 +311,41 @@ class EmotionModule(PluginModule):
         bucket = self.chats.get(umo, {})
         user_id = self._sender_id(event) or "unknown"
         mood = bucket.get(user_id)
-        if mood is None:
-            return ""
-        self._decay(mood, time.time())
-        top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
-        strong = [(name, value) for name, value in top if value >= 0.18]
-        if not strong:
-            return ""
-        label = self._label(strong)
-        cause = mood.cause.strip()
-        if cause and label:
-            return f"[此刻]\n{label}——{cause}"
-        return f"[此刻]\n{label}" if label else ""
+        blocks: list[str] = []
+        if mood is not None:
+            self._decay(mood, time.time())
+            top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
+            strong = [(name, value) for name, value in top if value >= 0.18]
+            if strong:
+                label = self._label(strong)
+                cause = mood.cause.strip()
+                if label:
+                    blocks.append(
+                        f"[此刻]\n{label}——{cause}"
+                        if cause
+                        else f"[此刻]\n{label}"
+                    )
+        try:
+            group_id = str(event.get_group_id() or "")
+        except Exception:
+            group_id = ""
+        relation_block = self.ledger.block_for(
+            umo, user_id, is_private, group_id=group_id
+        )
+        if relation_block:
+            blocks.append(relation_block)
+        return "\n\n".join(blocks)
+
+    def should_withdraw(self, umo: str) -> bool:
+        """Tell whether the group attitude should suppress proactive speech.
+
+        Args:
+            umo: Conversation origin.
+
+        Returns:
+            True when the persona no longer wants to initiate in this group.
+        """
+        return self.ledger.should_withdraw(umo)
 
     def _label(self, strong: list[tuple[str, float]]) -> str:
         names = [name for name, _ in strong]
@@ -326,3 +363,4 @@ class EmotionModule(PluginModule):
 
     async def close(self) -> None:
         self._save()
+        self.ledger.save()

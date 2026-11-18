@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.70
+
+- Add long-lived relationship and group attitudes to the emotion DLC. Repeated direct insults can bottom out a relationship; apologies no longer restore it automatically. Group conflict raises withdrawal and suppresses proactive speech, without auto-leaving the group.
+
 ## 2.0.69
 
 - Observe emotion on every incoming turn, including private chat and direct @ messages, not only unaddressed group messages.
