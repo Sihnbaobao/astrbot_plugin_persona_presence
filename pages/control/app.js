@@ -766,6 +766,7 @@ const VIEW_TITLES = {
   network: "记忆网络",
   curiosity: "好奇心",
   images: "图片库",
+  emotion: "情绪",
   proactive: "主动发言",
   prompt: "提示词",
 };
@@ -787,6 +788,7 @@ function showView(name) {
   if (name === "network") drawNetwork();
   if (name === "curiosity") loadCuriosity();
   if (name === "images") loadImages(IMAGES.query);
+  if (name === "emotion") loadEmotion();
   if (name === "proactive") loadProactive();
 }
 
@@ -925,6 +927,142 @@ document.addEventListener("click", (e) => {
   const item = e.target.closest && e.target.closest(".nav-item");
   if (item) showView(item.dataset.view);
 });
+
+/* ============ 情绪可视化 ============ */
+const EMOTION_META = {
+  joy: { label: "喜", color: "#d9a441" },
+  anger: { label: "怒", color: "#d45a4a" },
+  sadness: { label: "哀", color: "#5b7fc7" },
+  fear: { label: "惧", color: "#8a6bbf" },
+  disgust: { label: "厌", color: "#7d8b45" },
+  surprise: { label: "惊", color: "#3fa7a0" },
+};
+
+function emotionPct(value, signed) {
+  const v = Number(value) || 0;
+  const pct = signed ? (v + 1) / 2 : v;
+  return Math.max(0, Math.min(100, Math.round(pct * 100)));
+}
+
+function emotionBar(label, value, color, signed) {
+  return '<div class="emotion-bar-row">' +
+    '<span class="emotion-bar-label">' + esc(label) + '</span>' +
+    '<span class="emotion-bar-track"><i class="emotion-bar-fill" style="width:' +
+      emotionPct(value, signed) + '%;background:' + color + '"></i></span>' +
+    '<b class="emotion-bar-value">' + (Number(value) || 0).toFixed(2) + '</b>' +
+  '</div>';
+}
+
+function shortChat(umo) {
+  const text = String(umo || "");
+  const parts = text.split(":");
+  return parts.length > 1 ? parts[parts.length - 1] : text;
+}
+
+async function loadEmotion() {
+  const note = document.getElementById("emotionNote");
+  try {
+    const res = await api.get("emotion");
+    const data = res && res.data !== undefined ? res.data : res;
+    state.emotion = data || {};
+    renderEmotion();
+    if (note) note.textContent = "更新于 " + new Date().toLocaleTimeString();
+  } catch (err) {
+    if (note) note.textContent = "读取失败：" + (err.message || err);
+    toast("情绪数据读取失败", "err");
+  }
+}
+
+function renderEmotion() {
+  const data = state.emotion || {};
+  const moods = data.moods || [];
+  const relations = data.relations || [];
+  const groups = data.groups || [];
+  const statsHost = document.getElementById("emotionStats");
+  const stat = (icon, label, value, note) =>
+    '<div class="stat"><div class="stat-head"><span class="stat-icon">' + icon +
+    '</span><span class="stat-label">' + label + '</span></div>' +
+    '<div class="stat-value">' + value + '</div><div class="stat-note">' + note + '</div></div>';
+  if (statsHost) {
+    statsHost.innerHTML = [
+      stat("☺", "此刻", moods.length, "正在影响语气的状态"),
+      stat("♡", "关系", relations.length, "对具体人的长期态度"),
+      stat("▣", "群", groups.length, "对群聊的舒适与退缩"),
+    ].join("");
+  }
+  const moodCount = document.getElementById("emotionMoodCount");
+  const relationCount = document.getElementById("emotionRelationCount");
+  const groupCount = document.getElementById("emotionGroupCount");
+  if (moodCount) moodCount.textContent = String(moods.length);
+  if (relationCount) relationCount.textContent = String(relations.length);
+  if (groupCount) groupCount.textContent = String(groups.length);
+
+  const moodHost = document.getElementById("emotionMoods");
+  if (moodHost) {
+    if (!data.enabled) {
+      moodHost.innerHTML = '<div class="emotion-empty">情绪资料片未启用；在「资料片」里装载后，这里会显示她的心情。</div>';
+    } else if (!moods.length) {
+      moodHost.innerHTML = '<div class="emotion-empty">还没有足够强的情绪。普通群聊不会随便改变她的状态。</div>';
+    } else {
+      moodHost.innerHTML = moods.map((mood) => {
+        const bars = Object.keys(EMOTION_META).map((key) => {
+          const meta = EMOTION_META[key];
+          return emotionBar(meta.label, (mood.base || {})[key] || 0, meta.color, false);
+        }).join("");
+        return '<div class="emotion-card">' +
+          '<div class="emotion-card-top"><strong>' + esc(mood.label || "复杂") + '</strong>' +
+          '<span class="pill on">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
+          '<div class="emotion-sub">' + esc(shortChat(mood.umo)) + ' · ' + esc(mood.user_id) + '</div>' +
+          '<div class="emotion-bars">' + bars + '</div>' +
+          (mood.cause ? '<div class="emotion-cause">' + esc(mood.cause) + '</div>' : '') +
+        '</div>';
+      }).join("");
+    }
+  }
+
+  const relationHost = document.getElementById("emotionRelations");
+  if (relationHost) {
+    if (!relations.length) {
+      relationHost.innerHTML = '<div class="emotion-empty">还没有长期关系记录。</div>';
+    } else {
+      relationHost.innerHTML = relations.map((rel) => {
+        const badge = rel.bottomed_out
+          ? '<span class="pill need">已到底线</span>'
+          : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 积怨</span>';
+        return '<div class="emotion-card">' +
+          '<div class="emotion-card-top"><strong>' + esc(shortChat(rel.umo)) + '</strong>' + badge + '</div>' +
+          '<div class="emotion-sub">用户 ' + esc(rel.user_id) + '</div>' +
+          '<div class="emotion-bars">' +
+            emotionBar("亲近", rel.warmth, "#3fa7a0", true) +
+            emotionBar("信任", rel.trust, "#5b7fc7", false) +
+            emotionBar("积怨", rel.resentment, "#d45a4a", false) +
+          '</div>' +
+          (rel.cause ? '<div class="emotion-cause">' + esc(rel.cause) + '</div>' : '') +
+        '</div>';
+      }).join("");
+    }
+  }
+
+  const groupHost = document.getElementById("emotionGroups");
+  if (groupHost) {
+    if (!groups.length) {
+      groupHost.innerHTML = '<div class="emotion-empty">还没有群态度记录。</div>';
+    } else {
+      groupHost.innerHTML = groups.map((group) => {
+        return '<div class="emotion-card">' +
+          '<div class="emotion-card-top"><strong>' + esc(group.group_id) + '</strong>' +
+          '<span class="pill' + (group.withdrawal >= 0.7 ? " need" : "") + '">' +
+            (group.withdrawal >= 0.7 ? "不想开口" : "还在群里") + '</span></div>' +
+          '<div class="emotion-bars">' +
+            emotionBar("舒适", group.comfort, "#3fa7a0", true) +
+            emotionBar("退缩", group.withdrawal, "#d45a4a", false) +
+          '</div>' +
+          (group.cause ? '<div class="emotion-cause">' + esc(group.cause) + '</div>' : '') +
+        '</div>';
+      }).join("");
+    }
+  }
+}
 
 /* ============ 入口渲染 ============ */
 function renderHeader() {
@@ -1726,6 +1864,8 @@ async function init() {
       if (event.key === "Enter") loadImages(imageSearch.value, true);
     });
   }
+  const emotionRefresh = document.getElementById("emotionRefresh");
+  if (emotionRefresh) emotionRefresh.addEventListener("click", loadEmotion);
   const imageRefreshBtn = document.getElementById("imageRefreshBtn");
   if (imageRefreshBtn) imageRefreshBtn.addEventListener("click", () => loadImages(IMAGES.query));
 
@@ -1753,14 +1893,17 @@ async function init() {
   loadNotebook();
   loadCuriosity();
   loadProactive();
+  loadEmotion();
   renderPrompts();
 
   setInterval(() => {
     if (document.hidden) return;
     const curiosityView = document.getElementById("view-curiosity");
     const proactiveView = document.getElementById("view-proactive");
+    const emotionView = document.getElementById("view-emotion");
     if (curiosityView && curiosityView.classList.contains("is-active")) loadCuriosity();
     if (proactiveView && proactiveView.classList.contains("is-active")) loadProactive();
+    if (emotionView && emotionView.classList.contains("is-active")) loadEmotion();
   }, 30000);
 }
 

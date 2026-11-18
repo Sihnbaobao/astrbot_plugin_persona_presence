@@ -171,3 +171,15 @@ def test_ambiguous_message_uses_semantic_appraisal(tmp_path):
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["anger"] > 0.1
     assert "对方觉得她在装" in mood.cause
+
+def test_snapshot_is_json_serialisable(tmp_path):
+    import json
+
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("你真是傻，闭嘴")
+    asyncio.run(pack.on_event(_ctx(event)))
+    payload = pack.snapshot()
+    assert payload["counts"]["moods"] == 1
+    assert payload["counts"]["relations"] == 1
+    assert isinstance(json.dumps(payload, ensure_ascii=False), str)

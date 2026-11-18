@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.74
+
+- Add an emotion visualization view to the plugin control page: current six-primary moods, long-lived attitudes toward users, and group comfort/withdrawal, with bars and cause text.
+
 ## 2.0.73
 
 - Show the emotion DLC in the plugin control page: its card in the DLC grid, overview count, group summary, and config tab. Bump the static app cache so the page picks it up after reload.

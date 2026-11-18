@@ -512,6 +512,75 @@ class EmotionModule(PluginModule):
         self._save()
         logger.debug(f"[情绪] 语义评估: {intent} {intensity:.2f}")
 
+    def snapshot(self) -> dict[str, Any]:
+        """Return a read-only view of current moods, relations and groups.
+
+        Returns:
+            A JSON-serialisable snapshot for the control page.
+        """
+        now = time.time()
+        moods: list[dict[str, Any]] = []
+        for umo, users in self.chats.items():
+            for user_id, mood in users.items():
+                self._decay(mood, now)
+                top = sorted(
+                    mood.base.items(), key=lambda item: item[1], reverse=True
+                )
+                strong = [(name, value) for name, value in top if value >= 0.12]
+                if not strong:
+                    continue
+                moods.append(
+                    {
+                        "umo": umo,
+                        "user_id": user_id,
+                        "base": {
+                            name: round(mood.base.get(name, 0.0), 3)
+                            for name in _BASE_EMOTIONS
+                        },
+                        "label": self._label(strong),
+                        "cause": mood.cause,
+                        "intensity": round(strong[0][1], 3),
+                        "updated_at": mood.updated_at,
+                    }
+                )
+        moods.sort(key=lambda item: item["intensity"], reverse=True)
+        relations: list[dict[str, Any]] = []
+        for umo, users in self.ledger.relations.items():
+            for user_id, rel in users.items():
+                relations.append(
+                    {
+                        "umo": umo,
+                        "user_id": user_id,
+                        "warmth": round(rel.warmth, 3),
+                        "trust": round(rel.trust, 3),
+                        "resentment": round(rel.resentment, 3),
+                        "bottomed_out": rel.bottomed_out,
+                        "cause": rel.cause,
+                        "updated_at": rel.updated_at,
+                    }
+                )
+        groups: list[dict[str, Any]] = []
+        for group_id, group in self.ledger.groups.items():
+            groups.append(
+                {
+                    "group_id": group_id,
+                    "comfort": round(group.comfort, 3),
+                    "withdrawal": round(group.withdrawal, 3),
+                    "cause": group.cause,
+                    "updated_at": group.updated_at,
+                }
+            )
+        return {
+            "moods": moods,
+            "relations": relations,
+            "groups": groups,
+            "counts": {
+                "moods": len(moods),
+                "relations": len(relations),
+                "groups": len(groups),
+            },
+        }
+
     def block_for(self, event: Any, is_private: bool) -> str:
         try:
             umo = str(event.unified_msg_origin)

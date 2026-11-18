@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>Persona Presence · 控制台</title>
-  <link rel="stylesheet" href="./style.css?v=42" />
+  <link rel="stylesheet" href="./style.css?v=43" />
 </head>
 <body>
   <div class="app-shell">
@@ -30,6 +30,9 @@
         <p class="nav-label">能力</p>
         <button class="nav-item" data-view="dlc">
           <span class="nav-icon">❖</span><span>资料片</span>
+        </button>
+        <button class="nav-item" data-view="emotion">
+          <span class="nav-icon">☺</span><span>情绪</span>
         </button>
         <button class="nav-item" data-view="network">
           <span class="nav-icon">◎</span><span>记忆网络</span>
@@ -84,6 +87,30 @@
             <p>每一套是独立能力。关掉之后，本体的私聊群聊回复照常运行。</p>
           </div>
           <div class="dlc-grid" id="dlcGrid"></div>
+        </section>
+
+        <section class="view" id="view-emotion">
+          <div class="view-head">
+            <h1>情绪</h1>
+            <p>此刻的心情，以及她对某个人、某个群留下来的长期态度。</p>
+          </div>
+          <div class="stat-grid" id="emotionStats"></div>
+          <div class="emotion-toolbar">
+            <span class="emotion-note" id="emotionNote">正在读取…</span>
+            <button class="btn" id="emotionRefresh">刷新</button>
+          </div>
+          <div class="emotion-section">
+            <div class="emotion-section-head"><h3>此刻</h3><span class="pill" id="emotionMoodCount">0</span></div>
+            <div class="emotion-grid" id="emotionMoods"></div>
+          </div>
+          <div class="emotion-section">
+            <div class="emotion-section-head"><h3>对具体的人</h3><span class="pill" id="emotionRelationCount">0</span></div>
+            <div class="emotion-grid" id="emotionRelations"></div>
+          </div>
+          <div class="emotion-section">
+            <div class="emotion-section-head"><h3>对群的态度</h3><span class="pill" id="emotionGroupCount">0</span></div>
+            <div class="emotion-grid" id="emotionGroups"></div>
+          </div>
         </section>
 
         <section class="view" id="view-config">
@@ -237,6 +264,6 @@
 
   <div id="tipBox"></div>
   <div id="toast"></div>
-  <script src="./app.js?v=42"></script>
+  <script src="./app.js?v=43"></script>
 </body>
 </html>

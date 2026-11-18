@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.73"
+PLUGIN_VERSION = "2.0.74"
 
 
 @register(
@@ -3163,6 +3163,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "插件运行状态总览",
             )
             self.context.register_web_api(
+                f"/{self._PLUGIN_NAME}/emotion",
+                self._api_emotion,
+                ["GET"],
+                "情绪、关系与群态度快照",
+            )
+            self.context.register_web_api(
                 f"/{self._PLUGIN_NAME}/config/save",
                 self._api_save_config,
                 ["POST"],
@@ -3306,6 +3312,25 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "runtime": runtime,
             }
         )
+
+    async def _api_emotion(self):
+        """Return current emotion and relationship state for the control page."""
+        from astrbot.api.web import json_response
+
+        module = getattr(self, "emotion_module", None)
+        if module is None:
+            return json_response(
+                {
+                    "enabled": False,
+                    "moods": [],
+                    "relations": [],
+                    "groups": [],
+                    "counts": {"moods": 0, "relations": 0, "groups": 0},
+                }
+            )
+        payload = module.snapshot()
+        payload["enabled"] = True
+        return json_response(payload)
 
     async def _api_jargon_run(self):
         """手动跑一次黑话挖掘，只用于验证效果。"""
