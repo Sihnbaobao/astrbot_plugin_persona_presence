@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.68
+
+- Add the emotion DLC. It keeps a six-primary emotional vector per sender per conversation, appraises only direct messages, decays over time, and injects a short `[此刻]` inner-state note with the cause. The note carries no instruction about how to perform the emotion.
+
 ## 2.0.67
 
 - Strip inline `&& meme:... &&` (and unclosed variants) from outgoing replies; this custom markup was never a real tool call and must not reach the chat.

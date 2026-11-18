@@ -780,6 +780,30 @@
       }
     }
   },
+  "dlc_emotion": {
+    "description": "🎭 资料片 · 情绪",
+    "type": "object",
+    "items": {
+      "enable_emotion": {
+        "description": "启用情绪",
+        "type": "bool",
+        "default": false,
+        "hint": "记录喜、怒、哀、惧、厌、惊及其混合状态；只在对她说话时变化，并随时间衰减。关闭后不读取情绪文件。"
+      },
+      "emotion_sensitivity": {
+        "description": "情绪敏感度",
+        "type": "float",
+        "default": 0.6,
+        "hint": "事件对情绪的推动幅度，0.1–2.0。越高越容易被一句话带动。"
+      },
+      "emotion_decay_minutes": {
+        "description": "情绪衰减基准（分钟）",
+        "type": "int",
+        "default": 45,
+        "hint": "没有新事件时，情绪回落到平静的基准半衰期；不同情绪另有更细的衰减。"
+      }
+    }
+  },
   "dlc_proactive": {
     "description": "🎭 资料片 · 主动发言",
     "type": "object",

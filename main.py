@@ -94,6 +94,7 @@ from .utils.message_cache_manager import MessageCacheManager
 from .utils.modules.base import FeatureContext, Proposal
 from .utils.modules.curiosity import CuriosityModule
 from .utils.modules.curiosity_store import CuriosityStore
+from .utils.modules.emotion import EmotionModule
 from .utils.modules.image_archive import (
     ImageArchive,
     send_block_reason,
@@ -103,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.67"
+PLUGIN_VERSION = "2.0.68"
 
 
 @register(
@@ -1127,12 +1128,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             logger.warning(f"[真实状态] 初始化失败: {exc}")
 
     def _apply_dlc_config(self) -> None:
-        """（重新）按当前配置构建三个资料片对象。
+        """（重新）按当前配置构建四个资料片对象。
 
         页面上的开关保存后会调用这里，保证内存里的对象和配置一致。
         """
         self._build_notebook()
         self._build_curiosity()
+        self._build_emotion()
         self._build_proactive()
 
     def _cleanup_old_temp_images(self) -> None:
@@ -2313,6 +2315,26 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             lines.append(f"{entry.text}：{entry.summary[:120]}")
         return lines[:3]
 
+    def _build_emotion(self) -> None:
+        """构建情绪资料片；关闭时不创建对象，也不读取状态文件。"""
+        self.emotion_module = None
+        if not self._cfg_bool("enable_emotion", False):
+            return
+        try:
+            self.emotion_module = EmotionModule(
+                self.plugin_data_dir,
+                sensitivity=self._cfg_float(
+                    "emotion_sensitivity", 0.6, minimum=0.1, maximum=2.0
+                ),
+                decay_minutes=self._cfg_int(
+                    "emotion_decay_minutes", 45, minimum=5, maximum=360
+                ),
+            )
+            logger.info("[情绪] 已启用")
+        except Exception as exc:
+            self.emotion_module = None
+            logger.warning(f"[情绪] 初始化失败: {exc}")
+
     def _build_proactive(self) -> None:
         """构建主动发言。"""
         # ========== 资料片：主动发言 ==========
@@ -2530,12 +2552,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             is_private: Whether the event is a private conversation.
             raw_chat_id: Platform chat identifier.
         """
-        module = getattr(self, "proactive_module", None)
-        if module is None or is_private:
+        modules = [
+            getattr(self, "proactive_module", None),
+            getattr(self, "emotion_module", None),
+        ]
+        if not any(modules):
             return
         try:
             ctx = await self._build_feature_context(event, is_private, raw_chat_id)
-            await module.on_event(ctx)
+            for module in modules:
+                if module is not None:
+                    await module.on_event(ctx)
         except Exception as exc:
             logger.debug(f"[Feature] Observation failed: {exc}")
 
@@ -7510,6 +7537,16 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     blocks.append(notebook_block)
         except Exception as e:
             logger.warning(f"[记忆本] 注入失败: {e}")
+
+        # 情绪：只描述此刻的状态和原因，不规定她应该怎么表现。
+        try:
+            emotion = getattr(self, "emotion_module", None)
+            if emotion is not None:
+                emotion_block = emotion.block_for(event, is_private)
+                if emotion_block:
+                    blocks.append(emotion_block)
+        except Exception as e:
+            logger.warning(f"[情绪] 注入失败: {e}")
 
         # 好奇心知识：独立于记忆网络，只在当前消息相关时作背景。
         try:
