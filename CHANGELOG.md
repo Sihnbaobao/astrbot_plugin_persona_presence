@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.83
+
+- Do not let the lazy image-question override fire when the current message mentions someone else and does not mention the bot. A message like “@小略3 你不是要看图吗” is not a request for the bot to inspect an image.
+
 ## 2.0.82
 
 - Normalize the emotion radar to the current mood composition, so the filled shape reflects shares rather than tiny absolute intensities. The separate intensity figure still shows the dominant emotion's absolute strength.

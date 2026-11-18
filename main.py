@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.82"
+PLUGIN_VERSION = "2.0.83"
 
 
 @register(
@@ -6087,6 +6087,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             image_question_requested = bool(
                 self.image_read_mode == "lazy"
                 and merged_image_urls
+                and not (
+                    not is_private
+                    and isinstance(mention_info, dict)
+                    and mention_info.get("has_at_others")
+                    and not mention_info.get("has_at_ai")
+                    and not is_reply_to_bot
+                )
                 and re.search(
                     r"(?:这张?(?:图|图片|照片)|这幅图|图里|图中|画面|图像|图片|照片|截图).{0,12}"
                     r"(?:怎么样|如何|什么|啥|好看|内容|意思|说明|描述|评价|识别|看得出|看出来)"
