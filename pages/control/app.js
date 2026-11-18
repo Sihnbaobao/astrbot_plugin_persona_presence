@@ -944,13 +944,23 @@ function emotionPct(value, signed) {
   return Math.max(0, Math.min(100, Math.round(pct * 100)));
 }
 
-function emotionBar(label, value, color, signed) {
+function emotionBar(label, value, color, signed, asPercent) {
+  const numeric = Number(value) || 0;
   return '<div class="emotion-bar-row">' +
     '<span class="emotion-bar-label">' + esc(label) + '</span>' +
     '<span class="emotion-bar-track"><i class="emotion-bar-fill" style="width:' +
       emotionPct(value, signed) + '%;background:' + color + '"></i></span>' +
-    '<b class="emotion-bar-value">' + (Number(value) || 0).toFixed(2) + '</b>' +
+    '<b class="emotion-bar-value">' + (asPercent ? Math.round(numeric * 100) + '%' : numeric.toFixed(2)) + '</b>' +
   '</div>';
+}
+
+function _emotionShares(base) {
+  const keys = Object.keys(EMOTION_META);
+  const total = keys.reduce((sum, key) => sum + Math.max(0, Number((base || {})[key]) || 0), 0);
+  return keys.map((key) => {
+    const value = Math.max(0, Number((base || {})[key]) || 0);
+    return total > 0 ? value / total : 0;
+  });
 }
 
 function shortChat(umo) {
@@ -984,7 +994,7 @@ function _radarPolygon(radius) {
 
 function emotionRadar(base) {
   const keys = Object.keys(EMOTION_META);
-  const values = keys.map((key) => Math.max(0, Math.min(1, Number((base || {})[key]) || 0)));
+  const values = _emotionShares(base);
   const rings = [0.25, 0.5, 0.75, 1].map((level) =>
     '<polygon points="' + _radarPolygon(32 * level) + '" fill="none" stroke="currentColor" stroke-opacity="' + (level === 1 ? "0.22" : "0.1") + '" stroke-width="0.5"/>'
   ).join("");
@@ -1002,7 +1012,7 @@ function emotionRadar(base) {
     const meta = EMOTION_META[key];
     return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + Math.round(values[i] * 100) + '%</text>';
   }).join("");
-  return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪雷达图">' +
+  return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪构成雷达图">' +
     rings + axes + '<polygon points="' + points + '" style="fill:var(--mood-color, var(--accent));fill-opacity:.34;stroke:var(--mood-color, var(--accent));stroke-width:2"/>' +
     dots + labels + '</svg>';
 }
@@ -1019,21 +1029,21 @@ function _emotionAccent(base) {
 }
 
 function _emotionChips(base) {
-  return Object.keys(EMOTION_META).map((key) => {
+  const shares = _emotionShares(base);
+  return Object.keys(EMOTION_META).map((key, index) => {
     const meta = EMOTION_META[key];
-    const value = Number((base || {})[key]) || 0;
     return '<span class="emotion-chip"><i style="background:' + meta.color + '"></i>' +
-      '<span>' + meta.label + '</span><b>' + value.toFixed(2) + '</b></span>';
+      '<span>' + meta.label + '</span><b>' + Math.round(shares[index] * 100) + '%</b></span>';
   }).join("");
 }
 
 function _emotionComposition(base) {
   const keys = Object.keys(EMOTION_META);
-  const total = keys.reduce((sum, key) => sum + Math.max(0, Number((base || {})[key]) || 0), 0);
-  if (total <= 0) return "";
-  const segments = keys.map((key) => {
-    const value = Math.max(0, Number((base || {})[key]) || 0);
-    const pct = (value / total) * 100;
+  const shares = _emotionShares(base);
+  if (!shares.some((value) => value > 0)) return "";
+  const segments = shares.map((value, index) => {
+    const key = keys[index];
+    const pct = value * 100;
     if (pct < 0.8) return "";
     return '<span style="width:' + pct + '%;background:' + EMOTION_META[key].color + '" title="' + EMOTION_META[key].label + ' ' + Math.round(pct) + '%"></span>';
   }).join("");
@@ -1041,8 +1051,9 @@ function _emotionComposition(base) {
 }
 
 function _topComponents(base) {
+  const shares = _emotionShares(base);
   return Object.keys(EMOTION_META)
-    .map((key) => ({ key: key, value: Math.max(0, Number((base || {})[key]) || 0) }))
+    .map((key, index) => ({ key: key, value: shares[index] }))
     .filter((item) => item.value > 0.01)
     .sort((a, b) => b.value - a.value)
     .slice(0, 2)
@@ -1094,7 +1105,7 @@ function _emotionHero(moods, enabled) {
     '</div>' +
     '<div class="emotion-hero-radar">' + emotionRadar(base) + '</div>' +
     '<div class="emotion-hero-side"><div class="emotion-chips">' + _emotionChips(base) + '</div>' +
-      '<div class="emotion-radar-caption">轴上的数字是这一项的强度（0–100），面积越大越强。</div>' +
+      '<div class="emotion-radar-caption">六轴按当前情绪总量归一化，标签是占比；右侧单独显示主导强度。</div>' +
       '<div class="emotion-hero-intensity"><div class="emotion-intensity-label"><span>强度</span><strong>' + intensity + '%</strong></div>' +
         '<div class="emotion-intensity-track"><i style="width:' + intensity + '%;background:' + accent + '"></i></div></div>' +
     '</div>' +
@@ -1122,7 +1133,7 @@ function _moodCard(mood) {
     '<div class="emotion-mood-main"><div class="emotion-card-top"><strong>' + esc(mood.label || "复杂") + '</strong>' +
       '<span class="emotion-score">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
       '<div class="emotion-sub">' + esc(who) + ' · ' + esc(shortChat(mood.umo)) + '</div>' +
-      '<div class="emotion-bars emotion-bars-compact">' + Object.keys(EMOTION_META).map((key) => emotionBar(EMOTION_META[key].label, base[key] || 0, EMOTION_META[key].color, false)).join("") + '</div>' +
+      '<div class="emotion-bars emotion-bars-compact">' + Object.keys(EMOTION_META).map((key, index) => emotionBar(EMOTION_META[key].label, _emotionShares(base)[index], EMOTION_META[key].color, false, true)).join("") + '</div>' +
       (mood.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">触发</span>' + esc(mood.cause) + '</div>' : '') +
     '</div></article>';
 }

@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.82
+
+- Normalize the emotion radar to the current mood composition, so the filled shape reflects shares rather than tiny absolute intensities. The separate intensity figure still shows the dominant emotion's absolute strength.
+
 ## 2.0.81
 
 - Backfill missing display names for older emotion records from the local image archive, so user ids become readable names on the dashboard.
