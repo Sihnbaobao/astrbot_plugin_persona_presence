@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.68"
+PLUGIN_VERSION = "2.0.69"
 
 
 @register(
@@ -2552,17 +2552,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             is_private: Whether the event is a private conversation.
             raw_chat_id: Platform chat identifier.
         """
-        modules = [
-            getattr(self, "proactive_module", None),
-            getattr(self, "emotion_module", None),
-        ]
-        if not any(modules):
+        module = getattr(self, "proactive_module", None)
+        if module is None or is_private:
             return
         try:
             ctx = await self._build_feature_context(event, is_private, raw_chat_id)
-            for module in modules:
-                if module is not None:
-                    await module.on_event(ctx)
+            await module.on_event(ctx)
         except Exception as exc:
             logger.debug(f"[Feature] Observation failed: {exc}")
 
@@ -5015,6 +5010,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         # 资料片：好奇心不区分有没有被叫到，看到不懂的词就记下来。
         if not is_private:
             self._schedule_curiosity(event)
+
+        # 情绪需要看到所有对她说的话，既包括私聊和 @，也包括未被叫到的群聊。
+        try:
+            emotion = getattr(self, "emotion_module", None)
+            if emotion is not None:
+                emotion_ctx = await self._build_feature_context(
+                    event, is_private, raw_chat_id
+                )
+                await emotion.on_event(emotion_ctx)
+        except Exception as exc:
+            logger.debug(f"[情绪] 观察失败: {exc}")
 
         # DLC observation only: the proposal itself is offered after the base
         # decides to stay silent, so it can never race a formal reply.

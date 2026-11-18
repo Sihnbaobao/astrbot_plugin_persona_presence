@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.69
+
+- Observe emotion on every incoming turn, including private chat and direct @ messages, not only unaddressed group messages.
+
 ## 2.0.68
 
 - Add the emotion DLC. It keeps a six-primary emotional vector per sender per conversation, appraises only direct messages, decays over time, and injects a short `[此刻]` inner-state note with the cause. The note carries no instruction about how to perform the emotion.
