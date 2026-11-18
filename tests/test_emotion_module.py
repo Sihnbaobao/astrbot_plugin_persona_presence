@@ -236,3 +236,27 @@ def test_group_praise_can_be_reappraised_as_teasing(tmp_path):
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] < 0.1
     assert "逗AI" in mood.cause
+
+def test_praise_from_disliked_person_does_not_raise_joy(tmp_path):
+    import types
+
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("你好可爱")
+    pack.ledger.relations[event.unified_msg_origin] = {
+        event.get_sender_id(): types.SimpleNamespace(
+            warmth=0.0,
+            trust=0.2,
+            resentment=0.8,
+            bottomed_out=False,
+            name="",
+            negative_events=5,
+            positive_events=0,
+            cause="",
+            updated_at=0.0,
+        )
+    }
+    asyncio.run(pack.on_event(_ctx(event)))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["joy"] < 0.1
+    assert mood.base["disgust"] > 0

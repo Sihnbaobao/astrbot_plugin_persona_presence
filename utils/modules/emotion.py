@@ -91,6 +91,8 @@ _APPRAISAL_PROMPT = """你是{name}。
 你心里：……活该。
 → 普通 0.2
 
+如果这个人平时已经让你不舒服，或者这句话像客套、捧杀，不要因为字面夸奖就开心。
+
 现在，把这一下的反应记成 JSON：
 {{"thought":"心里冒出的那句话，不超过20字","intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0}}
 """
@@ -378,7 +380,20 @@ class EmotionModule(PluginModule):
             cause = text
             changed = True
         elif praise:
-            self._add(mood, joy=0.20, anger=-0.05, sadness=-0.05)
+            relation = self.ledger.relations.get(umo, {}).get(user_id)
+            resentment = relation.resentment if relation is not None else 0.0
+            bottomed = bool(relation and relation.bottomed_out)
+            warmth = relation.warmth if relation is not None else 0.0
+            if bottomed or resentment >= 0.55:
+                # A compliment from someone who keeps making her uncomfortable
+                # reads as coaxing or mockery, not affection.
+                self._add(mood, joy=-0.04, anger=0.06, disgust=0.08)
+            elif resentment >= 0.30:
+                self._add(mood, joy=0.06, disgust=0.03)
+            elif warmth >= 0.35:
+                self._add(mood, joy=0.24, anger=-0.05, sadness=-0.05)
+            else:
+                self._add(mood, joy=0.20, anger=-0.05, sadness=-0.05)
             cause = text
             changed = True
         elif apology:
@@ -649,7 +664,23 @@ class EmotionModule(PluginModule):
         elif intent == "关心":
             self._add(mood, joy=0.14 * intensity, sadness=-0.08 * intensity)
         elif intent == "夸奖":
-            self._add(mood, joy=0.12 * intensity)
+            relation = self.ledger.relations.get(umo, {}).get(user_id)
+            resentment = relation.resentment if relation is not None else 0.0
+            bottomed = bool(relation and relation.bottomed_out)
+            warmth = relation.warmth if relation is not None else 0.0
+            if bottomed or resentment >= 0.55:
+                self._add(
+                    mood,
+                    joy=-0.06 * intensity,
+                    anger=0.05 * intensity,
+                    disgust=0.06 * intensity,
+                )
+            elif resentment >= 0.30:
+                self._add(mood, joy=0.04 * intensity)
+            elif warmth >= 0.35:
+                self._add(mood, joy=0.18 * intensity)
+            else:
+                self._add(mood, joy=0.12 * intensity)
         elif intent == "敷衍":
             self._add(mood, sadness=0.12 * intensity, disgust=0.06 * intensity)
         cause = payload.get("thought") or payload.get("cause") or text

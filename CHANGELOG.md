@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.91
+
+- Make praise relationship-aware. From someone with high resentment or a bottomed-out relationship, a compliment is treated as coaxing or mockery: no joy gain, a little anger/disgust. Mild resentment reduces the gain; warmth increases it. The same modifiers apply to semantic “夸奖” results.
+
 ## 2.0.90
 
 - Replace the “what is your first reaction” interview with a short inner-voice pattern: a few concrete examples of someone speaking to her, then her one-line thought and the tag. The model now records a “thought” and uses it as the cause, rather than producing an emotional report.
