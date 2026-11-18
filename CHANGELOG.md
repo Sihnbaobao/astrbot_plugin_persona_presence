@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.88
+
+- Make semantic emotion appraisal happen in the persona's own frame instead of as a neutral intent classifier. The appraiser now receives the persona prompt and the current relationship, and judges how the message lands on her.
+
 ## 2.0.87
 
 - Re-appraise group praise that might be teasing an AI. The semantic prompt now distinguishes sincere praise from “调侃” (testing/playing with the character); a teasing “夸奖” reverses the joy gain and adds a little irritation instead of being taken literally.

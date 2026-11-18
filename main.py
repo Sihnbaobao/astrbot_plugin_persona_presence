@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.87"
+PLUGIN_VERSION = "2.0.88"
 
 
 @register(
@@ -5060,7 +5060,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             emotion = getattr(self, "emotion_module", None)
             if emotion is not None:
                 emotion_ctx = await self._build_feature_context(
-                    event, is_private, raw_chat_id
+                    event, is_private, raw_chat_id, full=True
                 )
                 await emotion.on_event(emotion_ctx)
         except Exception as exc:
