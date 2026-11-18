@@ -973,23 +973,155 @@ async function loadEmotion() {
   }
 }
 
+function _radarPoint(radius, index) {
+  const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 6;
+  return [50 + Math.cos(angle) * radius, 50 + Math.sin(angle) * radius];
+}
+
+function _radarPolygon(radius) {
+  return Object.keys(EMOTION_META).map((_, i) => _radarPoint(radius, i).join(",")).join(" ");
+}
+
+function emotionRadar(base) {
+  const keys = Object.keys(EMOTION_META);
+  const values = keys.map((key) => Math.max(0, Math.min(1, Number((base || {})[key]) || 0)));
+  const rings = [0.25, 0.5, 0.75, 1].map((level) =>
+    '<polygon points="' + _radarPolygon(32 * level) + '" fill="none" stroke="currentColor" stroke-opacity="' + (level === 1 ? "0.22" : "0.1") + '" stroke-width="0.5"/>'
+  ).join("");
+  const axes = keys.map((_, i) => {
+    const p = _radarPoint(32, i);
+    return '<line x1="50" y1="50" x2="' + p[0] + '" y2="' + p[1] + '" stroke="currentColor" stroke-opacity="0.1" stroke-width="0.5"/>';
+  }).join("");
+  const points = values.map((value, i) => _radarPoint(32 * value, i).join(",")).join(" ");
+  const dots = values.map((value, i) => {
+    const p = _radarPoint(32 * value, i);
+    return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.2" fill="currentColor"/>';
+  }).join("");
+  const labels = keys.map((key, i) => {
+    const p = _radarPoint(43, i);
+    const meta = EMOTION_META[key];
+    return '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="4.4">' + meta.label + '</text>';
+  }).join("");
+  return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪雷达图">' +
+    rings + axes + '<polygon points="' + points + '" fill="var(--mood-color, var(--accent))" fill-opacity="0.18" stroke="var(--mood-color, var(--accent))" stroke-width="1.6"/>' +
+    dots + labels + '</svg>';
+}
+
+function _emotionAccent(base) {
+  const keys = Object.keys(EMOTION_META);
+  let top = keys[0];
+  let value = -1;
+  keys.forEach((key) => {
+    const current = Number((base || {})[key]) || 0;
+    if (current > value) { top = key; value = current; }
+  });
+  return EMOTION_META[top].color;
+}
+
+function _emotionChips(base) {
+  return Object.keys(EMOTION_META).map((key) => {
+    const meta = EMOTION_META[key];
+    const value = Number((base || {})[key]) || 0;
+    return '<span class="emotion-chip"><i style="background:' + meta.color + '"></i>' +
+      '<span>' + meta.label + '</span><b>' + value.toFixed(2) + '</b></span>';
+  }).join("");
+}
+
+function _formatEmotionTime(value) {
+  const date = new Date((Number(value) || 0) * 1000);
+  if (!value || Number.isNaN(date.getTime())) return "刚刚";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function _emotionHero(moods, enabled) {
+  const host = document.getElementById("emotionHero");
+  if (!host) return;
+  if (!enabled) {
+    host.innerHTML = '<div class="emotion-hero-empty"><span class="emotion-hero-mark">☺</span><div><strong>情绪未装载</strong><p>在「资料片」里打开情绪后，这里会显示她此刻的心情。</p></div></div>';
+    return;
+  }
+  if (!moods.length) {
+    host.innerHTML = '<div class="emotion-hero-empty"><span class="emotion-hero-mark">◌</span><div><strong>现在很平静</strong><p>没有足够强的情绪。普通群聊不会随便改变她的心情。</p></div></div>';
+    return;
+  }
+  const mood = moods[0];
+  const base = mood.base || {};
+  const accent = _emotionAccent(base);
+  host.innerHTML = '<div class="emotion-hero-inner" style="--mood-color:' + accent + '">' +
+    '<div class="emotion-hero-copy"><div class="emotion-eyebrow">此刻主导</div>' +
+      '<h2>' + esc(mood.label || "复杂") + '</h2>' +
+      '<p class="emotion-hero-cause">' + esc(mood.cause || "没有明确原因") + '</p>' +
+      '<div class="emotion-hero-meta">' + esc(shortChat(mood.umo)) + ' · ' + esc(mood.user_id) + ' · ' + _formatEmotionTime(mood.updated_at) + '</div>' +
+    '</div>' +
+    '<div class="emotion-hero-radar">' + emotionRadar(base) + '</div>' +
+    '<div class="emotion-hero-side"><div class="emotion-chips">' + _emotionChips(base) + '</div>' +
+      '<div class="emotion-hero-intensity"><span>强度</span><strong>' + Math.round((mood.intensity || 0) * 100) + '%</strong></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function _emotionKpis(moods, relations, groups) {
+  const host = document.getElementById("emotionStats");
+  if (!host) return;
+  const item = (label, value, note) =>
+    '<div class="emotion-kpi"><span>' + label + '</span><strong>' + value + '</strong><em>' + note + '</em></div>';
+  host.innerHTML = [
+    item("此刻", moods.length, "条心情正在生效"),
+    item("关系", relations.length, "个长期印象"),
+    item("群", groups.length, "个群有态度记录"),
+  ].join("");
+}
+
+function _moodCard(mood) {
+  const base = mood.base || {};
+  const accent = _emotionAccent(base);
+  return '<article class="emotion-mood-card" style="--mood-color:' + accent + '">' +
+    '<div class="emotion-mood-radar">' + emotionRadar(base) + '</div>' +
+    '<div class="emotion-mood-main"><div class="emotion-card-top"><strong>' + esc(mood.label || "复杂") + '</strong>' +
+      '<span class="emotion-score">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
+      '<div class="emotion-sub">' + esc(shortChat(mood.umo)) + ' · ' + esc(mood.user_id) + '</div>' +
+      '<div class="emotion-bars emotion-bars-compact">' + Object.keys(EMOTION_META).map((key) => emotionBar(EMOTION_META[key].label, base[key] || 0, EMOTION_META[key].color, false)).join("") + '</div>' +
+      (mood.cause ? '<div class="emotion-cause">' + esc(mood.cause) + '</div>' : '') +
+    '</div></article>';
+}
+
+function _relationCard(rel) {
+  const warmthPct = emotionPct(rel.warmth, true);
+  const ringColor = rel.bottomed_out ? "#d45a4a" : (rel.warmth >= 0 ? "#3fa7a0" : "#d45a4a");
+  const badge = rel.bottomed_out
+    ? '<span class="pill need">已到底线</span>'
+    : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 积怨</span>';
+  const avatar = String(rel.user_id || "?").slice(-1).toUpperCase();
+  return '<article class="emotion-person-card">' +
+    '<div class="emotion-person-head"><div class="emotion-avatar" style="--avatar-color:' + ringColor + '">' + esc(avatar) + '</div>' +
+      '<div class="emotion-person-title"><strong>' + esc(shortChat(rel.umo)) + '</strong><span>用户 ' + esc(rel.user_id) + '</span></div>' + badge + '</div>' +
+    '<div class="emotion-person-body"><div class="emotion-ring" style="--ring-value:' + warmthPct + '%;--ring-color:' + ringColor + '">' +
+      '<div class="emotion-ring-inner"><strong>' + warmthPct + '</strong><span>亲近</span></div></div>' +
+      '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("积怨", rel.resentment, "#d45a4a", false) + '</div></div>' +
+    (rel.cause ? '<div class="emotion-cause">' + esc(rel.cause) + '</div>' : '') + '</article>';
+}
+
+function _groupCard(group) {
+  const withdrawal = Math.round((group.withdrawal || 0) * 100);
+  const comfort = Math.round(((group.comfort || 0) + 1) / 2 * 100);
+  const bad = (group.withdrawal || 0) >= 0.7;
+  return '<article class="emotion-group-card">' +
+    '<div class="emotion-person-head"><div class="emotion-avatar" style="--avatar-color:' + (bad ? "#d45a4a" : "#3fa7a0") + '">群</div>' +
+      '<div class="emotion-person-title"><strong>' + esc(group.group_id) + '</strong><span>' + (bad ? "不想在这里开口" : "还愿意待着") + '</span></div>' +
+      '<span class="pill' + (bad ? " need" : "") + '">' + (bad ? "退缩 " + withdrawal + "%" : "稳定") + '</span></div>' +
+    '<div class="emotion-person-body"><div class="emotion-ring" style="--ring-value:' + withdrawal + '%;--ring-color:' + (bad ? "#d45a4a" : "#3fa7a0") + '">' +
+      '<div class="emotion-ring-inner"><strong>' + withdrawal + '</strong><span>退缩</span></div></div>' +
+      '<div class="emotion-bars">' + emotionBar("舒适", group.comfort, "#3fa7a0", true) + '</div></div>' +
+    (group.cause ? '<div class="emotion-cause">' + esc(group.cause) + '</div>' : '') + '</article>';
+}
+
 function renderEmotion() {
   const data = state.emotion || {};
   const moods = data.moods || [];
   const relations = data.relations || [];
   const groups = data.groups || [];
-  const statsHost = document.getElementById("emotionStats");
-  const stat = (icon, label, value, note) =>
-    '<div class="stat"><div class="stat-head"><span class="stat-icon">' + icon +
-    '</span><span class="stat-label">' + label + '</span></div>' +
-    '<div class="stat-value">' + value + '</div><div class="stat-note">' + note + '</div></div>';
-  if (statsHost) {
-    statsHost.innerHTML = [
-      stat("☺", "此刻", moods.length, "正在影响语气的状态"),
-      stat("♡", "关系", relations.length, "对具体人的长期态度"),
-      stat("▣", "群", groups.length, "对群聊的舒适与退缩"),
-    ].join("");
-  }
+  _emotionHero(moods, !!data.enabled);
+  _emotionKpis(moods, relations, groups);
   const moodCount = document.getElementById("emotionMoodCount");
   const relationCount = document.getElementById("emotionRelationCount");
   const groupCount = document.getElementById("emotionGroupCount");
@@ -1002,65 +1134,24 @@ function renderEmotion() {
     if (!data.enabled) {
       moodHost.innerHTML = '<div class="emotion-empty">情绪资料片未启用；在「资料片」里装载后，这里会显示她的心情。</div>';
     } else if (!moods.length) {
-      moodHost.innerHTML = '<div class="emotion-empty">还没有足够强的情绪。普通群聊不会随便改变她的状态。</div>';
+      moodHost.innerHTML = '<div class="emotion-empty">没有正在生效的情绪。</div>';
     } else {
-      moodHost.innerHTML = moods.map((mood) => {
-        const bars = Object.keys(EMOTION_META).map((key) => {
-          const meta = EMOTION_META[key];
-          return emotionBar(meta.label, (mood.base || {})[key] || 0, meta.color, false);
-        }).join("");
-        return '<div class="emotion-card">' +
-          '<div class="emotion-card-top"><strong>' + esc(mood.label || "复杂") + '</strong>' +
-          '<span class="pill on">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
-          '<div class="emotion-sub">' + esc(shortChat(mood.umo)) + ' · ' + esc(mood.user_id) + '</div>' +
-          '<div class="emotion-bars">' + bars + '</div>' +
-          (mood.cause ? '<div class="emotion-cause">' + esc(mood.cause) + '</div>' : '') +
-        '</div>';
-      }).join("");
+      moodHost.innerHTML = moods.map(_moodCard).join("");
     }
   }
 
   const relationHost = document.getElementById("emotionRelations");
   if (relationHost) {
-    if (!relations.length) {
-      relationHost.innerHTML = '<div class="emotion-empty">还没有长期关系记录。</div>';
-    } else {
-      relationHost.innerHTML = relations.map((rel) => {
-        const badge = rel.bottomed_out
-          ? '<span class="pill need">已到底线</span>'
-          : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 积怨</span>';
-        return '<div class="emotion-card">' +
-          '<div class="emotion-card-top"><strong>' + esc(shortChat(rel.umo)) + '</strong>' + badge + '</div>' +
-          '<div class="emotion-sub">用户 ' + esc(rel.user_id) + '</div>' +
-          '<div class="emotion-bars">' +
-            emotionBar("亲近", rel.warmth, "#3fa7a0", true) +
-            emotionBar("信任", rel.trust, "#5b7fc7", false) +
-            emotionBar("积怨", rel.resentment, "#d45a4a", false) +
-          '</div>' +
-          (rel.cause ? '<div class="emotion-cause">' + esc(rel.cause) + '</div>' : '') +
-        '</div>';
-      }).join("");
-    }
+    relationHost.innerHTML = relations.length
+      ? relations.map(_relationCard).join("")
+      : '<div class="emotion-empty">还没有长期关系记录。关系不会因为一次普通聊天就改变。</div>';
   }
 
   const groupHost = document.getElementById("emotionGroups");
   if (groupHost) {
-    if (!groups.length) {
-      groupHost.innerHTML = '<div class="emotion-empty">还没有群态度记录。</div>';
-    } else {
-      groupHost.innerHTML = groups.map((group) => {
-        return '<div class="emotion-card">' +
-          '<div class="emotion-card-top"><strong>' + esc(group.group_id) + '</strong>' +
-          '<span class="pill' + (group.withdrawal >= 0.7 ? " need" : "") + '">' +
-            (group.withdrawal >= 0.7 ? "不想开口" : "还在群里") + '</span></div>' +
-          '<div class="emotion-bars">' +
-            emotionBar("舒适", group.comfort, "#3fa7a0", true) +
-            emotionBar("退缩", group.withdrawal, "#d45a4a", false) +
-          '</div>' +
-          (group.cause ? '<div class="emotion-cause">' + esc(group.cause) + '</div>' : '') +
-        '</div>';
-      }).join("");
-    }
+    groupHost.innerHTML = groups.length
+      ? groups.map(_groupCard).join("")
+      : '<div class="emotion-empty">还没有群态度记录。</div>';
   }
 }
 

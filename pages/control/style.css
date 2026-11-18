@@ -1069,10 +1069,10 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  margin: var(--sp-5) 0 var(--sp-4);
+  margin: var(--sp-4) 0 var(--sp-5);
 }
 .emotion-note { color: var(--text-3); font-size: var(--fs-xs); }
-.emotion-section { margin-top: var(--sp-6); }
+.emotion-section { margin-top: var(--sp-7); }
 .emotion-section-head {
   display: flex;
   align-items: center;
@@ -1083,37 +1083,185 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   margin: 0;
   font-size: var(--fs-section);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.emotion-grid {
+
+/* 主视觉 */
+.emotion-hero {
+  margin-top: var(--sp-5);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(circle at 78% 45%, var(--mood-color, var(--accent)) 0%, transparent 34%),
+    var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.emotion-hero-inner {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: var(--sp-3);
+  grid-template-columns: minmax(0, 1fr) 220px minmax(220px, 280px);
+  align-items: center;
+  gap: var(--sp-5);
+  padding: clamp(20px, 3vw, 32px);
 }
-.emotion-card {
+.emotion-eyebrow {
+  color: var(--mood-color, var(--accent));
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.emotion-hero-copy h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.emotion-hero-cause {
+  max-width: 42em;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+}
+.emotion-hero-meta {
+  margin-top: var(--sp-4);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+.emotion-hero-radar { display: flex; justify-content: center; color: var(--mood-color, var(--accent)); }
+.emotion-radar-svg { width: 100%; max-width: 210px; height: auto; overflow: visible; }
+.emotion-hero-side { min-width: 0; }
+.emotion-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; }
+.emotion-chip {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+.emotion-chip i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; }
+.emotion-chip span { flex: 1; }
+.emotion-chip b { color: var(--text-3); font-family: var(--font-mono); font-size: 10px; font-weight: 500; }
+.emotion-hero-intensity {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.emotion-hero-intensity span { color: var(--text-3); font-size: var(--fs-xs); }
+.emotion-hero-intensity strong { color: var(--mood-color, var(--accent)); font-size: 22px; font-weight: 600; }
+.emotion-hero-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  color: var(--text-2);
+}
+.emotion-hero-mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-size: 24px;
+}
+.emotion-hero-empty strong { display: block; margin-bottom: 4px; font-size: var(--fs-section); }
+.emotion-hero-empty p { margin: 0; color: var(--text-3); font-size: var(--fs-sm); }
+
+/* KPI */
+.emotion-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); margin-top: var(--sp-4); }
+.emotion-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.emotion-kpi span { color: var(--text-3); font-size: var(--fs-xs); }
+.emotion-kpi strong { font-size: 20px; font-weight: 600; }
+.emotion-kpi em { margin-left: auto; color: var(--text-3); font-size: var(--fs-micro); font-style: normal; }
+
+/* 情绪卡片 */
+.emotion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--sp-3); }
+.emotion-mood-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: var(--sp-3);
-  min-height: 150px;
   padding: var(--sp-4);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
-.emotion-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-.emotion-card-top strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-section);
+.emotion-mood-radar { display: flex; align-items: center; justify-content: center; color: var(--mood-color, var(--accent)); }
+.emotion-mood-radar .emotion-radar-svg { max-width: 104px; }
+.emotion-mood-main { min-width: 0; }
+.emotion-score {
+  color: var(--mood-color, var(--accent));
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
   font-weight: 600;
 }
+.emotion-bars-compact .emotion-bar-track { height: 5px; }
+.emotion-bars-compact .emotion-bar-row { grid-template-columns: 24px minmax(0, 1fr) 34px; gap: 6px; }
+
+/* 人和群 */
+.emotion-person-card, .emotion-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.emotion-person-head { display: flex; align-items: center; gap: var(--sp-3); }
+.emotion-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--avatar-color) 14%, transparent);
+  color: var(--avatar-color);
+  font-size: 14px;
+  font-weight: 600;
+}
+.emotion-person-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.emotion-person-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
+.emotion-person-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); }
+.emotion-person-body { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: var(--sp-4); }
+.emotion-ring {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ring-color) var(--ring-value), var(--surface-sunken) 0);
+}
+.emotion-ring-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+.emotion-ring-inner strong { font-size: 16px; font-weight: 600; line-height: 1.1; }
+.emotion-ring-inner span { color: var(--text-3); font-size: 9px; }
 .emotion-sub {
   margin-top: -4px;
   color: var(--text-3);
@@ -1124,33 +1272,11 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   white-space: nowrap;
 }
 .emotion-bars { display: flex; flex-direction: column; gap: 7px; }
-.emotion-bar-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 42px;
-  align-items: center;
-  gap: 8px;
-}
+.emotion-bar-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 42px; align-items: center; gap: 8px; }
 .emotion-bar-label { color: var(--text-3); font-size: var(--fs-micro); }
-.emotion-bar-track {
-  height: 7px;
-  overflow: hidden;
-  border-radius: var(--r-pill);
-  background: var(--surface-sunken);
-}
-.emotion-bar-fill {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  border-radius: inherit;
-  transition: width var(--dur-base) var(--ease);
-}
-.emotion-bar-value {
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  text-align: right;
-}
+.emotion-bar-track { height: 7px; overflow: hidden; border-radius: var(--r-pill); background: var(--surface-sunken); }
+.emotion-bar-fill { display: block; height: 100%; min-width: 2px; border-radius: inherit; transition: width var(--dur-base) var(--ease); }
+.emotion-bar-value { color: var(--text-2); font-family: var(--font-mono); font-size: 10px; font-weight: 500; text-align: right; }
 .emotion-cause {
   margin-top: auto;
   padding-top: var(--sp-2);
@@ -1168,4 +1294,19 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   color: var(--text-3);
   font-size: var(--fs-sm);
   text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .emotion-hero-inner { grid-template-columns: minmax(0, 1fr) 180px; }
+  .emotion-hero-side { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-5); }
+  .emotion-hero-intensity { margin-top: 0; padding-top: 0; border-top: 0; gap: var(--sp-3); }
+}
+@media (max-width: 680px) {
+  .emotion-hero-inner { grid-template-columns: 1fr; text-align: left; }
+  .emotion-hero-radar { order: -1; }
+  .emotion-hero-radar .emotion-radar-svg { max-width: 170px; }
+  .emotion-hero-side { grid-column: auto; display: block; }
+  .emotion-kpis { grid-template-columns: 1fr; }
+  .emotion-grid { grid-template-columns: 1fr; }
+  .emotion-mood-card { grid-template-columns: 92px minmax(0, 1fr); }
 }

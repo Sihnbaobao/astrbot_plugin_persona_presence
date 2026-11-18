@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.75
+
+- Redesign the emotion view: dominant-mood hero with a six-axis radar, compact emotion chips and intensity, per-mood radar cards, relationship rings, and group withdrawal gauges.
+
 ## 2.0.74
 
 - Add an emotion visualization view to the plugin control page: current six-primary moods, long-lived attitudes toward users, and group comfort/withdrawal, with bars and cause text.

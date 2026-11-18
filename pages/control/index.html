@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>Persona Presence · 控制台</title>
-  <link rel="stylesheet" href="./style.css?v=43" />
+  <link rel="stylesheet" href="./style.css?v=44" />
 </head>
 <body>
   <div class="app-shell">
@@ -94,7 +94,8 @@
             <h1>情绪</h1>
             <p>此刻的心情，以及她对某个人、某个群留下来的长期态度。</p>
           </div>
-          <div class="stat-grid" id="emotionStats"></div>
+          <div id="emotionHero" class="emotion-hero"></div>
+          <div id="emotionStats" class="emotion-kpis"></div>
           <div class="emotion-toolbar">
             <span class="emotion-note" id="emotionNote">正在读取…</span>
             <button class="btn" id="emotionRefresh">刷新</button>
@@ -264,6 +265,6 @@
 
   <div id="tipBox"></div>
   <div id="toast"></div>
-  <script src="./app.js?v=43"></script>
+  <script src="./app.js?v=44"></script>
 </body>
 </html>
