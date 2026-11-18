@@ -1355,3 +1355,35 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   border-radius: var(--r-pill);
   background: var(--surface-muted);
 }
+
+/* 修正情绪主视觉的可读性：只保留很淡的情绪色，不用整块高饱和背景 */
+.emotion-hero {
+  background:
+    radial-gradient(circle at 82% 38%, color-mix(in srgb, var(--mood-color, var(--accent)) 14%, transparent) 0%, transparent 44%),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--mood-color, var(--accent)) 24%, var(--line));
+}
+.emotion-eyebrow { color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.emotion-eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mood-color, var(--accent));
+}
+.emotion-hero-intensity strong { color: var(--text); }
+.emotion-score { color: var(--text-2); }
+.emotion-radar-axis-label { font-size: 6px; font-weight: 600; }
+.emotion-mood-radar .emotion-radar-axis-label { display: none; }
+.emotion-cause-label {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.4;
+  vertical-align: 1px;
+}
+.emotion-hero-cause .emotion-cause-label { margin-right: 7px; }

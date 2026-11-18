@@ -1000,7 +1000,7 @@ function emotionRadar(base) {
   const labels = keys.map((key, i) => {
     const p = _radarPoint(43, i);
     const meta = EMOTION_META[key];
-    return '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="4.4">' + meta.label + '</text>';
+    return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="6">' + meta.label + '</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪雷达图">' +
     rings + axes + '<polygon points="' + points + '" fill="var(--mood-color, var(--accent))" fill-opacity="0.18" stroke="var(--mood-color, var(--accent))" stroke-width="1.6"/>' +
@@ -1087,7 +1087,7 @@ function _emotionHero(moods, enabled) {
   host.innerHTML = '<div class="emotion-hero-inner" style="--mood-color:' + accent + '">' +
     '<div class="emotion-hero-copy"><div class="emotion-eyebrow">此刻主导</div>' +
       '<h2>' + esc(mood.label || "复杂") + '</h2>' +
-      '<p class="emotion-hero-cause">' + esc(mood.cause || "没有明确原因") + '</p>' +
+      '<p class="emotion-hero-cause"><span class="emotion-cause-label">因为</span>' + esc(mood.cause || "没有明确原因") + '</p>' +
       '<div class="emotion-hero-meta">' + esc(who) + ' · ' + esc(shortChat(mood.umo)) + ' · ' + _formatEmotionTime(mood.updated_at) + '</div>' +
       '<div class="emotion-hero-topline">' + esc(top || "情绪成分不足") + '</div>' +
       _emotionComposition(base) +
@@ -1122,7 +1122,7 @@ function _moodCard(mood) {
       '<span class="emotion-score">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
       '<div class="emotion-sub">' + esc(who) + ' · ' + esc(shortChat(mood.umo)) + '</div>' +
       '<div class="emotion-bars emotion-bars-compact">' + Object.keys(EMOTION_META).map((key) => emotionBar(EMOTION_META[key].label, base[key] || 0, EMOTION_META[key].color, false)).join("") + '</div>' +
-      (mood.cause ? '<div class="emotion-cause">' + esc(mood.cause) + '</div>' : '') +
+      (mood.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">触发</span>' + esc(mood.cause) + '</div>' : '') +
     '</div></article>';
 }
 
@@ -1131,7 +1131,7 @@ function _relationCard(rel) {
   const ringColor = rel.bottomed_out ? "#d45a4a" : (rel.warmth >= 0 ? "#3fa7a0" : "#d45a4a");
   const badge = rel.bottomed_out
     ? '<span class="pill need">已到底线</span>'
-    : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 积怨</span>';
+    : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 不满</span>';
   const name = _displayPerson(rel);
   const avatar = String(name || "?").slice(0, 1).toUpperCase();
   return '<article class="emotion-person-card">' +
@@ -1139,9 +1139,9 @@ function _relationCard(rel) {
       '<div class="emotion-person-title"><strong>' + esc(name) + '</strong><span>' + esc(shortChat(rel.umo)) + ' · ID ' + esc(rel.user_id) + '</span></div>' + badge + '</div>' +
     '<div class="emotion-person-body"><div class="emotion-ring" style="--ring-value:' + warmthPct + '%;--ring-color:' + ringColor + '">' +
       '<div class="emotion-ring-inner"><strong>' + warmthPct + '</strong><span>亲近</span></div></div>' +
-      '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("积怨", rel.resentment, "#d45a4a", false) + '</div></div>' +
+      '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("不满", rel.resentment, "#d45a4a", false) + '</div></div>' +
     '<div class="emotion-facts"><span>不愉快 ' + (rel.negative_events || 0) + ' 次</span><span>正向 ' + (rel.positive_events || 0) + ' 次</span></div>' +
-    (rel.cause ? '<div class="emotion-cause">' + esc(rel.cause) + '</div>' : '') + '</article>';
+    (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(rel.cause) + '</div>' : '') + '</article>';
 }
 
 function _groupCard(group) {
@@ -1156,7 +1156,7 @@ function _groupCard(group) {
       '<div class="emotion-ring-inner"><strong>' + withdrawal + '</strong><span>退缩</span></div></div>' +
       '<div class="emotion-bars">' + emotionBar("舒适", group.comfort, "#3fa7a0", true) + '</div></div>' +
     '<div class="emotion-facts"><span>冲突 ' + (group.negative_events || 0) + ' 次</span><span>最后 ' + _formatEmotionTime(group.updated_at) + '</span></div>' +
-    (group.cause ? '<div class="emotion-cause">' + esc(group.cause) + '</div>' : '') + '</article>';
+    (group.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(group.cause) + '</div>' : '') + '</article>';
 }
 
 function renderEmotion() {

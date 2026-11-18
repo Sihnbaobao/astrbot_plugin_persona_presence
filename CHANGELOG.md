@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.78
+
+- Improve emotion dashboard readability: rename the relationship metric to “不满”, label cause text as “最近一次”, soften the hero tint, and enlarge radar axis labels (hidden on tiny cards where bars carry the labels).
+
 ## 2.0.77
 
 - Refine emotion visualization: explicit KPI labels, emotion composition bars, stronger hero details, person names instead of group ids as card titles, per-person negative/positive event counts, and per-group conflict counts.
