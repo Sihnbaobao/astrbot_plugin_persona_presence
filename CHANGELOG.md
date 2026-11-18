@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 2.0.93
+
+- 情绪资料片读取身体插件的 `vitals.json`，把饥饿、睡眠、疼痛、清洁折进六种基础情绪：紧张抬高恼/不安，负向底色抬高低落，身体负担压低开心，脏抬高嫌。
+- 情绪块前新增一行 `[身体]`；没有事件原因时，身体描述也可以成为情绪的原因。
+- 新增 `emotion_body_link` 开关（默认开）；身体插件不存在或文件缺失时静默跳过。
+
 ## 2.0.92
 
 - Stop showing the neutral relationship midpoint as “亲近 50”. Warmth is a −1..+1 scale, so 0 is neutral; the card now shows +0.00 / 中性 (or 疏远) with a −1 · 0 · +1 scale line.

@@ -70,9 +70,7 @@ _EMOTION_LABELS = {
     "surprise": "意外",
 }
 _STATE_VERSION = 1
-_APPRAISAL_CUES = re.compile(
-    r"你|是不是|装|随便|行|厉害|呵|6|哦|嗯|？|\?|凭什么|少来"
-)
+_APPRAISAL_CUES = re.compile(r"你|是不是|装|随便|行|厉害|呵|6|哦|嗯|？|\?|凭什么|少来")
 _APPRAISAL_PROMPT = """你是{name}。
 
 {persona_block}{relationship_block}
@@ -139,6 +137,8 @@ class EmotionModule(PluginModule):
         provider_id: str = "",
         appraisal_timeout: int = 8,
         appraisal_enabled: bool = True,
+        body_link: bool = True,
+        body_dir: "Path | str | None" = None,
     ) -> None:
         super().__init__(context)
         self.data_dir = Path(data_dir) if data_dir else None
@@ -150,6 +150,10 @@ class EmotionModule(PluginModule):
         self.appraisal_enabled = bool(appraisal_enabled)
         self._appraisal_tasks: set[asyncio.Task] = set()
         self._last_appraisal: dict[tuple[str, str], float] = {}
+        self.body_link = bool(body_link)
+        self.body_dir = Path(body_dir) if body_dir else None
+        self._persona_prompt = ""
+        self._body_cache: tuple[float, dict[str, Any]] = (0.0, {})
         self.chats: dict[str, dict[str, _Mood]] = {}
         self._last_seen: dict[tuple[str, str], tuple[str, float]] = {}
         self.ledger = RelationLedger(
@@ -438,6 +442,8 @@ class EmotionModule(PluginModule):
         return changed
 
     async def on_event(self, ctx: FeatureContext) -> None:
+        if ctx.persona:
+            self._persona_prompt = ctx.persona
         if not self._directed(ctx.event, ctx.is_private, ctx.persona):
             return
         user_id = self._sender_id(ctx.event) or "unknown"
@@ -461,14 +467,10 @@ class EmotionModule(PluginModule):
             group_name=group_name,
         ):
             self.ledger.save()
-        if not locally_changed or (
-            not ctx.is_private and self._praise_match(text)
-        ):
+        if not locally_changed or (not ctx.is_private and self._praise_match(text)):
             self._schedule_semantic(ctx, text, user_id)
 
-    def _schedule_semantic(
-        self, ctx: FeatureContext, text: str, user_id: str
-    ) -> None:
+    def _schedule_semantic(self, ctx: FeatureContext, text: str, user_id: str) -> None:
         """Queue one semantic appraisal when local rules are inconclusive.
 
         Args:
@@ -536,9 +538,7 @@ class EmotionModule(PluginModule):
                 else "\n"
             )
             relationship_block = (
-                "\n你跟这个人：" + relation_text + "\n"
-                if relation_text
-                else "\n"
+                "\n你跟这个人：" + relation_text + "\n" if relation_text else "\n"
             )
             prompt = (
                 "场景："
@@ -700,9 +700,7 @@ class EmotionModule(PluginModule):
         for umo, users in self.chats.items():
             for user_id, mood in users.items():
                 self._decay(mood, now)
-                top = sorted(
-                    mood.base.items(), key=lambda item: item[1], reverse=True
-                )
+                top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
                 strong = [(name, value) for name, value in top if value >= 0.12]
                 if not strong:
                     continue
@@ -769,6 +767,97 @@ class EmotionModule(PluginModule):
             },
         }
 
+    def _body_path(self) -> "Path | None":
+        """Return the body plugin's vitals file, or None when unavailable."""
+        if self.body_dir is None:
+            try:
+                from astrbot.core.utils.astrbot_path import (
+                    get_astrbot_plugin_data_path,
+                )
+
+                self.body_dir = (
+                    Path(get_astrbot_plugin_data_path()) / "astrbot_plugin_body_needs"
+                )
+            except Exception:
+                self.body_link = False
+                return None
+        return self.body_dir / "vitals.json"
+
+    def _body_vitals(self, persona_prompt: str) -> dict[str, Any]:
+        """Read the body snapshot that belongs to this persona.
+
+        The body plugin keys its file by persona id, while this module only has
+        the persona prompt, so the id is matched as a substring of the prompt.
+        A single recorded persona needs no match at all.
+
+        Args:
+            persona_prompt: Persona prompt for the current turn.
+
+        Returns:
+            The matching snapshot, or an empty dict.
+        """
+        if not self.body_link:
+            return {}
+        path = self._body_path()
+        if path is None or not path.is_file():
+            return {}
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            return {}
+        cached_at, cached = self._body_cache
+        if cached_at != mtime:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            personas = payload.get("personas") if isinstance(payload, dict) else None
+            cached = personas if isinstance(personas, dict) else {}
+            self._body_cache = (mtime, cached)
+        if not cached:
+            return {}
+        if persona_prompt:
+            matches = [key for key in cached if key and key in persona_prompt]
+            if matches:
+                return cached[max(matches, key=len)]
+        if len(cached) == 1:
+            return next(iter(cached.values()))
+        return {}
+
+    def _body_bias(self, persona_prompt: str) -> tuple[dict[str, float], str]:
+        """Map the body snapshot onto the six base emotions.
+
+        The body never writes these emotions directly: it supplies tension,
+        distress and valence, and the mapping below decides how much anger,
+        sadness, joy, fear and disgust that body state adds on top of the
+        event-driven mood.
+
+        Args:
+            persona_prompt: Persona prompt for the current turn.
+
+        Returns:
+            A per-emotion bias and the body line, both possibly empty.
+        """
+        vitals = self._body_vitals(persona_prompt)
+        if not vitals:
+            return {}, ""
+        try:
+            tension = max(0.0, min(1.0, float(vitals.get("tension") or 0.0)))
+            distress = max(0.0, min(1.0, float(vitals.get("distress") or 0.0)))
+            valence = max(-1.0, min(1.0, float(vitals.get("valence") or 0.0)))
+            dirt = max(0.0, min(1.0, float(vitals.get("dirt") or 0.0)))
+        except (TypeError, ValueError):
+            return {}, ""
+        bias = {
+            "joy": -0.30 * distress,
+            "anger": 0.34 * tension,
+            "sadness": 0.32 * max(0.0, -valence) + 0.12 * distress,
+            "fear": 0.10 * tension,
+            "disgust": 0.24 * dirt,
+            "surprise": 0.0,
+        }
+        return bias, str(vitals.get("line") or "").strip()[:80]
+
     def block_for(self, event: Any, is_private: bool) -> str:
         try:
             umo = str(event.unified_msg_origin)
@@ -777,20 +866,27 @@ class EmotionModule(PluginModule):
         bucket = self.chats.get(umo, {})
         user_id = self._sender_id(event) or "unknown"
         mood = bucket.get(user_id)
+        body_bias, body_line = self._body_bias(self._persona_prompt)
         blocks: list[str] = []
+        if body_line:
+            blocks.append(f"[身体]\n{body_line}")
+        base = dict(mood.base) if mood is not None else {}
         if mood is not None:
             self._decay(mood, time.time())
-            top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
-            strong = [(name, value) for name, value in top if value >= 0.12]
-            if strong:
-                label = self._label(strong)
-                cause = mood.cause.strip()
-                if label:
-                    blocks.append(
-                        f"[此刻]\n{label}——{cause}"
-                        if cause
-                        else f"[此刻]\n{label}"
-                    )
+            base = mood.base
+        effective = {
+            name: max(0.0, min(1.0, base.get(name, 0.0) + body_bias.get(name, 0.0)))
+            for name in _BASE_EMOTIONS
+        }
+        top = sorted(effective.items(), key=lambda item: item[1], reverse=True)
+        strong = [(name, value) for name, value in top if value >= 0.12]
+        if strong:
+            label = self._label(strong)
+            cause = (mood.cause.strip() if mood is not None else "") or body_line
+            if label:
+                blocks.append(
+                    f"[此刻]\n{label}——{cause}" if cause else f"[此刻]\n{label}"
+                )
         try:
             group_id = str(event.get_group_id() or "")
         except Exception:

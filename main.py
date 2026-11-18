@@ -2334,9 +2334,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 appraisal_timeout=self._cfg_int(
                     "emotion_appraisal_timeout", 8, minimum=3, maximum=30
                 ),
-                appraisal_enabled=self._cfg_bool(
-                    "enable_emotion_appraisal", True
-                ),
+                appraisal_enabled=self._cfg_bool("enable_emotion_appraisal", True),
+                body_link=self._cfg_bool("emotion_body_link", True),
             )
             logger.info("[情绪] 已启用")
         except Exception as exc:
@@ -9264,8 +9263,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self.quote_slow_reply
                 and _started_at > 0
                 and (
-                    time.time() - _started_at
-                    >= self.quote_slow_reply_threshold_seconds
+                    time.time() - _started_at >= self.quote_slow_reply_threshold_seconds
                     or _overtaken
                 )
                 and not any(isinstance(comp, Reply) for comp in result.chain)

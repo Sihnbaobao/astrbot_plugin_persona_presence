@@ -106,6 +106,8 @@ def test_state_is_separate_per_sender(tmp_path):
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     asyncio.run(pack.on_event(_ctx(_Event("你真烦", uid="a", private=True))))
     assert pack.block_for(_Event("", uid="b"), True) == ""
+
+
 def test_relationship_can_bottom_out_and_stay(tmp_path):
     loaded = _load()
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=2.0)
@@ -127,6 +129,8 @@ def test_group_can_become_uncomfortable(tmp_path):
         asyncio.run(pack.on_event(_ctx(event)))
     assert pack.should_withdraw(event.get_group_id())
     assert "不太想在这里开口" in pack.block_for(event, False)
+
+
 def test_neutral_installation_is_not_anger(tmp_path):
     loaded = _load()
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
@@ -143,6 +147,7 @@ def test_negative_like_is_not_praise(tmp_path):
     asyncio.run(pack.on_event(_ctx(event)))
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] == 0.0
+
 
 class _AppraisalResponse:
     completion_text = '{"intent":"挑衅","intensity":0.8,"cause":"对方觉得她在装"}'
@@ -176,6 +181,7 @@ def test_ambiguous_message_uses_semantic_appraisal(tmp_path):
     assert mood.base["anger"] > 0.1
     assert "对方觉得她在装" in mood.cause
 
+
 def test_snapshot_is_json_serialisable(tmp_path):
     import json
 
@@ -187,6 +193,72 @@ def test_snapshot_is_json_serialisable(tmp_path):
     assert payload["counts"]["moods"] == 1
     assert payload["counts"]["relations"] == 1
     assert isinstance(json.dumps(payload, ensure_ascii=False), str)
+
+
+def _write_vitals(
+    tmp_path,
+    persona="璃月",
+    tension=0.8,
+    valence=-0.6,
+    distress=0.7,
+    dirt=0.2,
+    line="饿着，耐心比平时薄",
+):
+    import json
+
+    payload = {
+        "version": 1,
+        "personas": {
+            persona: {
+                "tension": tension,
+                "valence": valence,
+                "distress": distress,
+                "dirt": dirt,
+                "line": line,
+            }
+        },
+    }
+    (tmp_path / "vitals.json").write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_body_state_adds_a_background_mood(tmp_path):
+    loaded = _load()
+    _write_vitals(tmp_path)
+    pack = loaded.emotion.EmotionModule(
+        tmp_path / "emotion", sensitivity=1.0, body_dir=tmp_path
+    )
+    event = _Event("今天天气不错")
+    asyncio.run(pack.on_event(_ctx(event)))
+    block = pack.block_for(event, True)
+    assert "[身体]" in block
+    assert "耐心" in block
+    assert "[此刻]" in block
+    assert "生气" in block or "恼" in block
+
+
+def test_body_link_can_be_switched_off(tmp_path):
+    loaded = _load()
+    _write_vitals(tmp_path)
+    pack = loaded.emotion.EmotionModule(
+        tmp_path / "emotion", sensitivity=1.0, body_dir=tmp_path, body_link=False
+    )
+    event = _Event("今天天气不错")
+    asyncio.run(pack.on_event(_ctx(event)))
+    assert pack.block_for(event, True) == ""
+
+
+def test_comfortable_body_leaves_the_block_empty(tmp_path):
+    loaded = _load()
+    _write_vitals(tmp_path, tension=0.05, valence=0.3, distress=0.1, dirt=0.0, line="")
+    pack = loaded.emotion.EmotionModule(
+        tmp_path / "emotion", sensitivity=1.0, body_dir=tmp_path
+    )
+    event = _Event("今天天气不错")
+    asyncio.run(pack.on_event(_ctx(event)))
+    assert pack.block_for(event, True) == ""
+
 
 def test_media_comment_is_not_praise(tmp_path):
     loaded = _load()
@@ -204,6 +276,7 @@ def test_harassment_comment_is_not_praise(tmp_path):
     asyncio.run(pack.on_event(_ctx(event)))
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] == 0.0
+
 
 class _TeaseResponse:
     completion_text = '{"intent":"调侃","intensity":0.8,"cause":"在逗AI玩"}'
@@ -236,6 +309,7 @@ def test_group_praise_can_be_reappraised_as_teasing(tmp_path):
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] < 0.1
     assert "逗AI" in mood.cause
+
 
 def test_praise_from_disliked_person_does_not_raise_joy(tmp_path):
     import types

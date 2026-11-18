@@ -819,6 +819,12 @@
         "type": "int",
         "default": 8,
         "hint": "超时或失败时退回关键词判断，不影响正常回复。"
+      },
+      "emotion_body_link": {
+        "description": "读取身体状态",
+        "type": "bool",
+        "default": true,
+        "hint": "身体插件存在时，把饥饿、睡眠、疼痛、清洁等折进情绪底色；关掉后情绪只由对话事件驱动。"
       }
     }
   },
