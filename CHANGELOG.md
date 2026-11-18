@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.84
+
+- Do not join a group conversation that explicitly @s someone else. Side comments are still allowed when the bot is also mentioned, mentioned by name through a trigger, @all is used, or the message replies to the bot.
+
 ## 2.0.83
 
 - Do not let the lazy image-question override fire when the current message mentions someone else and does not mention the bot. A message like “@小略3 你不是要看图吗” is not a request for the bot to inspect an image.
