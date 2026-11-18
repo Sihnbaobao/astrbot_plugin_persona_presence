@@ -113,6 +113,17 @@ def test_global_mood_survives_for_another_user(tmp_path):
     assert "恼" in block or "生气" in block
 
 
+def test_persona_name_does_not_leak_across_personas(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    asyncio.run(pack.on_event(_ctx(_Event("你好"), persona="你的名字是星野璃月")))
+    assert pack._name == "星野璃月"
+    asyncio.run(
+        pack.on_event(_ctx(_Event("你好"), persona="一个普通的助手，安静寡言。"))
+    )
+    assert pack._name == ""
+
+
 def test_persona_name_has_no_hardcoded_default() -> None:
     loaded = _load()
     assert loaded.emotion.EmotionModule._persona_name("一个普通的助手") == ""

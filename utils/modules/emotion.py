@@ -581,9 +581,7 @@ class EmotionModule(PluginModule):
         self._persona_by_umo[ctx.umo] = persona_key
         if ctx.persona:
             self._prompt_by_key[persona_key] = ctx.persona[:600]
-            name = self._persona_name(ctx.persona)
-            if name:
-                self._name = name
+            self._name = self._persona_name(ctx.persona)
         bucket = self.chats.setdefault(ctx.umo, {}).setdefault(persona_key, {})
         mood = bucket.setdefault(user_id, _Mood())
         if sender_name:
