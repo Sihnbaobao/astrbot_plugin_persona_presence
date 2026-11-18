@@ -43,7 +43,7 @@ class _Event:
         return "" if "private" in self.unified_msg_origin else "g1"
 
 
-def _ctx(event):
+def _ctx(event, persona="你的名字是星野璃月"):
     base = _load().base
     return base.FeatureContext(
         event=event,
@@ -51,7 +51,7 @@ def _ctx(event):
         group_id="" if "private" in event.unified_msg_origin else "g1",
         is_private="private" in event.unified_msg_origin,
         chat_key=event.unified_msg_origin,
-        persona="你的名字是星野璃月",
+        persona=persona,
         provider_id="test",
         now=datetime.now(),
     )
@@ -84,6 +84,84 @@ def _load():
     return types.SimpleNamespace(**loaded)
 
 
+def _mood(pack, event, persona="你的名字是星野璃月"):
+    """Return the mood bucket for the persona the fixture uses."""
+    key = pack._persona_key(persona)
+    return pack.chats[event.unified_msg_origin][key][event.get_sender_id()]
+
+
+def test_persona_switch_keeps_moods_separate(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    first = _Event("你真是傻，闭嘴")
+    asyncio.run(pack.on_event(_ctx(first)))
+    assert "[此刻]" in pack.block_for(first, True)
+
+    second = _Event("", uid="u1")
+    asyncio.run(pack.on_event(_ctx(second, persona="你的名字是另一个女孩，安静寡言。")))
+    assert pack.block_for(second, True) == ""
+
+
+def test_global_mood_survives_for_another_user(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("你真是傻，闭嘴", uid="a")
+    asyncio.run(pack.on_event(_ctx(event)))
+    other = _Event("", uid="b")
+    block = pack.block_for(other, True)
+    assert "[心情]" in block
+    assert "恼" in block or "生气" in block
+
+
+def test_persona_name_has_no_hardcoded_default() -> None:
+    loaded = _load()
+    assert loaded.emotion.EmotionModule._persona_name("一个普通的助手") == ""
+    assert (
+        loaded.emotion.EmotionModule._persona_name("你的名字是星野璃月") == "星野璃月"
+    )
+
+
+def test_old_emotion_file_is_migrated(tmp_path):
+    import json
+    import time as _time
+
+    legacy = {
+        "version": 1,
+        "chats": {
+            "test:private:u1": {
+                "u1": {
+                    "base": {"anger": 0.4},
+                    "cause": "旧记录",
+                    "name": "旧用户",
+                    "updated_at": _time.time(),
+                }
+            }
+        },
+    }
+    (tmp_path / "emotion.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8"
+    )
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    block = pack.block_for(_Event(""), True)
+    assert "恼" in block
+    assert "旧记录" in block
+
+
+def test_mood_file_is_published_for_the_body_plugin(tmp_path):
+    import json
+
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("你真是傻，闭嘴")
+    asyncio.run(pack.on_event(_ctx(event)))
+    payload = json.loads((tmp_path / "mood.json").read_text(encoding="utf-8"))
+    assert payload["personas"]
+    entry = next(iter(payload["personas"].values()))
+    assert entry["name"] == "星野璃月"
+    assert entry["base"]["anger"] > 0.1
+
+
 def test_insult_creates_anger_state(tmp_path):
     loaded = _load()
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
@@ -105,7 +183,10 @@ def test_state_is_separate_per_sender(tmp_path):
     loaded = _load()
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     asyncio.run(pack.on_event(_ctx(_Event("你真烦", uid="a", private=True))))
-    assert pack.block_for(_Event("", uid="b"), True) == ""
+    block = pack.block_for(_Event("", uid="b"), True)
+    # The personal mood stays with user a, but the persona-wide mood is shared.
+    assert "[此刻]" not in block
+    assert "[心情]" in block
 
 
 def test_relationship_can_bottom_out_and_stay(tmp_path):
@@ -145,7 +226,7 @@ def test_negative_like_is_not_praise(tmp_path):
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     event = _Event("我不喜欢你这样")
     asyncio.run(pack.on_event(_ctx(event)))
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["joy"] == 0.0
 
 
@@ -177,7 +258,7 @@ def test_ambiguous_message_uses_semantic_appraisal(tmp_path):
             await asyncio.gather(*pending)
 
     asyncio.run(run())
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["anger"] > 0.1
     assert "对方觉得她在装" in mood.cause
 
@@ -265,7 +346,7 @@ def test_media_comment_is_not_praise(tmp_path):
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     event = _Event("给我找几个好看的百合")
     asyncio.run(pack.on_event(_ctx(event)))
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["joy"] == 0.0
 
 
@@ -274,7 +355,7 @@ def test_harassment_comment_is_not_praise(tmp_path):
     pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
     event = _Event("没意思，现在这璃月喜欢被骚扰")
     asyncio.run(pack.on_event(_ctx(event)))
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["joy"] == 0.0
 
 
@@ -306,7 +387,7 @@ def test_group_praise_can_be_reappraised_as_teasing(tmp_path):
             await asyncio.gather(*pending)
 
     asyncio.run(run())
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["joy"] < 0.1
     assert "逗AI" in mood.cause
 
@@ -331,6 +412,6 @@ def test_praise_from_disliked_person_does_not_raise_joy(tmp_path):
         )
     }
     asyncio.run(pack.on_event(_ctx(event)))
-    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    mood = _mood(pack, event)
     assert mood.base["joy"] < 0.1
     assert mood.base["disgust"] > 0

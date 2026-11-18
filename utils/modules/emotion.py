@@ -9,6 +9,7 @@ group chatter does not move the state.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import time
@@ -143,6 +144,7 @@ class EmotionModule(PluginModule):
         super().__init__(context)
         self.data_dir = Path(data_dir) if data_dir else None
         self.path = self.data_dir / "emotion.json" if self.data_dir else None
+        self.mood_path = self.data_dir / "mood.json" if self.data_dir else None
         self.sensitivity = max(0.1, min(2.0, float(sensitivity)))
         self.decay_minutes = max(5, int(decay_minutes))
         self.provider_id = str(provider_id or "").strip()
@@ -153,8 +155,12 @@ class EmotionModule(PluginModule):
         self.body_link = bool(body_link)
         self.body_dir = Path(body_dir) if body_dir else None
         self._persona_prompt = ""
+        self._name = ""
         self._body_cache: tuple[float, dict[str, Any]] = (0.0, {})
-        self.chats: dict[str, dict[str, _Mood]] = {}
+        self._persona_by_umo: dict[str, str] = {}
+        self._prompt_by_key: dict[str, str] = {}
+        self.chats: dict[str, dict[str, dict[str, _Mood]]] = {}
+        self.global_moods: dict[str, _Mood] = {}
         self._last_seen: dict[tuple[str, str], tuple[str, float]] = {}
         self.ledger = RelationLedger(
             self.data_dir / "relations.json" if self.data_dir else None,
@@ -213,40 +219,86 @@ class EmotionModule(PluginModule):
             return
         if not isinstance(raw, dict):
             return
-        for umo, users in (raw.get("chats") or {}).items():
-            if not isinstance(users, dict):
+        for umo, section in (raw.get("chats") or {}).items():
+            if not isinstance(section, dict):
                 continue
+            # Old files stored {user_id: mood}; wrap them under one key so a
+            # persona switch does not lose the mood that was already there.
+            if any(
+                isinstance(item, dict) and "base" in item for item in section.values()
+            ):
+                section = {"legacy": section}
             bucket = self.chats.setdefault(str(umo), {})
-            for user_id, item in users.items():
-                if not isinstance(item, dict):
+            for persona_key, users in section.items():
+                if not isinstance(users, dict):
                     continue
-                base = item.get("base") or {}
-                mood = _Mood(
-                    base={
-                        emotion: max(0.0, min(1.0, float(base.get(emotion, 0.0))))
-                        for emotion in _BASE_EMOTIONS
-                    },
-                    cause=str(item.get("cause") or "")[:120],
-                    name=str(item.get("name") or "")[:40],
-                    updated_at=float(item.get("updated_at") or 0.0),
-                )
-                bucket[str(user_id)] = mood
+                target = bucket.setdefault(str(persona_key), {})
+                for user_id, item in users.items():
+                    if not isinstance(item, dict):
+                        continue
+                    target[str(user_id)] = self._mood_from_item(item)
+        for persona_key, item in (raw.get("global") or {}).items():
+            if isinstance(item, dict):
+                self.global_moods[str(persona_key)] = self._mood_from_item(item)
+        prompts = raw.get("prompts") or {}
+        if isinstance(prompts, dict):
+            self._prompt_by_key = {
+                str(key): str(value)[:600]
+                for key, value in prompts.items()
+                if isinstance(value, str)
+            }
+
+    @staticmethod
+    def _mood_from_item(item: dict[str, Any]) -> _Mood:
+        """Rebuild one stored mood from JSON."""
+        base = item.get("base") or {}
+        return _Mood(
+            base={
+                emotion: max(0.0, min(1.0, float(base.get(emotion, 0.0))))
+                for emotion in _BASE_EMOTIONS
+            },
+            cause=str(item.get("cause") or "")[:120],
+            name=str(item.get("name") or "")[:40],
+            updated_at=float(item.get("updated_at") or 0.0),
+        )
+
+    @staticmethod
+    def _mood_to_item(mood: _Mood) -> dict[str, Any]:
+        """Serialise one mood to the JSON shape used on disk."""
+        return {
+            "base": mood.base,
+            "cause": mood.cause,
+            "name": mood.name,
+            "updated_at": mood.updated_at,
+        }
 
     def _save(self) -> None:
         if self.path is None:
             return
-        payload: dict[str, Any] = {"version": _STATE_VERSION, "chats": {}}
-        for umo, users in self.chats.items():
-            payload["chats"][umo] = {
-                user_id: {
-                    "base": mood.base,
-                    "cause": mood.cause,
-                    "name": mood.name,
-                    "updated_at": mood.updated_at,
+        payload: dict[str, Any] = {
+            "version": _STATE_VERSION,
+            "chats": {},
+            "global": {},
+            "prompts": {},
+        }
+        for umo, personas in self.chats.items():
+            saved: dict[str, Any] = {}
+            for persona_key, users in personas.items():
+                rows = {
+                    user_id: self._mood_to_item(mood)
+                    for user_id, mood in users.items()
+                    if any(value >= 0.01 for value in mood.base.values())
                 }
-                for user_id, mood in users.items()
-                if any(value >= 0.01 for value in mood.base.values())
-            }
+                if rows:
+                    saved[persona_key] = rows
+            if saved:
+                payload["chats"][umo] = saved
+        payload["global"] = {
+            key: self._mood_to_item(mood)
+            for key, mood in self.global_moods.items()
+            if any(value >= 0.01 for value in mood.base.values())
+        }
+        payload["prompts"] = dict(self._prompt_by_key)
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temp = self.path.with_suffix(".tmp")
@@ -303,11 +355,17 @@ class EmotionModule(PluginModule):
             return ""
 
     @staticmethod
+    def _persona_key(persona: str) -> str:
+        """Return the stable key of the persona a turn belongs to."""
+        text = (persona or "").strip()
+        if not text:
+            return "default"
+        return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+    @staticmethod
     def _persona_name(persona: str) -> str:
         match = re.search(r"你的名字是([^\s，。,.]+)", persona or "")
-        if match:
-            return match.group(1).strip()
-        return "璃月"
+        return match.group(1).strip() if match else ""
 
     def _directed(self, event: Any, is_private: bool, persona: str = "") -> bool:
         if is_private:
@@ -321,14 +379,14 @@ class EmotionModule(PluginModule):
         name = self._persona_name(persona)
         return bool(text and name and name in text)
 
-    def _decay(self, mood: _Mood, now: float) -> None:
+    def _decay(self, mood: _Mood, now: float, scale: float = 1.0) -> None:
         if mood.updated_at <= 0:
             mood.updated_at = now
             return
         minutes = max(0.0, (now - mood.updated_at) / 60.0)
         for emotion in _BASE_EMOTIONS:
             half_life = _HALF_LIFE_MINUTES.get(emotion, self.decay_minutes)
-            mood.base[emotion] *= 0.5 ** (minutes / half_life)
+            mood.base[emotion] *= 0.5 ** (minutes / (half_life * scale))
         mood.updated_at = now
 
     def _add(self, mood: _Mood, **deltas: float) -> None:
@@ -338,9 +396,78 @@ class EmotionModule(PluginModule):
             value = mood.base[emotion] + float(delta) * self.sensitivity
             mood.base[emotion] = max(0.0, min(1.0, value))
 
-    @staticmethod
-    def _praise_match(text: str) -> bool:
-        """Tell whether the text is a compliment aimed at the persona.
+    def _apply_global(
+        self,
+        persona_key: str,
+        mood: _Mood,
+        before: dict[str, float],
+        text: str,
+    ) -> None:
+        """Fold one local event into the persona-wide background mood.
+
+        Args:
+            persona_key: Key of the persona this turn belongs to.
+            mood: Local mood after appraisal.
+            before: Local mood before appraisal.
+            text: Message text, used when no appraised cause exists.
+        """
+        now = time.time()
+        global_mood = self.global_moods.setdefault(persona_key, _Mood())
+        self._decay(global_mood, now, scale=3.0)
+        for emotion in _BASE_EMOTIONS:
+            delta = mood.base.get(emotion, 0.0) - before.get(emotion, 0.0)
+            if delta:
+                global_mood.base[emotion] = max(
+                    0.0, min(1.0, global_mood.base[emotion] + delta * 0.5)
+                )
+        if mood.cause:
+            global_mood.cause = mood.cause
+        elif text:
+            global_mood.cause = text[:60]
+        global_mood.updated_at = now
+        self._publish_mood()
+
+    def _publish_mood(self) -> None:
+        """Publish the persona-wide mood for the body plugin to read.
+
+        The body layer consumes this file in the opposite direction, so a bad
+        week can suppress appetite or stretch the follicular phase. Writing it
+        here keeps the contract one file per direction.
+        """
+        if self.mood_path is None:
+            return
+        personas: dict[str, Any] = {}
+        now = time.time()
+        for key, mood in self.global_moods.items():
+            self._decay(mood, now, scale=3.0)
+            strong = self._effective(mood, {})
+            if not strong:
+                continue
+            name = self._persona_name(self._prompt_by_key.get(key, "")) or key
+            personas[name] = {
+                "persona_key": key,
+                "name": name,
+                "base": {
+                    emotion: round(mood.base[emotion], 3) for emotion in _BASE_EMOTIONS
+                },
+                "label": self._label(strong),
+                "cause": mood.cause,
+                "updated_at": mood.updated_at,
+            }
+        payload = {"version": 1, "personas": personas}
+        try:
+            self.mood_path.parent.mkdir(parents=True, exist_ok=True)
+            temp = self.mood_path.with_suffix(".tmp")
+            temp.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            temp.replace(self.mood_path)
+        except OSError as exc:
+            logger.debug(f"[情绪] 心情文件写入失败: {exc}")
+
+    def _praise_match(self, text: str) -> bool:
+        """Tell whether the text is a compliment aimed at this persona.
 
         Args:
             text: Incoming message text.
@@ -348,10 +475,11 @@ class EmotionModule(PluginModule):
         Returns:
             True when the compliment has a plausible second-person target.
         """
+        name = re.escape(self._name) if self._name else "你"
         return bool(
             re.search(
-                r"(?:你|璃月).{0,6}(?:可爱|好看|漂亮|厉害|聪明|温柔|有趣|牛|强)"
-                r"|(?<!不)(?:喜欢|爱)(?:你|璃月)|谢谢(?:你|璃月)?",
+                rf"(?:你|{name}).{{0,6}}(?:可爱|好看|漂亮|厉害|聪明|温柔|有趣|牛|强)"
+                rf"|(?<!不)(?:喜欢|爱)(?:你|{name})|谢谢(?:你|{name})?",
                 text,
             )
         )
@@ -449,13 +577,22 @@ class EmotionModule(PluginModule):
         user_id = self._sender_id(ctx.event) or "unknown"
         sender_name = self._sender_name(ctx.event)
         group_name = self._group_name(ctx.event)
-        bucket = self.chats.setdefault(ctx.umo, {})
+        persona_key = self._persona_key(ctx.persona)
+        self._persona_by_umo[ctx.umo] = persona_key
+        if ctx.persona:
+            self._prompt_by_key[persona_key] = ctx.persona[:600]
+            name = self._persona_name(ctx.persona)
+            if name:
+                self._name = name
+        bucket = self.chats.setdefault(ctx.umo, {}).setdefault(persona_key, {})
         mood = bucket.setdefault(user_id, _Mood())
         if sender_name:
             mood.name = sender_name[:40]
         text = self._text(ctx.event)
+        before = dict(mood.base)
         locally_changed = self._appraise(text, mood, ctx.umo, user_id)
         if locally_changed:
+            self._apply_global(persona_key, mood, before, text)
             self._save()
         if self.ledger.appraise(
             ctx.umo,
@@ -564,7 +701,14 @@ class EmotionModule(PluginModule):
             payload = self._parse_appraisal(raw)
             if not payload:
                 return
-            self._apply_semantic(umo, user_id, text, payload, is_private)
+            self._apply_semantic(
+                umo,
+                user_id,
+                text,
+                payload,
+                is_private,
+                self._persona_key(persona),
+            )
         except asyncio.TimeoutError:
             logger.debug("[情绪] 语义评估超时")
         except Exception as exc:
@@ -622,6 +766,7 @@ class EmotionModule(PluginModule):
         text: str,
         payload: dict[str, Any],
         is_private: bool,
+        persona_key: str,
     ) -> None:
         """Apply a semantic appraisal to the short-term mood.
 
@@ -631,13 +776,15 @@ class EmotionModule(PluginModule):
             text: Original message.
             payload: Parsed appraisal.
             is_private: Whether this is a private chat.
+            persona_key: Persona the mood belongs to.
         """
         intent = payload["intent"]
         intensity = payload["intensity"]
         if intensity <= 0.0 or intent == "普通":
             return
-        bucket = self.chats.get(umo)
-        mood = bucket.get(user_id) if bucket else None
+        personas = self.chats.get(umo, {})
+        bucket = personas.get(persona_key) or personas.get("legacy", {})
+        mood = bucket.get(user_id)
         if mood is None:
             return
         relation = self.ledger.relations.get(umo, {}).get(user_id)
@@ -697,28 +844,30 @@ class EmotionModule(PluginModule):
         """
         now = time.time()
         moods: list[dict[str, Any]] = []
-        for umo, users in self.chats.items():
-            for user_id, mood in users.items():
-                self._decay(mood, now)
-                top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
-                strong = [(name, value) for name, value in top if value >= 0.12]
-                if not strong:
-                    continue
-                moods.append(
-                    {
-                        "umo": umo,
-                        "user_id": user_id,
-                        "name": mood.name,
-                        "base": {
-                            name: round(mood.base.get(name, 0.0), 3)
-                            for name in _BASE_EMOTIONS
-                        },
-                        "label": self._label(strong),
-                        "cause": mood.cause,
-                        "intensity": round(strong[0][1], 3),
-                        "updated_at": mood.updated_at,
-                    }
-                )
+        for umo, personas in self.chats.items():
+            for persona_key, users in personas.items():
+                for user_id, mood in users.items():
+                    self._decay(mood, now)
+                    strong = self._effective(mood, {})
+                    if not strong:
+                        continue
+                    moods.append(
+                        {
+                            "umo": umo,
+                            "persona": self._prompt_by_key.get(persona_key, "")[:40]
+                            or persona_key,
+                            "user_id": user_id,
+                            "name": mood.name,
+                            "base": {
+                                name: round(mood.base.get(name, 0.0), 3)
+                                for name in _BASE_EMOTIONS
+                            },
+                            "label": self._label(strong),
+                            "cause": mood.cause,
+                            "intensity": round(strong[0][1], 3),
+                            "updated_at": mood.updated_at,
+                        }
+                    )
         moods.sort(key=lambda item: item["intensity"], reverse=True)
         relations: list[dict[str, Any]] = []
         for umo, users in self.ledger.relations.items():
@@ -756,12 +905,35 @@ class EmotionModule(PluginModule):
                 }
             )
         groups.sort(key=lambda item: item["withdrawal"], reverse=True)
+        global_rows: list[dict[str, Any]] = []
+        for persona_key, mood in self.global_moods.items():
+            self._decay(mood, now, scale=3.0)
+            strong = self._effective(mood, {})
+            if not strong:
+                continue
+            global_rows.append(
+                {
+                    "persona": self._prompt_by_key.get(persona_key, "")[:40]
+                    or persona_key,
+                    "base": {
+                        name: round(mood.base.get(name, 0.0), 3)
+                        for name in _BASE_EMOTIONS
+                    },
+                    "label": self._label(strong),
+                    "cause": mood.cause,
+                    "intensity": round(strong[0][1], 3),
+                    "updated_at": mood.updated_at,
+                }
+            )
+        global_rows.sort(key=lambda item: item["intensity"], reverse=True)
         return {
             "moods": moods,
+            "global_moods": global_rows,
             "relations": relations,
             "groups": groups,
             "counts": {
                 "moods": len(moods),
+                "global_moods": len(global_rows),
                 "relations": len(relations),
                 "groups": len(groups),
             },
@@ -858,28 +1030,37 @@ class EmotionModule(PluginModule):
         }
         return bias, str(vitals.get("line") or "").strip()[:80]
 
+    @staticmethod
+    def _effective(
+        mood: "_Mood | None", bias: dict[str, float]
+    ) -> list[tuple[str, float]]:
+        """Blend a mood with the body bias and return the strong emotions."""
+        base = mood.base if mood is not None else {}
+        values = {
+            name: max(0.0, min(1.0, base.get(name, 0.0) + bias.get(name, 0.0)))
+            for name in _BASE_EMOTIONS
+        }
+        top = sorted(values.items(), key=lambda item: item[1], reverse=True)
+        return [(name, value) for name, value in top if value >= 0.12]
+
     def block_for(self, event: Any, is_private: bool) -> str:
         try:
             umo = str(event.unified_msg_origin)
         except Exception:
             return ""
-        bucket = self.chats.get(umo, {})
+        persona_key = self._persona_by_umo.get(umo, "default")
+        personas = self.chats.get(umo, {})
+        bucket = personas.get(persona_key) or personas.get("legacy", {})
         user_id = self._sender_id(event) or "unknown"
         mood = bucket.get(user_id)
-        body_bias, body_line = self._body_bias(self._persona_prompt)
+        prompt = self._prompt_by_key.get(persona_key) or self._persona_prompt
+        body_bias, body_line = self._body_bias(prompt)
         blocks: list[str] = []
         if body_line:
             blocks.append(f"[身体]\n{body_line}")
-        base = dict(mood.base) if mood is not None else {}
         if mood is not None:
             self._decay(mood, time.time())
-            base = mood.base
-        effective = {
-            name: max(0.0, min(1.0, base.get(name, 0.0) + body_bias.get(name, 0.0)))
-            for name in _BASE_EMOTIONS
-        }
-        top = sorted(effective.items(), key=lambda item: item[1], reverse=True)
-        strong = [(name, value) for name, value in top if value >= 0.12]
+        strong = self._effective(mood, body_bias)
         if strong:
             label = self._label(strong)
             cause = (mood.cause.strip() if mood is not None else "") or body_line
@@ -887,6 +1068,20 @@ class EmotionModule(PluginModule):
                 blocks.append(
                     f"[此刻]\n{label}——{cause}" if cause else f"[此刻]\n{label}"
                 )
+        else:
+            # No event is driving this user right now; fall back to the persona's
+            # slower background mood so she still has a mood between messages.
+            global_mood = self.global_moods.get(persona_key)
+            if global_mood is not None:
+                self._decay(global_mood, time.time(), scale=3.0)
+                strong_global = self._effective(global_mood, body_bias)
+                if strong_global:
+                    label = self._label(strong_global)
+                    cause = global_mood.cause.strip() or body_line
+                    if label:
+                        blocks.append(
+                            f"[心情]\n{label}——{cause}" if cause else f"[心情]\n{label}"
+                        )
         try:
             group_id = str(event.get_group_id() or "")
         except Exception:
@@ -924,6 +1119,7 @@ class EmotionModule(PluginModule):
         return _SINGLE_LABELS.get(names[0], "有点复杂")
 
     async def close(self) -> None:
+        self._publish_mood()
         for task in list(self._appraisal_tasks):
             task.cancel()
         if self._appraisal_tasks:
