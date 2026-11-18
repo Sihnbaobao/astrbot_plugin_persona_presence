@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.71
+
+- Reduce emotion false positives: “装个软件” no longer counts as an insult, “不喜欢” no longer counts as praise, and one turn gets one dominant appraisal instead of stacking every keyword. Fix newly-created relationship records not being persisted.
+
 ## 2.0.70
 
 - Add long-lived relationship and group attitudes to the emotion DLC. Repeated direct insults can bottom out a relationship; apologies no longer restore it automatically. Group conflict raises withdrawal and suppresses proactive speech, without auto-leaving the group.

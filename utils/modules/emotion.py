@@ -229,41 +229,43 @@ class EmotionModule(PluginModule):
         changed = False
         cause = ""
 
-        insult = re.search(
-            r"闭嘴|滚|傻|蠢|装|烦|别说话|去死|废物|垃圾|恶心|有病|神经|"
-            r"你算|凭什么|少来|别装|讨厌",
+        severe = re.search(
+            r"闭嘴|滚(?:开|蛋|吧|啊)|傻|蠢|废物|垃圾|恶心|有病|神经|"
+            r"你算|凭什么|少来|(?:你|别|少)装|装(?:什么|模作样|给谁看|傻|死)|"
+            r"(?:你|真|好|别|少)烦|烦死|讨厌",
             text,
         )
         praise = re.search(
-            r"可爱|好看|漂亮|喜欢|厉害|聪明|谢谢|温柔|有趣|牛|强|厉害",
-            text,
+            r"(?<!不)(?:喜欢|可爱|好看|漂亮|厉害|聪明|谢谢|温柔|有趣|牛)", text
         )
-        apology = re.search(r"对不起|抱歉|别生气|我错|抱抱|安慰|没事", text)
-        dismiss = re.search(r"随便|无所谓|懒得|不理|别烦|少来|爱怎样怎样", text)
+        apology = re.search(r"对不起|抱歉|别生气|我错|抱抱|安慰", text)
+        dismiss = re.search(r"随便|无所谓|懒得|不理|别烦|爱怎样怎样", text)
         conflict = re.search(r"吵|争|怼|凭什么|你算|不服|来啊", text)
         surprise = re.search(r"居然|竟然|卧槽|什么鬼|吓|居然还", text)
 
-        if insult:
+        # One turn produces one dominant appraisal, not a stack of keywords.
+        if severe:
             self._add(mood, anger=0.26, disgust=0.15, joy=-0.06)
             cause = text
             changed = True
-        if praise:
-            self._add(mood, joy=0.20, anger=-0.05, sadness=-0.05)
-            cause = text
-            changed = True
-        if apology:
-            self._add(mood, anger=-0.22, sadness=-0.10, joy=0.04)
-            cause = text
-            changed = True
-        if dismiss:
-            self._add(mood, sadness=0.10, disgust=0.08, joy=-0.04)
-            cause = text
-            changed = True
-        if conflict:
+        elif conflict:
             self._add(mood, anger=0.16, disgust=0.06, fear=0.04)
             cause = text
             changed = True
-        if surprise:
+        elif praise:
+            self._add(mood, joy=0.20, anger=-0.05, sadness=-0.05)
+            cause = text
+            changed = True
+        elif apology:
+            self._add(mood, anger=-0.22, sadness=-0.10, joy=0.04)
+            cause = text
+            changed = True
+        elif dismiss:
+            self._add(mood, sadness=0.10, disgust=0.08, joy=-0.04)
+            cause = text
+            changed = True
+
+        if surprise and not severe:
             self._add(mood, surprise=0.18)
             cause = cause or text
             changed = True

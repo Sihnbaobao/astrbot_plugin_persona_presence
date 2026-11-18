@@ -19,7 +19,8 @@ from astrbot.api import logger
 
 _STATE_VERSION = 1
 _SEVERE_RE = re.compile(
-    r"去死|废物|垃圾|恶心|滚|闭嘴|傻|蠢|装|有病|神经|你算|凭什么|少来|别装"
+    r"去死|废物|垃圾|恶心|滚(?:开|蛋|吧|啊)|闭嘴|傻|蠢|有病|神经|"
+    r"你算|凭什么|少来|(?:你|别|少)装|装(?:什么|模作样|给谁看|傻|死)"
 )
 _CONFLICT_RE = re.compile(r"吵|争|怼|凭什么|你算|不服|来啊")
 _PRAISE_RE = re.compile(r"可爱|好看|漂亮|喜欢|厉害|聪明|谢谢|温柔|有趣|牛|强")
@@ -181,9 +182,12 @@ class RelationLedger:
         if not text:
             return False
         now = time.time()
-        relation = self.relations.setdefault(umo, {}).setdefault(
-            user_id, _Relation()
-        )
+        bucket = self.relations.setdefault(umo, {})
+        relation = bucket.get(user_id)
+        created = relation is None
+        if relation is None:
+            relation = _Relation()
+            bucket[user_id] = relation
         changed = False
         severe = bool(_SEVERE_RE.search(text))
         conflict = bool(_CONFLICT_RE.search(text))
@@ -221,6 +225,10 @@ class RelationLedger:
         if relation.bottomed_out:
             relation.resentment = max(0.85, relation.resentment)
         relation.updated_at = now if changed else relation.updated_at
+        if created and not changed:
+            bucket.pop(user_id, None)
+            if not bucket:
+                self.relations.pop(umo, None)
 
         if not is_private and group_id:
             group = self.groups.setdefault(group_id, _GroupAttitude())

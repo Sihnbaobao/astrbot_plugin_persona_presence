@@ -127,3 +127,19 @@ def test_group_can_become_uncomfortable(tmp_path):
         asyncio.run(pack.on_event(_ctx(event)))
     assert pack.should_withdraw(event.get_group_id())
     assert "不太想在这里开口" in pack.block_for(event, False)
+def test_neutral_installation_is_not_anger(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("我先装个软件")
+    asyncio.run(pack.on_event(_ctx(event)))
+    assert pack.block_for(event, True) == ""
+    assert pack.ledger.relations == {}
+
+
+def test_negative_like_is_not_praise(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("我不喜欢你这样")
+    asyncio.run(pack.on_event(_ctx(event)))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["joy"] == 0.0
