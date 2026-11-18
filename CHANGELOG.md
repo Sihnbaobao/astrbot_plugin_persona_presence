@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.89
+
+- Rewrite the emotion appraisal prompt as an inner reaction (“你是{name}……你看到对方的话，第一反应是什么”) instead of asking a neutral classifier to judge how a third person feels. The persona and relationship context are included naturally, and the test harness now keeps the appraisal task in the same event loop.
+
 ## 2.0.88
 
 - Make semantic emotion appraisal happen in the persona's own frame instead of as a neutral intent classifier. The appraiser now receives the persona prompt and the current relationship, and judges how the message lands on her.

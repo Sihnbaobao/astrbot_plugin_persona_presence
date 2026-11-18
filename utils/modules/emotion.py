@@ -73,17 +73,21 @@ _STATE_VERSION = 1
 _APPRAISAL_CUES = re.compile(
     r"你|是不是|装|随便|行|厉害|呵|6|哦|嗯|？|\?|凭什么|少来"
 )
-_APPRAISAL_PROMPT = """你是角色 {name} 的内心判断器，不是客服，也不是在回复。
+_APPRAISAL_PROMPT = """你是{name}。
 
-看这句话对她意味着什么，只输出一个 JSON，不要解释：
-{{"intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"不超过30字"}}
+{persona_block}{relationship_block}
+你看到对方的话，心里第一反应是什么？
+不用分析，不用照顾对方，也不用解释。想理就理，不想理就懒得动。
+
+只把这一下的反应记成一个 JSON：
+{{"intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"心里冒出的那句话，不超过20字"}}
 
 规则：
 - 玩笑和熟人互损不要判成羞辱。
-- 如果对方把你当成 AI、机器人或角色在逗、测试反应、玩梗，不要判成真心夸奖；这种是“调侃”。
+- 如果对方是在逗 AI、测试反应、玩梗，不要当成真心夸奖；这种是“调侃”。
 - 只有真的越界、命令、贬低才叫挑衅/羞辱。
 - 普通陈述就输出普通。
-- intensity 表示这件事对她有多重，0.1 到 1.0。
+- intensity 是这一下反应有多重，0.1 到 1.0。
 """
 
 
@@ -488,7 +492,7 @@ class EmotionModule(PluginModule):
             user_id: Sender identifier.
             text: Incoming message text.
             is_private: Whether this is a private chat.
-            persona: Persona prompt, used only for the character name.
+            persona: Persona prompt used to appraise the event in character.
         """
         try:
             if self.provider_id:
@@ -498,6 +502,24 @@ class EmotionModule(PluginModule):
             if provider is None:
                 return
             name = self._persona_name(persona)
+            relation = self.ledger.relations.get(umo, {}).get(user_id)
+            relation_text = ""
+            if relation is not None:
+                relation_text = (
+                    f"亲近 {relation.warmth:.2f}，信任 {relation.trust:.2f}，"
+                    f"不满 {relation.resentment:.2f}"
+                    + ("，已经触及底线" if relation.bottomed_out else "")
+                )
+            persona_block = (
+                "\n你平时：\n" + persona[:1200].strip() + "\n"
+                if persona.strip()
+                else "\n"
+            )
+            relationship_block = (
+                "\n你跟这个人：" + relation_text + "\n"
+                if relation_text
+                else "\n"
+            )
             prompt = (
                 "场景："
                 + ("私聊" if is_private else "群聊")
@@ -509,7 +531,11 @@ class EmotionModule(PluginModule):
                 provider.text_chat(
                     prompt=prompt,
                     contexts=[],
-                    system_prompt=_APPRAISAL_PROMPT.format(name=name),
+                    system_prompt=_APPRAISAL_PROMPT.format(
+                        name=name,
+                        persona_block=persona_block,
+                        relationship_block=relationship_block,
+                    ),
                     session_id=umo,
                 ),
                 timeout=self.appraisal_timeout,

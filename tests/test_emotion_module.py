@@ -164,10 +164,14 @@ def test_ambiguous_message_uses_semantic_appraisal(tmp_path):
         tmp_path, sensitivity=0.6, context=_AppraisalContext()
     )
     event = _Event("你是不是觉得我装")
-    asyncio.run(pack.on_event(_ctx(event)))
-    pending = list(pack._appraisal_tasks)
-    if pending:
-        asyncio.run(asyncio.gather(*pending))
+
+    async def run():
+        await pack.on_event(_ctx(event))
+        pending = list(pack._appraisal_tasks)
+        if pending:
+            await asyncio.gather(*pending)
+
+    asyncio.run(run())
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["anger"] > 0.1
     assert "对方觉得她在装" in mood.cause
@@ -221,10 +225,14 @@ def test_group_praise_can_be_reappraised_as_teasing(tmp_path):
         tmp_path, sensitivity=1.0, context=_TeaseContext()
     )
     event = _Event("你好可爱", private=False, at=True)
-    asyncio.run(pack.on_event(_ctx(event)))
-    pending = list(pack._appraisal_tasks)
-    if pending:
-        asyncio.run(asyncio.gather(*pending))
+
+    async def run():
+        await pack.on_event(_ctx(event))
+        pending = list(pack._appraisal_tasks)
+        if pending:
+            await asyncio.gather(*pending)
+
+    asyncio.run(run())
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] < 0.1
     assert "逗AI" in mood.cause
