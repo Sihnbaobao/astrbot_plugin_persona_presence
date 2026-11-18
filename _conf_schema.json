@@ -801,6 +801,24 @@
         "type": "int",
         "default": 45,
         "hint": "没有新事件时，情绪回落到平静的基准半衰期；不同情绪另有更细的衰减。"
+      },
+      "enable_emotion_appraisal": {
+        "description": "启用语义评估",
+        "type": "bool",
+        "default": true,
+        "hint": "关键词判断不了语气时，用一次小模型判断是玩笑、挑衅、关心还是敷衍。只对直接对她说的话、且同一用户两分钟内最多一次；明显关键词不调用。"
+      },
+      "emotion_appraisal_provider_id": {
+        "description": "语义评估服务商",
+        "type": "string",
+        "default": "",
+        "hint": "留空=使用当前会话的聊天服务商；可填一个更便宜的模型专门做情绪判断。"
+      },
+      "emotion_appraisal_timeout": {
+        "description": "语义评估超时（秒）",
+        "type": "int",
+        "default": 8,
+        "hint": "超时或失败时退回关键词判断，不影响正常回复。"
       }
     }
   },

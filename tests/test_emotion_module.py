@@ -143,3 +143,31 @@ def test_negative_like_is_not_praise(tmp_path):
     asyncio.run(pack.on_event(_ctx(event)))
     mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
     assert mood.base["joy"] == 0.0
+
+class _AppraisalResponse:
+    completion_text = '{"intent":"挑衅","intensity":0.8,"cause":"对方觉得她在装"}'
+
+
+class _AppraisalProvider:
+    async def text_chat(self, **_kwargs):
+        return _AppraisalResponse()
+
+
+class _AppraisalContext:
+    async def get_using_provider_async(self, *_args):
+        return _AppraisalProvider()
+
+
+def test_ambiguous_message_uses_semantic_appraisal(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(
+        tmp_path, sensitivity=0.6, context=_AppraisalContext()
+    )
+    event = _Event("你是不是觉得我装")
+    asyncio.run(pack.on_event(_ctx(event)))
+    pending = list(pack._appraisal_tasks)
+    if pending:
+        asyncio.run(asyncio.gather(*pending))
+    mood = pack.chats[event.unified_msg_origin][event.get_sender_id()]
+    assert mood.base["anger"] > 0.1
+    assert "对方觉得她在装" in mood.cause

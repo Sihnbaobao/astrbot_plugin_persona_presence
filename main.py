@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.71"
+PLUGIN_VERSION = "2.0.72"
 
 
 @register(
@@ -2328,6 +2328,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 ),
                 decay_minutes=self._cfg_int(
                     "emotion_decay_minutes", 45, minimum=5, maximum=360
+                ),
+                context=self.context,
+                provider_id=self._cfg_str("emotion_appraisal_provider_id", ""),
+                appraisal_timeout=self._cfg_int(
+                    "emotion_appraisal_timeout", 8, minimum=3, maximum=30
+                ),
+                appraisal_enabled=self._cfg_bool(
+                    "enable_emotion_appraisal", True
                 ),
             )
             logger.info("[情绪] 已启用")

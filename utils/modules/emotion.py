@@ -8,6 +8,7 @@ group chatter does not move the state.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -69,6 +70,20 @@ _EMOTION_LABELS = {
     "surprise": "意外",
 }
 _STATE_VERSION = 1
+_APPRAISAL_CUES = re.compile(
+    r"你|是不是|装|随便|行|厉害|呵|6|哦|嗯|？|\?|凭什么|少来"
+)
+_APPRAISAL_PROMPT = """你是角色 {name} 的内心判断器，不是客服，也不是在回复。
+
+看这句话对她意味着什么，只输出一个 JSON，不要解释：
+{{"intent":"挑衅|羞辱|命令|越界|玩笑|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"不超过30字"}}
+
+规则：
+- 玩笑和熟人互损不要判成羞辱。
+- 只有真的越界、命令、贬低才叫挑衅/羞辱。
+- 普通陈述就输出普通。
+- intensity 表示这件事对她有多重，0.1 到 1.0。
+"""
 
 
 @dataclass
@@ -107,12 +122,21 @@ class EmotionModule(PluginModule):
         *,
         sensitivity: float = 0.6,
         decay_minutes: int = 45,
+        context: Any = None,
+        provider_id: str = "",
+        appraisal_timeout: int = 8,
+        appraisal_enabled: bool = True,
     ) -> None:
-        super().__init__()
+        super().__init__(context)
         self.data_dir = Path(data_dir) if data_dir else None
         self.path = self.data_dir / "emotion.json" if self.data_dir else None
         self.sensitivity = max(0.1, min(2.0, float(sensitivity)))
         self.decay_minutes = max(5, int(decay_minutes))
+        self.provider_id = str(provider_id or "").strip()
+        self.appraisal_timeout = max(3, int(appraisal_timeout))
+        self.appraisal_enabled = bool(appraisal_enabled)
+        self._appraisal_tasks: set[asyncio.Task] = set()
+        self._last_appraisal: dict[tuple[str, str], float] = {}
         self.chats: dict[str, dict[str, _Mood]] = {}
         self._last_seen: dict[tuple[str, str], tuple[str, float]] = {}
         self.ledger = RelationLedger(
@@ -294,7 +318,8 @@ class EmotionModule(PluginModule):
         bucket = self.chats.setdefault(ctx.umo, {})
         mood = bucket.setdefault(user_id, _Mood())
         text = self._text(ctx.event)
-        if self._appraise(text, mood, ctx.umo, user_id):
+        locally_changed = self._appraise(text, mood, ctx.umo, user_id)
+        if locally_changed:
             self._save()
         if self.ledger.appraise(
             ctx.umo,
@@ -304,6 +329,188 @@ class EmotionModule(PluginModule):
             group_id=ctx.group_id,
         ):
             self.ledger.save()
+        if not locally_changed:
+            self._schedule_semantic(ctx, text, user_id)
+
+    def _schedule_semantic(
+        self, ctx: FeatureContext, text: str, user_id: str
+    ) -> None:
+        """Queue one semantic appraisal when local rules are inconclusive.
+
+        Args:
+            ctx: Turn context.
+            text: Incoming message text.
+            user_id: Sender identifier.
+        """
+        if not self.appraisal_enabled or self.context is None:
+            return
+        if not text or len(text) > 160 or not _APPRAISAL_CUES.search(text):
+            return
+        now = time.time()
+        key = (ctx.umo, user_id)
+        if now - self._last_appraisal.get(key, 0.0) < 120:
+            return
+        self._last_appraisal[key] = now
+        task = asyncio.create_task(
+            self._semantic_appraise(
+                ctx.umo,
+                user_id,
+                text,
+                ctx.is_private,
+                ctx.persona,
+            )
+        )
+        self._appraisal_tasks.add(task)
+        task.add_done_callback(self._appraisal_tasks.discard)
+
+    async def _semantic_appraise(
+        self,
+        umo: str,
+        user_id: str,
+        text: str,
+        is_private: bool,
+        persona: str,
+    ) -> None:
+        """Ask a small model what the message means, then apply the result.
+
+        Args:
+            umo: Conversation origin.
+            user_id: Sender identifier.
+            text: Incoming message text.
+            is_private: Whether this is a private chat.
+            persona: Persona prompt, used only for the character name.
+        """
+        try:
+            if self.provider_id:
+                provider = self.context.get_provider_by_id(self.provider_id)
+            else:
+                provider = await self.context.get_using_provider_async(umo)
+            if provider is None:
+                return
+            name = self._persona_name(persona)
+            prompt = (
+                "场景："
+                + ("私聊" if is_private else "群聊")
+                + "\n消息："
+                + text
+                + "\n只输出 JSON。"
+            )
+            response = await asyncio.wait_for(
+                provider.text_chat(
+                    prompt=prompt,
+                    contexts=[],
+                    system_prompt=_APPRAISAL_PROMPT.format(name=name),
+                    session_id=umo,
+                ),
+                timeout=self.appraisal_timeout,
+            )
+            raw = str(getattr(response, "completion_text", "") or "")
+            payload = self._parse_appraisal(raw)
+            if not payload:
+                return
+            self._apply_semantic(umo, user_id, text, payload, is_private)
+        except asyncio.TimeoutError:
+            logger.debug("[情绪] 语义评估超时")
+        except Exception as exc:
+            logger.debug(f"[情绪] 语义评估失败: {exc}")
+
+    @staticmethod
+    def _parse_appraisal(raw: str) -> dict[str, Any] | None:
+        """Extract the appraisal JSON from a model response.
+
+        Args:
+            raw: Raw completion text.
+
+        Returns:
+            A payload with intent and intensity, or None.
+        """
+        if not raw:
+            return None
+        match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        if not match:
+            return None
+        try:
+            payload = json.loads(match.group(0))
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        intent = str(payload.get("intent") or "").strip()
+        if intent not in {
+            "挑衅",
+            "羞辱",
+            "命令",
+            "越界",
+            "玩笑",
+            "关心",
+            "夸奖",
+            "敷衍",
+            "普通",
+        }:
+            return None
+        try:
+            intensity = max(0.0, min(1.0, float(payload.get("intensity", 0.0))))
+        except (TypeError, ValueError):
+            intensity = 0.0
+        payload["intent"] = intent
+        payload["intensity"] = intensity
+        payload["cause"] = str(payload.get("cause") or "")[:60]
+        return payload
+
+    def _apply_semantic(
+        self,
+        umo: str,
+        user_id: str,
+        text: str,
+        payload: dict[str, Any],
+        is_private: bool,
+    ) -> None:
+        """Apply a semantic appraisal to the short-term mood.
+
+        Args:
+            umo: Conversation origin.
+            user_id: Sender identifier.
+            text: Original message.
+            payload: Parsed appraisal.
+            is_private: Whether this is a private chat.
+        """
+        intent = payload["intent"]
+        intensity = payload["intensity"]
+        if intensity <= 0.0 or intent == "普通":
+            return
+        bucket = self.chats.get(umo)
+        mood = bucket.get(user_id) if bucket else None
+        if mood is None:
+            return
+        relation = self.ledger.relations.get(umo, {}).get(user_id)
+        warmth = relation.warmth if relation is not None else 0.0
+        public = not is_private
+        if intent in {"挑衅", "羞辱", "越界"}:
+            if warmth >= 0.35:
+                self._add(mood, sadness=0.18 * intensity, anger=0.10 * intensity)
+            else:
+                self._add(
+                    mood,
+                    anger=0.35 * intensity,
+                    disgust=0.18 * intensity,
+                )
+            if public:
+                self._add(mood, anger=0.06 * intensity)
+        elif intent == "命令":
+            self._add(mood, anger=0.22 * intensity, disgust=0.08 * intensity)
+        elif intent == "玩笑":
+            self._add(mood, joy=0.12 * intensity, anger=0.04 * intensity)
+        elif intent == "关心":
+            self._add(mood, joy=0.14 * intensity, sadness=-0.08 * intensity)
+        elif intent == "夸奖":
+            self._add(mood, joy=0.12 * intensity)
+        elif intent == "敷衍":
+            self._add(mood, sadness=0.12 * intensity, disgust=0.06 * intensity)
+        cause = payload.get("cause") or text
+        mood.cause = re.sub(r"\s+", " ", str(cause)).strip()[:60]
+        mood.updated_at = time.time()
+        self._save()
+        logger.debug(f"[情绪] 语义评估: {intent} {intensity:.2f}")
 
     def block_for(self, event: Any, is_private: bool) -> str:
         try:
@@ -317,7 +524,7 @@ class EmotionModule(PluginModule):
         if mood is not None:
             self._decay(mood, time.time())
             top = sorted(mood.base.items(), key=lambda item: item[1], reverse=True)
-            strong = [(name, value) for name, value in top if value >= 0.18]
+            strong = [(name, value) for name, value in top if value >= 0.12]
             if strong:
                 label = self._label(strong)
                 cause = mood.cause.strip()
@@ -364,5 +571,9 @@ class EmotionModule(PluginModule):
         return _SINGLE_LABELS.get(names[0], "有点复杂")
 
     async def close(self) -> None:
+        for task in list(self._appraisal_tasks):
+            task.cancel()
+        if self._appraisal_tasks:
+            await asyncio.gather(*self._appraisal_tasks, return_exceptions=True)
         self._save()
         self.ledger.save()

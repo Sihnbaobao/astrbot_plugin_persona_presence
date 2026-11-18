@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.72
+
+- Add optional semantic emotion appraisal for ambiguous direct messages. It runs asynchronously, at most once per sender per two minutes, only when keyword rules are inconclusive; obvious keywords skip the model. Timeout or failure falls back to local rules. The appraiser judges intent and intensity, not the reply text.
+
 ## 2.0.71
 
 - Reduce emotion false positives: “装个软件” no longer counts as an insult, “不喜欢” no longer counts as praise, and one turn gets one dominant appraisal instead of stacking every keyword. Fix newly-created relationship records not being persisted.
