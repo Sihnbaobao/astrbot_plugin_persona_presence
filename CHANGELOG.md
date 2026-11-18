@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.77
+
+- Refine emotion visualization: explicit KPI labels, emotion composition bars, stronger hero details, person names instead of group ids as card titles, per-person negative/positive event counts, and per-group conflict counts.
+
 ## 2.0.76
 
 - Apply the dominant emotion colour to the emotion hero background, so the visual accent follows the current mood.

@@ -34,6 +34,9 @@ class _Relation:
     resentment: float = 0.0
     bottomed_out: bool = False
     cause: str = ""
+    name: str = ""
+    negative_events: int = 0
+    positive_events: int = 0
     updated_at: float = 0.0
 
     def __post_init__(self) -> None:
@@ -47,6 +50,8 @@ class _GroupAttitude:
     comfort: float = 0.0
     withdrawal: float = 0.0
     cause: str = ""
+    name: str = ""
+    negative_events: int = 0
     updated_at: float = 0.0
 
     def __post_init__(self) -> None:
@@ -96,6 +101,9 @@ class RelationLedger:
                     resentment=float(item.get("resentment", 0.0)),
                     bottomed_out=bool(item.get("bottomed_out", False)),
                     cause=str(item.get("cause") or "")[:120],
+                    name=str(item.get("name") or "")[:40],
+                    negative_events=int(item.get("negative_events", 0) or 0),
+                    positive_events=int(item.get("positive_events", 0) or 0),
                     updated_at=float(item.get("updated_at") or 0.0),
                 )
         for umo, item in (raw.get("groups") or {}).items():
@@ -105,6 +113,8 @@ class RelationLedger:
                 comfort=float(item.get("comfort", 0.0)),
                 withdrawal=float(item.get("withdrawal", 0.0)),
                 cause=str(item.get("cause") or "")[:120],
+                name=str(item.get("name") or "")[:40],
+                negative_events=int(item.get("negative_events", 0) or 0),
                 updated_at=float(item.get("updated_at") or 0.0),
             )
 
@@ -121,6 +131,9 @@ class RelationLedger:
                         "resentment": rel.resentment,
                         "bottomed_out": rel.bottomed_out,
                         "cause": rel.cause,
+                        "name": rel.name,
+                        "negative_events": rel.negative_events,
+                        "positive_events": rel.positive_events,
                         "updated_at": rel.updated_at,
                     }
                     for user_id, rel in users.items()
@@ -136,6 +149,8 @@ class RelationLedger:
                     "comfort": item.comfort,
                     "withdrawal": item.withdrawal,
                     "cause": item.cause,
+                    "name": item.name,
+                    "negative_events": item.negative_events,
                     "updated_at": item.updated_at,
                 }
                 for umo, item in self.groups.items()
@@ -166,6 +181,8 @@ class RelationLedger:
         *,
         is_private: bool,
         group_id: str = "",
+        sender_name: str = "",
+        group_name: str = "",
     ) -> bool:
         """Update long-lived attitudes from one direct event.
 
@@ -188,6 +205,8 @@ class RelationLedger:
         if relation is None:
             relation = _Relation()
             bucket[user_id] = relation
+        if sender_name:
+            relation.name = sender_name[:40]
         changed = False
         severe = bool(_SEVERE_RE.search(text))
         conflict = bool(_CONFLICT_RE.search(text))
@@ -199,11 +218,13 @@ class RelationLedger:
             relation.warmth -= 0.08 * self.sensitivity
             relation.trust -= 0.03 * self.sensitivity
             relation.cause = text[:60]
+            relation.negative_events += 1
             changed = True
         if conflict:
             relation.resentment += 0.06 * self.sensitivity
             relation.warmth -= 0.02 * self.sensitivity
             relation.cause = relation.cause or text[:60]
+            relation.negative_events += 1
             changed = True
         if praise:
             relation.warmth += 0.04 * self.sensitivity
@@ -211,12 +232,14 @@ class RelationLedger:
             if not relation.bottomed_out:
                 relation.resentment -= 0.02 * self.sensitivity
             relation.cause = relation.cause or text[:60]
+            relation.positive_events += 1
             changed = True
         if apology:
             if not relation.bottomed_out:
                 relation.resentment -= 0.10 * self.sensitivity
                 relation.warmth += 0.02 * self.sensitivity
             relation.cause = relation.cause or text[:60]
+            relation.positive_events += 1
             changed = True
 
         if relation.resentment >= 0.85:
@@ -232,15 +255,19 @@ class RelationLedger:
 
         if not is_private and group_id:
             group = self.groups.setdefault(group_id, _GroupAttitude())
+            if group_name:
+                group.name = group_name[:40]
             if severe:
                 group.withdrawal += 0.10 * self.sensitivity
                 group.comfort -= 0.06 * self.sensitivity
                 group.cause = text[:60]
+                group.negative_events += 1
                 changed = True
             elif conflict:
                 group.withdrawal += 0.04 * self.sensitivity
                 group.comfort -= 0.02 * self.sensitivity
                 group.cause = group.cause or text[:60]
+                group.negative_events += 1
                 changed = True
             elif praise:
                 group.comfort += 0.02 * self.sensitivity

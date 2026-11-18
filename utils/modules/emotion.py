@@ -92,6 +92,7 @@ class _Mood:
 
     base: dict[str, float] = field(default_factory=dict)
     cause: str = ""
+    name: str = ""
     updated_at: float = 0.0
 
     def __post_init__(self) -> None:
@@ -168,6 +169,7 @@ class EmotionModule(PluginModule):
                         for emotion in _BASE_EMOTIONS
                     },
                     cause=str(item.get("cause") or "")[:120],
+                    name=str(item.get("name") or "")[:40],
                     updated_at=float(item.get("updated_at") or 0.0),
                 )
                 bucket[str(user_id)] = mood
@@ -181,6 +183,7 @@ class EmotionModule(PluginModule):
                 user_id: {
                     "base": mood.base,
                     "cause": mood.cause,
+                    "name": mood.name,
                     "updated_at": mood.updated_at,
                 }
                 for user_id, mood in users.items()
@@ -201,6 +204,36 @@ class EmotionModule(PluginModule):
     def _sender_id(event: Any) -> str:
         try:
             return str(event.get_sender_id() or "").strip()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _sender_name(event: Any) -> str:
+        """Read a sender display name without trusting platform shape.
+
+        Args:
+            event: AstrBot message event.
+
+        Returns:
+            A short name, or an empty string.
+        """
+        try:
+            return str(event.get_sender_name() or "").strip()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _group_name(event: Any) -> str:
+        """Read a group display name without trusting platform shape.
+
+        Args:
+            event: AstrBot message event.
+
+        Returns:
+            A short name, or an empty string.
+        """
+        try:
+            return str(event.get_group_name() or "").strip()
         except Exception:
             return ""
 
@@ -315,8 +348,12 @@ class EmotionModule(PluginModule):
         if not self._directed(ctx.event, ctx.is_private, ctx.persona):
             return
         user_id = self._sender_id(ctx.event) or "unknown"
+        sender_name = self._sender_name(ctx.event)
+        group_name = self._group_name(ctx.event)
         bucket = self.chats.setdefault(ctx.umo, {})
         mood = bucket.setdefault(user_id, _Mood())
+        if sender_name:
+            mood.name = sender_name[:40]
         text = self._text(ctx.event)
         locally_changed = self._appraise(text, mood, ctx.umo, user_id)
         if locally_changed:
@@ -327,6 +364,8 @@ class EmotionModule(PluginModule):
             text,
             is_private=ctx.is_private,
             group_id=ctx.group_id,
+            sender_name=sender_name,
+            group_name=group_name,
         ):
             self.ledger.save()
         if not locally_changed:
@@ -533,6 +572,7 @@ class EmotionModule(PluginModule):
                     {
                         "umo": umo,
                         "user_id": user_id,
+                        "name": mood.name,
                         "base": {
                             name: round(mood.base.get(name, 0.0), 3)
                             for name in _BASE_EMOTIONS
@@ -551,25 +591,35 @@ class EmotionModule(PluginModule):
                     {
                         "umo": umo,
                         "user_id": user_id,
+                        "name": rel.name,
                         "warmth": round(rel.warmth, 3),
                         "trust": round(rel.trust, 3),
                         "resentment": round(rel.resentment, 3),
                         "bottomed_out": rel.bottomed_out,
                         "cause": rel.cause,
+                        "negative_events": rel.negative_events,
+                        "positive_events": rel.positive_events,
                         "updated_at": rel.updated_at,
                     }
                 )
+        relations.sort(
+            key=lambda item: (item["bottomed_out"], item["resentment"]),
+            reverse=True,
+        )
         groups: list[dict[str, Any]] = []
         for group_id, group in self.ledger.groups.items():
             groups.append(
                 {
                     "group_id": group_id,
+                    "name": group.name,
                     "comfort": round(group.comfort, 3),
                     "withdrawal": round(group.withdrawal, 3),
                     "cause": group.cause,
+                    "negative_events": group.negative_events,
                     "updated_at": group.updated_at,
                 }
             )
+        groups.sort(key=lambda item: item["withdrawal"], reverse=True)
         return {
             "moods": moods,
             "relations": relations,

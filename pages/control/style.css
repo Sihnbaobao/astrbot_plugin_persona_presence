@@ -1310,3 +1310,48 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   .emotion-grid { grid-template-columns: 1fr; }
   .emotion-mood-card { grid-template-columns: 92px minmax(0, 1fr); }
 }
+
+.emotion-hero-topline {
+  margin-top: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.emotion-composition {
+  display: flex;
+  width: min(100%, 360px);
+  height: 6px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+}
+.emotion-composition span { display: block; height: 100%; min-width: 2px; }
+.emotion-hero-intensity { display: block; }
+.emotion-intensity-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.emotion-intensity-label span { color: var(--text-3); font-size: var(--fs-xs); }
+.emotion-intensity-label strong { color: var(--mood-color, var(--accent)); font-size: 22px; font-weight: 600; }
+.emotion-intensity-track {
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+}
+.emotion-intensity-track i { display: block; height: 100%; border-radius: inherit; }
+.emotion-facts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+.emotion-facts span {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-muted);
+}
