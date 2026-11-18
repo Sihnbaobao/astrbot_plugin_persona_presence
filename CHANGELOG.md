@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.73
+
+- Show the emotion DLC in the plugin control page: its card in the DLC grid, overview count, group summary, and config tab. Bump the static app cache so the page picks it up after reload.
+
 ## 2.0.72
 
 - Add optional semantic emotion appraisal for ambiguous direct messages. It runs asynchronously, at most once per sender per two minutes, only when keyword rules are inconclusive; obvious keywords skip the model. Timeout or failure falls back to local rules. The appraiser judges intent and intensity, not the reply text.

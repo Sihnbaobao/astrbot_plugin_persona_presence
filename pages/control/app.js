@@ -96,6 +96,7 @@ const MASTERS = {
   presence_image: "enable_image_archive",
   presence_cross_group: "enable_cross_group_sight",
   dlc_notebook: "enable_notebook",
+  dlc_emotion: "enable_emotion",
   dlc_curiosity: "enable_curiosity",
   dlc_proactive: "enable_proactive",
 };
@@ -122,6 +123,7 @@ function groupSummary(gid) {
     case "presence_image": return `${v.enable_image_archive ? "长期图库开" : "图库关"} · 上限 ${v.image_archive_max_mb ?? "-"}MB`;
     case "presence_cross_group": return v.enable_cross_group_sight ? "跨群见闻 · 开" : "跨群见闻 · 关";
     case "dlc_notebook": return v.enable_notebook ? "资料片已装载" : "资料片未装载";
+    case "dlc_emotion": return v.enable_emotion ? "资料片已装载 · 情绪" : "资料片未装载";
     case "dlc_curiosity": return v.enable_curiosity ? "资料片已装载 · 独立知识库" : "资料片未装载";
     case "dlc_proactive": return v.enable_proactive ? "资料片已装载" : "资料片未装载";
     default: return "";
@@ -804,7 +806,7 @@ function renderOverview() {
   const v = state.values || {};
   const nb = NET.data || {};
   const groups = (v.enabled_groups || []).length;
-  const dlcOn = [v.enable_notebook, v.enable_curiosity, v.enable_proactive].filter(Boolean).length;
+  const dlcOn = [v.enable_notebook, v.enable_emotion, v.enable_curiosity, v.enable_proactive].filter(Boolean).length;
   const tendency = v.decision_ai_reply_tendency === "active" ? "积极"
     : (v.decision_ai_reply_tendency === "reserved" ? "克制" : "按人格");
 
@@ -823,7 +825,7 @@ function renderOverview() {
       "策略 " + (v.private_reply_mode || "direct"),
       v.enable_private_chat ? "ok" : "muted"),
     stat("⚙", "参与判断", tendency, "决定要不要接话"),
-    stat("❖", "资料片", dlcOn + " / 3", dlcOn ? "已装载" : "全部未装载",
+    stat("❖", "资料片", dlcOn + " / 4", dlcOn ? "已装载" : "全部未装载",
       dlcOn ? "ok" : "muted"),
     stat("◎", "记忆条目", nb.total || 0, (nb.pending_curiosity || 0) + " 个好奇心待查"),
     stat("☀", "真实状态", v.enable_life_state ? "跟随" : "关闭",
@@ -848,6 +850,14 @@ const DLC_DEFS = [
     tagline: "好奇就去查",
     icon: "◇",
     desc: "群里出现它自己感兴趣的词或事，会自己上网查；结果放进独立知识库，不挤占记忆网络。",
+  },
+  {
+    group: "dlc_emotion",
+    key: "enable_emotion",
+    name: "情绪",
+    tagline: "会开心，也会恼",
+    icon: "☺",
+    desc: "喜、怒、哀、惧、厌、惊会混合成当下的心情；对人和对群的态度会留得更久。",
   },
   {
     group: "dlc_proactive",
