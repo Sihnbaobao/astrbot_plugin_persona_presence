@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.90
+
+- Replace the “what is your first reaction” interview with a short inner-voice pattern: a few concrete examples of someone speaking to her, then her one-line thought and the tag. The model now records a “thought” and uses it as the cause, rather than producing an emotional report.
+
 ## 2.0.89
 
 - Rewrite the emotion appraisal prompt as an inner reaction (“你是{name}……你看到对方的话，第一反应是什么”) instead of asking a neutral classifier to judge how a third person feels. The persona and relationship context are included naturally, and the test harness now keeps the appraisal task in the same event loop.

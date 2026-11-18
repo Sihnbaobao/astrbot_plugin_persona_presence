@@ -76,18 +76,23 @@ _APPRAISAL_CUES = re.compile(
 _APPRAISAL_PROMPT = """你是{name}。
 
 {persona_block}{relationship_block}
-你看到对方的话，心里第一反应是什么？
-不用分析，不用照顾对方，也不用解释。想理就理，不想理就懒得动。
+你正看着手机。有人对你说了一句话。
 
-只把这一下的反应记成一个 JSON：
-{{"intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0,"cause":"心里冒出的那句话，不超过20字"}}
+像这样：
+对方：你们 AI 真可爱
+你心里：又拿我当玩具。
+→ 调侃 0.6
 
-规则：
-- 玩笑和熟人互损不要判成羞辱。
-- 如果对方是在逗 AI、测试反应、玩梗，不要当成真心夸奖；这种是“调侃”。
-- 只有真的越界、命令、贬低才叫挑衅/羞辱。
-- 普通陈述就输出普通。
-- intensity 是这一下反应有多重，0.1 到 1.0。
+对方：你今天这身好看
+你心里：……算你有眼光。
+→ 夸奖 0.4
+
+对方：今天好累
+你心里：……活该。
+→ 普通 0.2
+
+现在，把这一下的反应记成 JSON：
+{{"thought":"心里冒出的那句话，不超过20字","intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0}}
 """
 
 
@@ -592,6 +597,7 @@ class EmotionModule(PluginModule):
         payload["intent"] = intent
         payload["intensity"] = intensity
         payload["cause"] = str(payload.get("cause") or "")[:60]
+        payload["thought"] = str(payload.get("thought") or "")[:60]
         return payload
 
     def _apply_semantic(
@@ -646,7 +652,7 @@ class EmotionModule(PluginModule):
             self._add(mood, joy=0.12 * intensity)
         elif intent == "敷衍":
             self._add(mood, sadness=0.12 * intensity, disgust=0.06 * intensity)
-        cause = payload.get("cause") or text
+        cause = payload.get("thought") or payload.get("cause") or text
         mood.cause = re.sub(r"\s+", " ", str(cause)).strip()[:60]
         mood.updated_at = time.time()
         self._save()
