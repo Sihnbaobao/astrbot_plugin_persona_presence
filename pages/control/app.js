@@ -1139,8 +1139,11 @@ function _moodCard(mood) {
 }
 
 function _relationCard(rel) {
-  const warmthPct = emotionPct(rel.warmth, true);
-  const ringColor = rel.bottomed_out ? "#d45a4a" : (rel.warmth >= 0 ? "#3fa7a0" : "#d45a4a");
+  const warmth = Number(rel.warmth) || 0;
+  const warmthPct = emotionPct(warmth, true);
+  const ringColor = rel.bottomed_out ? "#d45a4a" : (warmth >= 0 ? "#3fa7a0" : "#d45a4a");
+  const warmthWord = warmth > 0.05 ? "亲近" : (warmth < -0.05 ? "疏远" : "中性");
+  const warmthText = (warmth >= 0 ? "+" : "") + warmth.toFixed(2);
   const badge = rel.bottomed_out
     ? '<span class="pill need">已到底线</span>'
     : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 不满</span>';
@@ -1150,8 +1153,9 @@ function _relationCard(rel) {
     '<div class="emotion-person-head"><div class="emotion-avatar" style="--avatar-color:' + ringColor + '">' + esc(avatar) + '</div>' +
       '<div class="emotion-person-title"><strong>' + esc(name) + '</strong><span>' + esc(shortChat(rel.umo)) + ' · ID ' + esc(rel.user_id) + '</span></div>' + badge + '</div>' +
     '<div class="emotion-person-body"><div class="emotion-ring" style="--ring-value:' + warmthPct + '%;--ring-color:' + ringColor + '">' +
-      '<div class="emotion-ring-inner"><strong>' + warmthPct + '</strong><span>亲近</span></div></div>' +
+      '<div class="emotion-ring-inner"><strong>' + warmthText + '</strong><span>' + warmthWord + '</span></div></div>' +
       '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("不满", rel.resentment, "#d45a4a", false) + '</div></div>' +
+    '<div class="emotion-scale">−1 疏远 · 0 中性 · +1 亲近</div>' +
     '<div class="emotion-facts"><span>不愉快 ' + (rel.negative_events || 0) + ' 次</span><span>正向 ' + (rel.positive_events || 0) + ' 次</span></div>' +
     (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(rel.cause) + '</div>' : '') + '</article>';
 }

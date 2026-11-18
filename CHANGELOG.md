@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.92
+
+- Stop showing the neutral relationship midpoint as “亲近 50”. Warmth is a −1..+1 scale, so 0 is neutral; the card now shows +0.00 / 中性 (or 疏远) with a −1 · 0 · +1 scale line.
+
 ## 2.0.91
 
 - Make praise relationship-aware. From someone with high resentment or a bottomed-out relationship, a compliment is treated as coaxing or mockery: no joy gain, a little anger/disgust. Mild resentment reduces the gain; warmth increases it. The same modifiers apply to semantic “夸奖” results.

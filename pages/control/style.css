@@ -1396,3 +1396,11 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   line-height: 1.5;
 }
 .emotion-hero-radar .emotion-radar-svg { max-width: 230px; }
+
+.emotion-scale {
+  margin-top: calc(var(--sp-1) * -1);
+  color: var(--text-3);
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+}
