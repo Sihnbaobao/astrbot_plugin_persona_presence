@@ -145,6 +145,48 @@ class EmotionModule(PluginModule):
             sensitivity=self.sensitivity,
         )
         self._load()
+        self._backfill_names()
+
+    def _backfill_names(self) -> None:
+        """Fill missing display names from the local image archive.
+
+        Older emotion records only stored user ids. The image archive already
+        keeps sender names from past messages, so it can repair those records
+        without another platform lookup.
+        """
+        if self.data_dir is None:
+            return
+        archive = self.data_dir / "image_archive.json"
+        if not archive.is_file():
+            return
+        try:
+            raw = json.loads(archive.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        names: dict[str, str] = {}
+        for entry in (raw.get("entries") or []) if isinstance(raw, dict) else []:
+            if not isinstance(entry, dict):
+                continue
+            user_id = str(entry.get("sender_id") or "")
+            name = str(entry.get("sender_name") or "").strip()
+            if user_id and name:
+                names[user_id] = name[:40]
+        if not names:
+            return
+        changed = False
+        for users in self.chats.values():
+            for user_id, mood in users.items():
+                if not mood.name and user_id in names:
+                    mood.name = names[user_id]
+                    changed = True
+        for users in self.ledger.relations.values():
+            for user_id, relation in users.items():
+                if not relation.name and user_id in names:
+                    relation.name = names[user_id]
+                    changed = True
+        if changed:
+            self._save()
+            self.ledger.save()
 
     def _load(self) -> None:
         if self.path is None or not self.path.is_file():

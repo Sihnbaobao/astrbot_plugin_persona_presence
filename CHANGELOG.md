@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.81
+
+- Backfill missing display names for older emotion records from the local image archive, so user ids become readable names on the dashboard.
+
 ## 2.0.80
 
 - Add percent units to radar axis labels and keep the labels just outside the filled area.
