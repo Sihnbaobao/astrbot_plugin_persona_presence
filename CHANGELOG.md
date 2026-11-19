@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.95
+
+- Keep the activity bridge and the per-persona emotion state together in the release line: music, Bilibili and Qzone activity feed the persona-wide background mood, while chat emotion remains scoped per person and per conversation.
+
 ## 2.0.94
 
 - Fix the emotion module failing to initialize after the per-persona chat-state migration: the image-archive name backfill now walks the nested persona → user structure instead of treating it as a flat user map.
