@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.97
+
+- Make image curation selective. Favorites now start at 0.80, screenshots and promotional pages are capped and never favorited, and “might be useful as a meme” no longer counts as “I want to keep this.” The existing archive was re-curated under the same rules.
+
 ## 2.0.96
 
 - Separate “last interaction” from “last attitude change” in the relationship cards. The cause only changes on significant events; the card now shows the actual last-talk time and dates the cause, so an old but meaningful event is no longer mistaken for the latest conversation.

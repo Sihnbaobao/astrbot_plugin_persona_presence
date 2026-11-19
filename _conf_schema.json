@@ -703,7 +703,7 @@
       "image_archive_min_score": {
         "description": "收藏评分线",
         "type": "float",
-        "default": 0.6,
+        "default": 0.8,
         "hint": "模型评分达到这个值才当作收藏图，进入回看流程。"
       },
       "archive_sensitive_send_enabled": {
