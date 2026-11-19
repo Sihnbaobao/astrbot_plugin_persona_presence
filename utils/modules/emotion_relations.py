@@ -40,6 +40,7 @@ class _Relation:
     name: str = ""
     negative_events: int = 0
     positive_events: int = 0
+    last_seen_at: float = 0.0
     updated_at: float = 0.0
 
     def __post_init__(self) -> None:
@@ -107,6 +108,7 @@ class RelationLedger:
                     name=str(item.get("name") or "")[:40],
                     negative_events=int(item.get("negative_events", 0) or 0),
                     positive_events=int(item.get("positive_events", 0) or 0),
+                    last_seen_at=float(item.get("last_seen_at") or 0.0),
                     updated_at=float(item.get("updated_at") or 0.0),
                 )
         for umo, item in (raw.get("groups") or {}).items():
@@ -137,6 +139,7 @@ class RelationLedger:
                         "name": rel.name,
                         "negative_events": rel.negative_events,
                         "positive_events": rel.positive_events,
+                        "last_seen_at": rel.last_seen_at,
                         "updated_at": rel.updated_at,
                     }
                     for user_id, rel in users.items()
@@ -211,6 +214,11 @@ class RelationLedger:
         if sender_name:
             relation.name = sender_name[:40]
         changed = False
+        if not created:
+            last_seen = float(getattr(relation, "last_seen_at", 0.0) or 0.0)
+            if last_seen <= 0 or now - last_seen > 60:
+                relation.last_seen_at = now
+                changed = True
         severe = bool(_SEVERE_RE.search(text))
         conflict = bool(_CONFLICT_RE.search(text))
         praise = bool(_PRAISE_RE.search(text))

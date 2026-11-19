@@ -1075,6 +1075,15 @@ function _formatEmotionTime(value) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function _formatEmotionDate(value) {
+  const date = new Date((Number(value) || 0) * 1000);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) return _formatEmotionTime(value);
+  return (date.getMonth() + 1) + "-" + date.getDate() + " " + _formatEmotionTime(value);
+}
+
 function _emotionHero(moods, enabled) {
   const host = document.getElementById("emotionHero");
   if (!host) return;
@@ -1156,8 +1165,10 @@ function _relationCard(rel) {
       '<div class="emotion-ring-inner"><strong>' + warmthText + '</strong><span>' + warmthWord + '</span></div></div>' +
       '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("不满", rel.resentment, "#d45a4a", false) + '</div></div>' +
     '<div class="emotion-scale">−1 疏远 · 0 中性 · +1 亲近</div>' +
-    '<div class="emotion-facts"><span>不愉快 ' + (rel.negative_events || 0) + ' 次</span><span>正向 ' + (rel.positive_events || 0) + ' 次</span></div>' +
-    (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(rel.cause) + '</div>' : '') + '</article>';
+    '<div class="emotion-facts"><span>不愉快 ' + (rel.negative_events || 0) + ' 次</span><span>正向 ' + (rel.positive_events || 0) + ' 次</span>' +
+      (rel.last_seen_at ? '<span>最近聊过 ' + _formatEmotionDate(rel.last_seen_at) + '</span>' : '') + '</div>' +
+    (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次变化</span>' + esc(rel.cause) +
+      (rel.updated_at ? ' <span class="emotion-cause-time">' + _formatEmotionDate(rel.updated_at) + '</span>' : '') + '</div>' : '') + '</article>';
 }
 
 function _groupCard(group) {
@@ -1172,7 +1183,8 @@ function _groupCard(group) {
       '<div class="emotion-ring-inner"><strong>' + withdrawal + '</strong><span>退缩</span></div></div>' +
       '<div class="emotion-bars">' + emotionBar("舒适", group.comfort, "#3fa7a0", true) + '</div></div>' +
     '<div class="emotion-facts"><span>冲突 ' + (group.negative_events || 0) + ' 次</span><span>最后 ' + _formatEmotionTime(group.updated_at) + '</span></div>' +
-    (group.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(group.cause) + '</div>' : '') + '</article>';
+    (group.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次变化</span>' + esc(group.cause) +
+      (group.updated_at ? ' <span class="emotion-cause-time">' + _formatEmotionDate(group.updated_at) + '</span>' : '') + '</div>' : '') + '</article>';
 }
 
 function _globalMoodCard(mood) {

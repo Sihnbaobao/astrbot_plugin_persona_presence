@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.96
+
+- Separate “last interaction” from “last attitude change” in the relationship cards. The cause only changes on significant events; the card now shows the actual last-talk time and dates the cause, so an old but meaningful event is no longer mistaken for the latest conversation.
+
 ## 2.0.95
 
 - Keep the activity bridge and the per-persona emotion state together in the release line: music, Bilibili and Qzone activity feed the persona-wide background mood, while chat emotion remains scoped per person and per conversation.

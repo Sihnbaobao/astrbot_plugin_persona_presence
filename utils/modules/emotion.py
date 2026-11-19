@@ -931,6 +931,7 @@ class EmotionModule(PluginModule):
                         "cause": rel.cause,
                         "negative_events": rel.negative_events,
                         "positive_events": rel.positive_events,
+                        "last_seen_at": rel.last_seen_at,
                         "updated_at": rel.updated_at,
                     }
                 )

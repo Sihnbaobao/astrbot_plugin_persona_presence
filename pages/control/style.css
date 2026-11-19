@@ -1404,3 +1404,5 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
   line-height: 1.4;
   text-align: center;
 }
+
+.emotion-cause-time { color: var(--text-3); font-size: 9px; white-space: nowrap; }
