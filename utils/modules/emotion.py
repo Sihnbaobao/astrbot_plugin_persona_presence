@@ -20,6 +20,7 @@ from typing import Any
 from astrbot.api import logger
 
 from .base import FeatureContext, ModuleManifest, PluginModule
+from .emotion_activity import ActivityBridge
 from .emotion_relations import RelationLedger
 
 _BASE_EMOTIONS = ("joy", "anger", "sadness", "fear", "disgust", "surprise")
@@ -140,6 +141,8 @@ class EmotionModule(PluginModule):
         appraisal_enabled: bool = True,
         body_link: bool = True,
         body_dir: "Path | str | None" = None,
+        activity_link: bool = True,
+        activity_dir: "Path | str | None" = None,
     ) -> None:
         super().__init__(context)
         self.data_dir = Path(data_dir) if data_dir else None
@@ -154,6 +157,12 @@ class EmotionModule(PluginModule):
         self._last_appraisal: dict[tuple[str, str], float] = {}
         self.body_link = bool(body_link)
         self.body_dir = Path(body_dir) if body_dir else None
+        self.activity_link = bool(activity_link)
+        self.activity = (
+            ActivityBridge(self.data_dir, activity_dir)
+            if self.activity_link
+            else None
+        )
         self._persona_prompt = ""
         self._name = ""
         self._body_cache: tuple[float, dict[str, Any]] = (0.0, {})
@@ -572,16 +581,19 @@ class EmotionModule(PluginModule):
     async def on_event(self, ctx: FeatureContext) -> None:
         if ctx.persona:
             self._persona_prompt = ctx.persona
+        persona_key = self._persona_key(ctx.persona)
+        if ctx.persona:
+            self._prompt_by_key[persona_key] = ctx.persona[:600]
+            self._name = self._persona_name(ctx.persona)
+        # Music/Bilibili/Qzone activity is the persona's own life, not a chat
+        # event. Poll it even when this group message was not aimed at her.
+        self._activity_tick(persona_key)
         if not self._directed(ctx.event, ctx.is_private, ctx.persona):
             return
         user_id = self._sender_id(ctx.event) or "unknown"
         sender_name = self._sender_name(ctx.event)
         group_name = self._group_name(ctx.event)
-        persona_key = self._persona_key(ctx.persona)
         self._persona_by_umo[ctx.umo] = persona_key
-        if ctx.persona:
-            self._prompt_by_key[persona_key] = ctx.persona[:600]
-            self._name = self._persona_name(ctx.persona)
         bucket = self.chats.setdefault(ctx.umo, {}).setdefault(persona_key, {})
         mood = bucket.setdefault(user_id, _Mood())
         if sender_name:
@@ -604,6 +616,34 @@ class EmotionModule(PluginModule):
             self.ledger.save()
         if not locally_changed or (not ctx.is_private and self._praise_match(text)):
             self._schedule_semantic(ctx, text, user_id)
+
+    def _activity_tick(self, persona_key: str) -> None:
+        """Fold newly observed music, Bilibili and Qzone activity into mood.
+
+        Args:
+            persona_key: Persona whose background mood should absorb the events.
+        """
+        if not self.activity_link or self.activity is None:
+            return
+        try:
+            events = self.activity.poll()
+        except Exception as exc:
+            logger.debug(f"[情绪-活动] 读取失败: {exc}")
+            return
+        if not events:
+            return
+        now = time.time()
+        mood = self.global_moods.setdefault(persona_key, _Mood())
+        self._decay(mood, now, scale=3.0)
+        for event in events:
+            deltas = event.get("deltas") or {}
+            self._add(mood, **{str(k): float(v) for k, v in deltas.items()})
+            cause = str(event.get("cause") or "").strip()
+            if cause:
+                mood.cause = cause[:60]
+        mood.updated_at = now
+        self._publish_mood()
+        self._save()
 
     def _schedule_semantic(self, ctx: FeatureContext, text: str, user_id: str) -> None:
         """Queue one semantic appraisal when local rules are inconclusive.
@@ -911,7 +951,13 @@ class EmotionModule(PluginModule):
                 continue
             global_rows.append(
                 {
-                    "persona": self._prompt_by_key.get(persona_key, "")[:40]
+                    "persona": self._persona_name(
+                        self._prompt_by_key.get(persona_key, "")
+                    )
+                    or persona_key,
+                    "name": self._persona_name(
+                        self._prompt_by_key.get(persona_key, "")
+                    )
                     or persona_key,
                     "base": {
                         name: round(mood.base.get(name, 0.0), 3)

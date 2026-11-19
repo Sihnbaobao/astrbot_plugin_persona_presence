@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.93
+
+- Add the companion-activity bridge. New music listening, Bilibili watch/share records and QQ-space actions are tailed from the other plugins’ files and folded into the persona-wide background mood. The bridge records a cursor on first sight, so old history is not replayed; a control-page section shows the background mood and its latest cause.
+
 ## 2.0.95
 
 - 人格名不再跨人格残留：切换人格后，上一个名字不会继续参与夸奖识别；人格正文没有写名字时退回只认“你”。

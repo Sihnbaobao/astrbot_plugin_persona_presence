@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.92"
+PLUGIN_VERSION = "2.0.93"
 
 
 @register(
@@ -2336,6 +2336,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 ),
                 appraisal_enabled=self._cfg_bool("enable_emotion_appraisal", True),
                 body_link=self._cfg_bool("emotion_body_link", True),
+                activity_link=self._cfg_bool("emotion_activity_link", True),
             )
             logger.info("[情绪] 已启用")
         except Exception as exc:

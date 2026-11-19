@@ -426,3 +426,41 @@ def test_praise_from_disliked_person_does_not_raise_joy(tmp_path):
     mood = _mood(pack, event)
     assert mood.base["joy"] < 0.1
     assert mood.base["disgust"] > 0
+
+def test_music_activity_only_reads_new_entries(tmp_path):
+    import json
+
+    plugin_data = tmp_path / "plugin_data"
+    music_dir = plugin_data / "astrbot_plugin_music_card"
+    music_dir.mkdir(parents=True)
+    listened = music_dir / "listened.jsonl"
+    listened.write_text(
+        json.dumps({"at": "old", "name": "旧歌", "score": 9, "like": True})
+        + "\n",
+        encoding="utf-8",
+    )
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(
+        tmp_path, sensitivity=1.0, activity_link=True, activity_dir=plugin_data
+    )
+    assert pack.activity is not None
+    assert pack.activity.poll() == []
+
+    with listened.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "at": "new",
+                    "name": "新歌",
+                    "artist": "花譜",
+                    "score": 9,
+                    "like": True,
+                }
+            )
+            + "\n"
+        )
+    events = pack.activity.poll()
+    assert events
+    assert events[-1]["source"] == "music"
+    assert "新歌" in events[-1]["cause"]
+    assert events[-1]["deltas"]["joy"] > 0

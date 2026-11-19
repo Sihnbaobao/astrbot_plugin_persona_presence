@@ -1175,6 +1175,20 @@ function _groupCard(group) {
     (group.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(group.cause) + '</div>' : '') + '</article>';
 }
 
+function _globalMoodCard(mood) {
+  const base = mood.base || {};
+  const accent = _emotionAccent(base);
+  const who = mood.name || mood.persona || "她自己";
+  return '<article class="emotion-mood-card" style="--mood-color:' + accent + '">' +
+    '<div class="emotion-mood-radar">' + emotionRadar(base) + '</div>' +
+    '<div class="emotion-mood-main"><div class="emotion-card-top"><strong>' + esc(mood.label || "复杂") + '</strong>' +
+      '<span class="emotion-score">' + Math.round((mood.intensity || 0) * 100) + '%</span></div>' +
+      '<div class="emotion-sub">' + esc(who) + ' · 背景心情</div>' +
+      '<div class="emotion-bars emotion-bars-compact">' + Object.keys(EMOTION_META).map((key, index) => emotionBar(EMOTION_META[key].label, _emotionShares(base)[index], EMOTION_META[key].color, false, true)).join("") + '</div>' +
+      (mood.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次</span>' + esc(mood.cause) + '</div>' : '') +
+    '</div></article>';
+}
+
 function renderEmotion() {
   const data = state.emotion || {};
   const moods = data.moods || [];
@@ -1198,6 +1212,16 @@ function renderEmotion() {
     } else {
       moodHost.innerHTML = moods.map(_moodCard).join("");
     }
+  }
+
+  const globals = data.global_moods || [];
+  const globalCount = document.getElementById("emotionGlobalCount");
+  if (globalCount) globalCount.textContent = String(globals.length);
+  const globalHost = document.getElementById("emotionGlobals");
+  if (globalHost) {
+    globalHost.innerHTML = globals.length
+      ? globals.map(_globalMoodCard).join("")
+      : '<div class="emotion-empty">没有持续的背景心情。听歌、刷视频、空间动态会在这里留下痕迹。</div>';
   }
 
   const relationHost = document.getElementById("emotionRelations");
