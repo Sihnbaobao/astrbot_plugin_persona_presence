@@ -205,11 +205,20 @@ class EmotionModule(PluginModule):
         if not names:
             return
         changed = False
-        for users in self.chats.values():
-            for user_id, mood in users.items():
-                if not mood.name and user_id in names:
-                    mood.name = names[user_id]
-                    changed = True
+        for personas in self.chats.values():
+            if not isinstance(personas, dict):
+                continue
+            for users in personas.values():
+                if not isinstance(users, dict):
+                    continue
+                for user_id, mood in users.items():
+                    if (
+                        isinstance(mood, _Mood)
+                        and not mood.name
+                        and user_id in names
+                    ):
+                        mood.name = names[user_id]
+                        changed = True
         for users in self.ledger.relations.values():
             for user_id, relation in users.items():
                 if not relation.name and user_id in names:

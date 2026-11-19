@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.94
+
+- Fix the emotion module failing to initialize after the per-persona chat-state migration: the image-archive name backfill now walks the nested persona → user structure instead of treating it as a flat user map.
+
 ## 2.0.93
 
 - Add the companion-activity bridge. New music listening, Bilibili watch/share records and QQ-space actions are tailed from the other plugins’ files and folded into the persona-wide background mood. The bridge records a cursor on first sight, so old history is not replayed; a control-page section shows the background mood and its latest cause.
