@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.0.99"
+PLUGIN_VERSION = "2.1.0"
 
 
 @register(
@@ -7151,6 +7151,21 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         if self.debug_mode:
             _decision_elapsed = time.time() - _decision_start
             logger.info(f"【步骤9】决策AI判断完成，耗时: {_decision_elapsed:.2f}秒")
+
+        if (
+            is_private
+            and self.private_reply_mode == "direct"
+            and body_desire
+            and not body_away
+            and not decision_result.reply
+            and decision_result.body_action != "release"
+        ):
+            logger.info(
+                "[Private direct] 身体欲望高但人格未选择 release，恢复私聊直接回复"
+            )
+            decision_result = decision_result.with_reply(
+                True, target="bot", participation="direct"
+            )
 
         if not decision_result.reply:
             if is_private and decision_result.body_action == "release":

@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.0
+
+- **Fix private direct regression**: a high body-desire/wetness state no longer lets the group-style decision AI veto ordinary private messages. In `private direct` mode, if the persona did not explicitly choose `body_action=release` and is not in an away window, the reply is restored. Only an explicit release choice or an active away window suppresses the private reply.
+
 ## 2.0.99
 
 - **Body-aware private decisions**: read the body plugin's `vitals.json` before a private reply. High desire or wetness no longer auto-replies through `private direct`; the decision AI gets a short `[身体]` background line and can still choose to reply.
