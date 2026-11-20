@@ -105,6 +105,16 @@ class AIResponseFilter:
             return response
 
         cleaned = html.unescape(response)
+        # Some providers append an internal tool-call id to the text. It is not
+        # part of the reply and must never reach the chat.
+        cleaned = re.sub(
+            r"\s*&&\s*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            "",
+            cleaned,
+        )
+        cleaned = re.sub(r"\s*&&\s*(?:call|tool)_[A-Za-z0-9_-]+", "", cleaned)
+        cleaned = re.sub(r"\s*&&\s*$", "", cleaned)
         tool_tags = (
             r"(?:queue_meme|queue_followup|queue_saved_image|queue_image|"
             r"web_lookup|search_songs|send_song_card|listen_song|"

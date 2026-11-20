@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.98
+
+- Strip trailing `&&<uuid>` and `&&call_...` tool-call markers from outgoing text. Some providers append these internal ids after a reply; they are not part of the message.
+
 ## 2.0.97
 
 - Make image curation selective. Favorites now start at 0.80, screenshots and promotional pages are capped and never favorited, and “might be useful as a meme” no longer counts as “I want to keep this.” The existing archive was re-curated under the same rules.
