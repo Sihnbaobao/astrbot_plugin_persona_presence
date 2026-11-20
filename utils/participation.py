@@ -25,6 +25,7 @@ BOUNDARY_INTERPRETATION_VALUES = {
     "ambiguous",
     "none",
 }
+BODY_ACTION_VALUES = {"none", "release"}
 
 _REASON_LABELS = {
     "direct_request": "当前消息明确在邀请你回应",
@@ -72,6 +73,7 @@ class ParticipationDecision:
     error: str = ""
     continuation: str = "no"
     boundary_interpretation: str = "none"
+    body_action: str = "none"
 
     @classmethod
     def silent(
@@ -132,7 +134,8 @@ class ParticipationDecision:
             f"participation={self.participation} "
             f"information={self.information} interest={self.interest} "
             f"reason={self.reason_code} confidence={self.confidence} "
-            f"boundary={self.boundary_interpretation}"
+            f"boundary={self.boundary_interpretation} "
+            f"body_action={self.body_action}"
         )
 
 
@@ -215,6 +218,7 @@ def normalize_decision_payload(
         BOUNDARY_INTERPRETATION_VALUES,
         "none",
     )
+    body_action = _choice(payload.get("body_action"), BODY_ACTION_VALUES, "none")
     reply = _as_bool(payload.get("reply"))
 
     if is_private:
@@ -242,6 +246,7 @@ def normalize_decision_payload(
         topic_key=_short_text(payload.get("topic_key")),
         source=source,
         boundary_interpretation=boundary_interpretation,
+        body_action=body_action,
     )
 
     if not reply:

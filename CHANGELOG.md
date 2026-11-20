@@ -1,5 +1,11 @@
 ## 📝 更新日志
 
+## 2.0.99
+
+- **Body-aware private decisions**: read the body plugin's `vitals.json` before a private reply. High desire or wetness no longer auto-replies through `private direct`; the decision AI gets a short `[身体]` background line and can still choose to reply.
+- **Explicit body choice**: the structured decision adds `body_action = none | release`. Only when the persona explicitly chooses to skip the reply and deal with the urge does it write `body_request.json`; the body plugin applies the release and sets its away window. High desire is a fact, not a command.
+- **No hard silence default**: the body plugin's standalone `ENABLE_AWAY` remains off; persona_presence owns the reply/no-reply decision.
+
 ## 2.0.98
 
 - Strip trailing `&&<uuid>` and `&&call_...` tool-call markers from outgoing text. Some providers append these internal ids after a reply; they are not part of the message.
