@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.8
+
+- Carry the previous textual speaker and their chat-record time into the reply prompt too, not only the decision AI. For ambiguous group messages the reply model now sees the same candidate and age before it starts writing.
+
 ## 2.1.7
 
 - Put the previous textual speaker’s chat-record clock time into the decision context (for example `2026-11-21 18:48:47`), alongside the elapsed gap. This is the time shown in the transcript, not just “a few seconds ago”.
