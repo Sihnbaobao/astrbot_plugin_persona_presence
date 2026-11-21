@@ -114,6 +114,12 @@ class AIResponseFilter:
             cleaned,
         )
         cleaned = re.sub(r"\s*&&\s*(?:call|tool)_[A-Za-z0-9_-]+", "", cleaned)
+        # A model sometimes appends a bare mood/tool word: "... &&angry".
+        cleaned = re.sub(
+            r"\s*&&\s*[A-Za-z][A-Za-z0-9_-]{1,32}\s*(?:&&)?\s*$",
+            "",
+            cleaned,
+        )
         cleaned = re.sub(r"\s*&&\s*$", "", cleaned)
         tool_tags = (
             r"(?:queue_meme|queue_followup|queue_saved_image|queue_image|"

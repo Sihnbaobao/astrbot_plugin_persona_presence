@@ -95,3 +95,12 @@ def test_uuid_tool_marker_is_stripped(monkeypatch):
     module = _load_module(monkeypatch)
     text = "没死...就是懒得理你 &&8c39f0a1-44d3-4e01-b5f2-9b5b9c1a4e6f"
     assert module.AIResponseFilter.sanitize_reply_text(text) == "没死...就是懒得理你"
+
+
+def test_trailing_word_mood_tag_is_stripped(monkeypatch):
+    module = _load_module(monkeypatch)
+    text = "玩玩...别玩到自己都信了... &&angry"
+    assert (
+        module.AIResponseFilter.sanitize_reply_text(text)
+        == "玩玩...别玩到自己都信了..."
+    )

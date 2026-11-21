@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.0.99
+
+- Strip trailing bare word tags such as `&&angry` (and `&&angry &&`) from outgoing replies. These are model-side labels, not part of the message.
+
 ## 2.1.0
 
 - **Fix private direct regression**: a high body-desire/wetness state no longer lets the group-style decision AI veto ordinary private messages. In `private direct` mode, if the persona did not explicitly choose `body_action=release` and is not in an away window, the reply is restored. Only an explicit release choice or an active away window suppresses the private reply.
