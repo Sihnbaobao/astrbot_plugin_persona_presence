@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.2.0
+
+- Mark proactive buffer lines that structurally reply to someone or @ someone. The proactive prompt now treats those as another conversation chain, not as a fresh hook for the whole group.
+
 ## 2.1.9
 
 - Give proactive speech the same turn-awareness. Buffered lines now carry their chat-record clock, and the proactive prompt is told that short reactions are usually answers to someone else, not invitations to the whole group.
