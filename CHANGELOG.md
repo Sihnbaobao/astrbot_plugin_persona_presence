@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.5
+
+- Do not treat the immediately preceding event as the addressee. Pokes, images and stickers are skipped; the last textual speaker is only a candidate, not a default owner of “你/你的”.
+
 ## 2.1.4
 
 - Pass the previous non-bot speaker into the decision and reply context. When a group message has no @, no reply and no bot name, an ambiguous “你/你的” is read against the immediately preceding speaker instead of defaulting to the bot.
