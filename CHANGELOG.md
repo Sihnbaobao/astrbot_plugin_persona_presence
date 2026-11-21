@@ -1,3 +1,7 @@
+## 2.6.2
+
+- 身体契约新增 comfort：吃得好、胃里舒服时心情会好一点，吃辣吃油胃胀时心情会差一点；天气也通过 valence 影响底色。
+
 ## 2.6.1
 
 - 语义评估升级：新增“反讽”意图（字面夸奖、语气挖苦时不再当夸奖），并让模型给出不好意思/愧疚/得意/被冷落的强度，直接写入社会情绪。
@@ -39,6 +43,10 @@
 - 身体上下文里只保留性欲/湿润度和一句“不用谁提醒，也不用解释”，不再引导人格在聊天里选择 release。
 
 ## 📝 更新日志
+
+## 2.2.5
+
+- Remove the extra “don’t force the topic back” instruction from the afterthought prompt. Allowing a natural topic shift already covers it; spelling it out only adds noise.
 
 ## 2.2.4
 

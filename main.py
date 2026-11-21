@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.2.4"
+PLUGIN_VERSION = "2.2.5"
 
 
 @register(
@@ -8819,7 +8819,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "没有就只输出：沉默。\n"
                 "主回复已经说过的内容不要再补；\n"
                 "不要把主回复换个说法再说一遍。\n"
-                "不用为了扣题硬拉回刚才的话题。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(
