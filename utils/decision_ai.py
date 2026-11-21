@@ -171,6 +171,7 @@ class DecisionAI:
     @小明你几点到 -> other + substantive，但只是等待小明回答 -> participation=none -> no。
     [当前人格名字]又被重置了 / [当前人格名字]今天好安静 -> 在议论你而不是直接问你 -> ownership=open（不是 bot）-> 可以按人格决定接一句（participation=open）或不接；只有同一句里明确向你提问时才判 bot。
     @小明这个游戏我也玩过 -> other + substantive -> 只有人格确实想补充自己的体验时才 participation=side，否则 no。
+    舟可行：天天和我的床还有被子三匹 / 与么么：就不能和你的小千多聊聊天吗？ -> 这是与么么在对舟可行说“你”，问的是舟可行的小千；没有@、回复或名字 -> other + none，不是 bot。
     回复小明：哈哈 -> other + reaction -> 通常没有独立补充，应 participation=none；只有当前人格有明确且自然的独立反应时才考虑 side。
     还是来吧 / 我听着睡觉 -> unclear 或 noise；不能用旧历史补写对话对象。
     @当前人格名字：在吗（这已经是第三次喊同一句）-> 召唤重复、正文没有内容 -> no。

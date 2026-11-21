@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.3
+
+- Treat “你的X” as an address to the owner of X, not to the bot, unless the platform or the bot’s name says otherwise. Add a concrete group-chat example and a reply-side pointer-confirmation hint.
+
 ## 2.1.2
 
 - Add a pronoun-ownership hint for open group messages that use “你” without addressing the bot. The model is told not to assume every “你” means itself; it may answer as an observer when the target is unclear.
