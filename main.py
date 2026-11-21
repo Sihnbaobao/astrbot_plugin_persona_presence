@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.2.1"
+PLUGIN_VERSION = "2.2.2"
 
 
 @register(
@@ -6979,35 +6979,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
     # AI决策判断（参与判断）
     # ============================================================
 
-    def _queue_body_release(self) -> None:
-        """Ask the body plugin to apply the release she chose instead of replying."""
-        try:
-            emotion = getattr(self, "emotion_module", None)
-            body_dir = getattr(emotion, "body_dir", None) if emotion else None
-            if body_dir is None:
-                return
-            now = time.time()
-            if now - float(getattr(self, "_last_body_request", 0.0)) < 1800.0:
-                return
-            path = Path(body_dir) / "body_request.json"
-            payload = {
-                "version": 1,
-                "action": "release",
-                "minutes": 8,
-                "reason": "persona_choice",
-                "created_at": now,
-            }
-            temp = path.with_suffix(".tmp")
-            temp.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            temp.replace(path)
-            self._last_body_request = now
-            logger.info("[身体] 人格决定先不回消息，已请求身体执行 release")
-        except Exception as exc:
-            logger.debug(f"[身体] 写入 release 请求失败: {exc}")
-
     async def _body_decision_context(self, event: AstrMessageEvent) -> str:
         """Return the body state that may make her choose silence.
 
@@ -7029,12 +7000,26 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             remaining = away_until - time.time()
             libido = float(vitals.get("libido") or 0.0)
             wetness = float(vitals.get("wetness") or 0.0)
-            if remaining <= 0 and libido < 0.65 and wetness < 0.5:
+            pms = float(vitals.get("pms") or 0.0)
+            irritability = float(vitals.get("irritability") or 0.0)
+            phase = str(vitals.get("cycle_phase") or "")
+            if (
+                remaining <= 0
+                and libido < 0.65
+                and wetness < 0.5
+                and pms < 0.4
+                and irritability < 0.5
+                and phase != "menstrual"
+            ):
                 return ""
             parts = []
             if remaining > 0:
                 minutes = max(1, round(remaining / 60))
-                parts.append(f"她刚自慰过，可能不想回消息（约 {minutes} 分钟）")
+                parts.append(f"她刚忙完自己的事，可能不想马上回（约 {minutes} 分钟）")
+            if pms >= 0.4:
+                parts.append("经前，耐心薄、容易烦躁，也容易委屈")
+            if phase == "menstrual":
+                parts.append("经期，累、情绪低")
             if libido >= 0.65:
                 parts.append("性欲很强")
             if wetness >= 0.5:
@@ -7042,7 +7027,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return (
                 "[身体] "
                 + "；".join(parts)
-                + "。是否开口、要不要先去解决，由人格和当前消息决定。"
+                + "。是否开口由人格自己决定，不用谁提醒，也不用解释。"
             )
         except Exception:
             return ""
@@ -7081,7 +7066,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         chat_id = event.get_group_id() if not is_private else event.get_sender_id()
         body_context = await self._body_decision_context(event)
         body_away = "刚自慰过" in body_context
-        body_desire = "性欲很强" in body_context or "身体很湿" in body_context
 
         # Direct private chat treats the sender as the conversation target.
         # Keep AI gating available for private media and an explicit decide mode.
@@ -7091,7 +7075,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             and self.private_reply_mode == "direct"
             and not force_ai_decision
             and not body_away
-            and not body_desire
         ):
             if self.debug_mode:
                 logger.info("Private direct mode: bypassing group-style reply decision")
@@ -7188,18 +7171,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         if body_context:
             decision_formatted_context = body_context + "\n\n" + decision_formatted_context
+            if "经前" in body_context:
+                decision_extra_prompt = (
+                    decision_extra_prompt
+                    + "\n\n[身体倾向] 她现在经前，容易被小事惹烦、也容易觉得委屈。"
+                    "这类消息可以更倾向这次先不回或少接话；回不回仍然由人格决定。"
+                )
+            elif "经期" in body_context:
+                decision_extra_prompt = (
+                    decision_extra_prompt
+                    + "\n\n[身体倾向] 她正在经期，比平时累、情绪低，可以更倾向不接话或少接话。"
+                )
             if body_away:
                 decision_extra_prompt = (
                     decision_extra_prompt
                     + "\n\n[身体边界] 她刚自慰过，可能正在忙；"
                     "是否回复仍由人格和当前消息决定。"
-                )
-            if body_desire:
-                decision_extra_prompt = (
-                    decision_extra_prompt
-                    + "\n\n[身体选择] 只有人格确实选择先不回、去自慰时，"
-                    "才在 JSON 中输出 body_action=release；否则 body_action=none。"
-                    "body_action=release 时 reply 必须为 no。"
                 )
 
         decision_result = await DecisionAI.evaluate(
@@ -7235,24 +7222,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             _decision_elapsed = time.time() - _decision_start
             logger.info(f"【步骤9】决策AI判断完成，耗时: {_decision_elapsed:.2f}秒")
 
-        if (
-            is_private
-            and self.private_reply_mode == "direct"
-            and body_desire
-            and not body_away
-            and not decision_result.reply
-            and decision_result.body_action != "release"
-        ):
-            logger.info(
-                "[Private direct] 身体欲望高但人格未选择 release，恢复私聊直接回复"
-            )
-            decision_result = decision_result.with_reply(
-                True, target="bot", participation="direct"
-            )
-
         if not decision_result.reply:
-            if is_private and decision_result.body_action == "release":
-                self._queue_body_release()
             logger.debug(f"决策AI判断: 不应该回复此消息 ({decision_result.summary()})")
             # 清理pre_decision缓存（防止内存残留）
             try:
@@ -8719,7 +8689,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         Returns:
             Text without whitespace or punctuation.
         """
-        return re.sub(r"[\s\W_]+", "", str(text or ""))
+        cleaned = re.sub(r"[\s\W_]+", "", str(text or ""))
+        return re.sub(r"^(?:嗯|啊|哦|呃|唔|唉|哎|诶)+", "", cleaned)
 
     async def _deliver_followup_messages(
         self, event: AstrMessageEvent, texts: list[str], main_text: str = ""
