@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.2.1
+
+- Move proactive reply/@ markers out of the message text and into structured JSON fields. A user typing “（回复别人）” in their own sentence can no longer be mistaken for platform metadata.
+
 ## 2.2.0
 
 - Mark proactive buffer lines that structurally reply to someone or @ someone. The proactive prompt now treats those as another conversation chain, not as a fresh hook for the whole group.
