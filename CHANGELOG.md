@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.4
+
+- Pass the previous non-bot speaker into the decision and reply context. When a group message has no @, no reply and no bot name, an ambiguous “你/你的” is read against the immediately preceding speaker instead of defaulting to the bot.
+
 ## 2.1.3
 
 - Treat “你的X” as an address to the owner of X, not to the bot, unless the platform or the bot’s name says otherwise. Add a concrete group-chat example and a reply-side pointer-confirmation hint.

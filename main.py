@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.1.3"
+PLUGIN_VERSION = "2.1.4"
 
 
 @register(
@@ -6124,6 +6124,22 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     " The sender explicitly asks about an image; treat this as a "
                     "direct request and return yes unless the message is unsafe or invalid."
                 )
+            _previous_sender_name = ""
+            try:
+                _self_id = str(event.get_self_id())
+                _current_sender_id = str(event.get_sender_id())
+                for _hist in reversed(history_messages or []):
+                    _sender = getattr(_hist, "sender", None)
+                    _sid = str(getattr(_sender, "user_id", "") or "")
+                    if not _sid or _sid == _self_id or _sid == _current_sender_id:
+                        continue
+                    _previous_sender_name = str(
+                        getattr(_sender, "nickname", "") or ""
+                    )[:40]
+                    break
+            except Exception:
+                _previous_sender_name = ""
+
             if (
                 is_private
                 and speculative_decision_task is not None
@@ -6157,6 +6173,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         is_directly_addressed=is_explicitly_addressed,
                         is_reply_to_other=is_reply_to_other,
                         has_at_others=has_at_others,
+                        previous_sender_name=_previous_sender_name,
                     )
             else:
                 if speculative_decision_task is not None:
@@ -6187,6 +6204,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     is_directly_addressed=is_explicitly_addressed,
                     is_reply_to_other=is_reply_to_other,
                     has_at_others=has_at_others,
+                    previous_sender_name=_previous_sender_name,
                 )
             # 话轮节制硬底线：最近几条里已经说过话、又没被点名，就不再主动插进别人的对话。
             # 提示词只能做到"多数时候遵守"，这里按事实兜底，去掉"有时候"。
@@ -6697,6 +6715,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         "这通常是在对拥有那个人或东西的群友说话，不是在问你。"
                         "先确认“你”指向谁；不要用‘你自己去聊’这种直接回话口吻。"
                     )
+                elif (
+                    decision_result.target == "bot"
+                    and not is_explicitly_addressed
+                    and _previous_sender_name
+                    and re.search(r"你", message_text or "")
+                ):
+                    reply_context_hint = (
+                        "[系统提示-指代确认] 平台没有@你、没有回复你；"
+                        f"上一条可识别的发言来自 {_previous_sender_name}。"
+                        "正文里的“你”可能是在对那个人说。先确认对象；"
+                        "如果是在问别人，不要用直接回话的口吻替对方作答。"
+                    )
             if decision_result.handoff_hint:
                 reply_context_hint = (
                     f"{reply_context_hint}\n\n{decision_result.handoff_hint}"
@@ -7003,6 +7033,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         is_directly_addressed: bool = False,
         is_reply_to_other: bool = False,
         has_at_others: bool = False,
+        previous_sender_name: str = "",
     ) -> ParticipationDecision:
         """
         执行AI决策判断（在处理完消息内容后）
@@ -7166,6 +7197,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             is_directly_addressed=is_directly_addressed,
             is_reply_to_other=is_reply_to_other,
             has_at_others=has_at_others,
+            previous_sender_name=previous_sender_name,
         )
 
         if self.debug_mode:

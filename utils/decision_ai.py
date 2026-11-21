@@ -648,6 +648,7 @@ class DecisionAI:
         is_directly_addressed: bool = False,
         is_reply_to_other: bool = False,
         has_at_others: bool = False,
+        previous_sender_name: str = "",
         include_current_time: bool | None = None,
     ) -> ParticipationDecision:
         """
@@ -765,6 +766,14 @@ class DecisionAI:
                     "不能直接断言消息没有指向机器人。普通历史、AstrBot 官方群聊上下文、【📦近期未回复】缓存和长期记忆只能作为背景，"
                     "不能制造对话对象、补写当前消息的主语或单独成为回复理由。"
                 )
+                if previous_sender_name:
+                    enhanced_context += (
+                        "\n\n[系统信息-上一条发言者] "
+                        f"上一条可识别的发言来自 {previous_sender_name}；"
+                        f"当前消息来自 {sender_name or '当前用户'}。"
+                        "如果当前消息没有@你、没有回复你、也没有叫你的名字，"
+                        "正文里的“你/你的”先按上一条发言者理解，不要默认指向机器人。"
+                    )
 
             # 发送者再确认（追加在 prompt 末尾，避免混淆发送者）
             _decision_sender_tail = ""
