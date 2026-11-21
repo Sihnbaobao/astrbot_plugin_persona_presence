@@ -1,6 +1,6 @@
 ## 📝 更新日志
 
-## 2.0.99
+## 2.1.1
 
 - Strip trailing bare word tags such as `&&angry` (and `&&angry &&`) from outgoing replies. These are model-side labels, not part of the message.
 
