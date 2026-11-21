@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.9
+
+- Give proactive speech the same turn-awareness. Buffered lines now carry their chat-record clock, and the proactive prompt is told that short reactions are usually answers to someone else, not invitations to the whole group.
+
 ## 2.1.8
 
 - Carry the previous textual speaker and their chat-record time into the reply prompt too, not only the decision AI. For ambiguous group messages the reply model now sees the same candidate and age before it starts writing.

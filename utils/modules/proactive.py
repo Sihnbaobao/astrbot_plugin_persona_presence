@@ -28,9 +28,13 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
 
 {room_block}
 {persona_block}
-最近群里（按顺序编号）：
+最近群里（按顺序编号；每行前面是聊天记录时间）：
 {recent_messages}
 {recent_block}
+这些消息不一定是在对你说，很多是群友之间在聊。先看这句是谁对谁说的。
+短反应（“难搞”“笑死”“确实”“啊这”）通常是在接上一个人，不是向你抛出的新话题；
+不要因为一句短反应有槽点就插进去。两三人在接话时，只有话题确实向群里开放，
+或你有独立、自然、不抢话的补充，才接；否则 silent。
 你可以：
 - react：接一句很短的吐槽或反应，要贴着上面的内容；
   不汇报自己的生活，不编造没发生的事。
@@ -233,7 +237,10 @@ class ProactiveModule(PluginModule):
             message_id = ""
         if is_media and message_id:
             state.last_media_id = message_id
-        state.lines.append(f"{sender}：{text}" if sender else text)
+        _clock = ctx.now.strftime("%H:%M")
+        state.lines.append(
+            f"[{_clock}] {sender}：{text}" if sender else f"[{_clock}] {text}"
+        )
         state.line_ids.append(message_id)
         images: list[str] = []
         try:
