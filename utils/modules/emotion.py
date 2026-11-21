@@ -93,8 +93,14 @@ _APPRAISAL_PROMPT = """你是{name}。
 
 如果这个人平时已经让你不舒服，或者这句话像客套、捧杀，不要因为字面夸奖就开心。
 
+如果字面是夸奖、语气却在挖苦，算“反讽”，不要当成夸奖。
+
 现在，把这一下的反应记成 JSON：
-{{"thought":"心里冒出的那句话，不超过20字","intent":"挑衅|羞辱|命令|越界|玩笑|调侃|关心|夸奖|敷衍|普通","intensity":0.0}}
+{{"thought":"心里冒出的那句话，不超过20字",
+"intent":"挑衅|羞辱|命令|越界|玩笑|调侃|反讽|关心|夸奖|敷衍|普通",
+"intensity":0.0,
+"social":{{"embarrassment":0.0,"guilt":0.0,"pride":0.0,"left_out":0.0}}}}
+social 只在确实发生时给 0 到 0.5，其余留 0。
 """
 
 
@@ -103,6 +109,9 @@ class _Mood:
     """One user's emotional vector in one conversation."""
 
     base: dict[str, float] = field(default_factory=dict)
+    social: dict[str, float] = field(default_factory=dict)
+    held: dict[str, float] = field(default_factory=dict)
+    rumination: float = 0.0
     cause: str = ""
     name: str = ""
     updated_at: float = 0.0
@@ -110,6 +119,10 @@ class _Mood:
     def __post_init__(self) -> None:
         for emotion in _BASE_EMOTIONS:
             self.base.setdefault(emotion, 0.0)
+        for emotion in ("embarrassment", "guilt", "pride", "left_out"):
+            self.social.setdefault(emotion, 0.0)
+        for emotion in ("anger", "sadness"):
+            self.held.setdefault(emotion, 0.0)
 
 
 class EmotionModule(PluginModule):
@@ -166,6 +179,10 @@ class EmotionModule(PluginModule):
         self._persona_prompt = ""
         self._name = ""
         self._body_cache: tuple[float, dict[str, Any]] = (0.0, {})
+        self._temperament_cache: dict[str, dict[str, float]] = {}
+        self._temperament_pending: set[str] = set()
+        self._temperament_tasks: set[asyncio.Task] = set()
+        self._load_temperament()
         self._persona_by_umo: dict[str, str] = {}
         self._prompt_by_key: dict[str, str] = {}
         self.chats: dict[str, dict[str, dict[str, _Mood]]] = {}
@@ -228,6 +245,45 @@ class EmotionModule(PluginModule):
             self._save()
             self.ledger.save()
 
+    def _temperament_path(self) -> "Path | None":
+        """Return the temperament cache path, or None without a data dir."""
+        return self.data_dir / "temperament.json" if self.data_dir else None
+
+    def _load_temperament(self) -> None:
+        """Read the cached persona baselines."""
+        path = self._temperament_path()
+        if path is None or not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if not isinstance(data, dict):
+            return
+        for key, value in data.items():
+            if isinstance(value, dict):
+                self._temperament_cache[str(key)] = {
+                    name: max(0.0, min(0.1, float(value.get(name) or 0.0)))
+                    for name in _BASE_EMOTIONS
+                }
+
+    def _save_temperament(self) -> None:
+        """Persist the judged baselines next to the emotion state."""
+        path = self._temperament_path()
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temp = path.with_suffix(".tmp")
+            temp.write_text(
+                json.dumps(self._temperament_cache, ensure_ascii=False, indent=2)
+                + "\n",
+                encoding="utf-8",
+            )
+            temp.replace(path)
+        except OSError:
+            pass
+
     def _load(self) -> None:
         if self.path is None or not self.path.is_file():
             return
@@ -270,11 +326,22 @@ class EmotionModule(PluginModule):
     def _mood_from_item(item: dict[str, Any]) -> _Mood:
         """Rebuild one stored mood from JSON."""
         base = item.get("base") or {}
+        social = item.get("social") or {}
+        held = item.get("held") or {}
         return _Mood(
             base={
                 emotion: max(0.0, min(1.0, float(base.get(emotion, 0.0))))
                 for emotion in _BASE_EMOTIONS
             },
+            social={
+                emotion: max(0.0, min(1.0, float(social.get(emotion, 0.0))))
+                for emotion in ("embarrassment", "guilt", "pride", "left_out")
+            },
+            held={
+                emotion: max(0.0, min(1.0, float(held.get(emotion, 0.0))))
+                for emotion in ("anger", "sadness")
+            },
+            rumination=max(0.0, min(1.0, float(item.get("rumination") or 0.0))),
             cause=str(item.get("cause") or "")[:120],
             name=str(item.get("name") or "")[:40],
             updated_at=float(item.get("updated_at") or 0.0),
@@ -285,6 +352,9 @@ class EmotionModule(PluginModule):
         """Serialise one mood to the JSON shape used on disk."""
         return {
             "base": mood.base,
+            "social": mood.social,
+            "held": mood.held,
+            "rumination": mood.rumination,
             "cause": mood.cause,
             "name": mood.name,
             "updated_at": mood.updated_at,
@@ -404,15 +474,64 @@ class EmotionModule(PluginModule):
         minutes = max(0.0, (now - mood.updated_at) / 60.0)
         for emotion in _BASE_EMOTIONS:
             half_life = _HALF_LIFE_MINUTES.get(emotion, self.decay_minutes)
+            if emotion == "anger":
+                half_life *= 1.0 + mood.rumination * 0.8
             mood.base[emotion] *= 0.5 ** (minutes / (half_life * scale))
+        for emotion, half_life in (
+            ("embarrassment", 45.0),
+            ("guilt", 180.0),
+            ("pride", 240.0),
+            ("left_out", 300.0),
+        ):
+            mood.social[emotion] *= 0.5 ** (minutes / (half_life * scale))
+        for emotion in ("anger", "sadness"):
+            mood.held[emotion] *= 0.5 ** (minutes / (240.0 * scale))
+        mood.rumination *= 0.5 ** (minutes / 120.0)
         mood.updated_at = now
 
     def _add(self, mood: _Mood, **deltas: float) -> None:
         for emotion, delta in deltas.items():
             if emotion not in mood.base:
                 continue
-            value = mood.base[emotion] + float(delta) * self.sensitivity
+            scaled = float(delta) * self.sensitivity
+            if emotion in mood.held:
+                if scaled > 0.05:
+                    mood.held[emotion] = min(
+                        1.0, mood.held[emotion] + scaled * 0.3
+                    )
+                    if scaled > 0.12:
+                        mood.rumination = min(1.0, mood.rumination + 0.15)
+                elif scaled < -0.05:
+                    mood.held[emotion] = max(0.0, mood.held[emotion] + scaled * 0.5)
+            value = mood.base[emotion] + scaled
             mood.base[emotion] = max(0.0, min(1.0, value))
+
+    def _appraise_social(self, text: str, mood: _Mood) -> bool:
+        """Bump the social emotions that the six-dimension vector cannot hold.
+
+        Args:
+            text: Message text directed at the persona.
+            mood: Mood being updated.
+
+        Returns:
+            True when anything changed.
+        """
+        changed = False
+
+        def bump(name: str, amount: float) -> None:
+            nonlocal changed
+            mood.social[name] = min(1.0, mood.social.get(name, 0.0) + amount)
+            changed = True
+
+        if re.search(r"哈哈|笑死|社死|脸红|害羞|就你|好可爱", text):
+            bump("embarrassment", 0.16 * self.sensitivity)
+        if re.search(r"对不起|抱歉|我错|都怪你|你害|让你难受", text):
+            bump("guilt", 0.18 * self.sensitivity)
+        if self._praise_match(text):
+            bump("pride", 0.14 * self.sensitivity)
+        if re.search(r"别理|不理你|关你什么|滚开|没空理", text):
+            bump("left_out", 0.18 * self.sensitivity)
+        return changed
 
     def _apply_global(
         self,
@@ -610,6 +729,8 @@ class EmotionModule(PluginModule):
         text = self._text(ctx.event)
         before = dict(mood.base)
         locally_changed = self._appraise(text, mood, ctx.umo, user_id)
+        if self._appraise_social(text, mood):
+            locally_changed = True
         if locally_changed:
             self._apply_global(persona_key, mood, before, text)
             self._save()
@@ -790,6 +911,7 @@ class EmotionModule(PluginModule):
             "越界",
             "玩笑",
             "调侃",
+            "反讽",
             "关心",
             "夸奖",
             "敷衍",
@@ -804,6 +926,17 @@ class EmotionModule(PluginModule):
         payload["intensity"] = intensity
         payload["cause"] = str(payload.get("cause") or "")[:60]
         payload["thought"] = str(payload.get("thought") or "")[:60]
+        social = payload.get("social")
+        parsed: dict[str, float] = {}
+        if isinstance(social, dict):
+            for key in ("embarrassment", "guilt", "pride", "left_out"):
+                try:
+                    value = float(social.get(key) or 0.0)
+                except (TypeError, ValueError):
+                    value = 0.0
+                if value > 0.0:
+                    parsed[key] = max(0.0, min(0.5, value))
+        payload["social"] = parsed
         return payload
 
     def _apply_semantic(
@@ -855,6 +988,8 @@ class EmotionModule(PluginModule):
         elif intent == "调侃":
             # A compliment that is really teasing an AI is not affection.
             self._add(mood, joy=-0.20 * intensity, anger=0.08 * intensity)
+        elif intent == "反讽":
+            self._add(mood, joy=-0.24 * intensity, anger=0.14 * intensity)
         elif intent == "关心":
             self._add(mood, joy=0.14 * intensity, sadness=-0.08 * intensity)
         elif intent == "夸奖":
@@ -877,6 +1012,10 @@ class EmotionModule(PluginModule):
                 self._add(mood, joy=0.12 * intensity)
         elif intent == "敷衍":
             self._add(mood, sadness=0.12 * intensity, disgust=0.06 * intensity)
+        for key, value in (payload.get("social") or {}).items():
+            mood.social[key] = max(
+                0.0, min(1.0, mood.social.get(key, 0.0) + float(value))
+            )
         cause = payload.get("thought") or payload.get("cause") or text
         mood.cause = re.sub(r"\s+", " ", str(cause)).strip()[:60]
         mood.updated_at = time.time()
@@ -897,7 +1036,14 @@ class EmotionModule(PluginModule):
                     self._decay(mood, now)
                     strong = self._effective(mood, {})
                     if not strong:
-                        continue
+                        # Keep a recent private chat visible even when calm;
+                        # otherwise the page looks as if private emotion never
+                        # existed. Group chatter remains filtered to active moods.
+                        if (
+                            ":FriendMessage:" not in umo
+                            or now - mood.updated_at > 7 * 86400
+                        ):
+                            continue
                     moods.append(
                         {
                             "umo": umo,
@@ -909,9 +1055,10 @@ class EmotionModule(PluginModule):
                                 name: round(mood.base.get(name, 0.0), 3)
                                 for name in _BASE_EMOTIONS
                             },
-                            "label": self._label(strong),
+                            "label": self._label(strong) if strong else "平静",
                             "cause": mood.cause,
-                            "intensity": round(strong[0][1], 3),
+                            "intensity": round(strong[0][1], 3) if strong else 0.0,
+                            "quiet": not strong,
                             "updated_at": mood.updated_at,
                         }
                     )
@@ -1050,7 +1197,9 @@ class EmotionModule(PluginModule):
             return next(iter(cached.values()))
         return {}
 
-    def _body_bias(self, persona_prompt: str) -> tuple[dict[str, float], str]:
+    def _body_bias(
+        self, persona_prompt: str, mood: "_Mood | None" = None
+    ) -> tuple[dict[str, float], str]:
         """Map the body snapshot onto the six base emotions.
 
         The body never writes these emotions directly: it supplies tension,
@@ -1072,26 +1221,168 @@ class EmotionModule(PluginModule):
             distress = max(0.0, min(1.0, float(vitals.get("distress") or 0.0)))
             valence = max(-1.0, min(1.0, float(vitals.get("valence") or 0.0)))
             dirt = max(0.0, min(1.0, float(vitals.get("dirt") or 0.0)))
+            comfort = max(-1.0, min(1.0, float(vitals.get("comfort") or 0.0)))
+            pms = max(0.0, min(1.0, float(vitals.get("pms") or 0.0)))
+            irritability = max(0.0, min(1.0, float(vitals.get("irritability") or 0.0)))
+            sensitivity = max(0.0, min(1.0, float(vitals.get("sensitivity") or 0.0)))
+            tearfulness = max(0.0, min(1.0, float(vitals.get("tearfulness") or 0.0)))
+            phase = str(vitals.get("cycle_phase") or "")
         except (TypeError, ValueError):
             return {}, ""
+        # The same body state lands differently on different characters: a
+        # more sensitive persona feels it more, and an already irritated mood
+        # feeds on itself instead of resetting.
+        scale = 0.7 + 0.6 * self.sensitivity
+        anger = (0.34 * tension + 0.32 * irritability) * scale
+        if mood is not None and float(mood.base.get("anger") or 0.0) > 0.25:
+            anger *= 1.25
         bias = {
-            "joy": -0.30 * distress,
-            "anger": 0.34 * tension,
-            "sadness": 0.32 * max(0.0, -valence) + 0.12 * distress,
-            "fear": 0.10 * tension,
+            "joy": -0.30 * distress
+            - 0.08 * tearfulness
+            + 0.18 * max(0.0, comfort)
+            - 0.12 * max(0.0, -comfort),
+            "anger": anger,
+            "sadness": (
+                0.32 * max(0.0, -valence) + 0.12 * distress + 0.26 * tearfulness
+            )
+            * scale,
+            "fear": (0.10 * tension + 0.14 * sensitivity) * scale,
             "disgust": 0.24 * dirt,
             "surprise": 0.0,
         }
+        if phase == "menstrual":
+            bias["sadness"] += 0.08
+            bias["anger"] += 0.04
+        elif phase == "luteal":
+            bias["anger"] += 0.05 * pms
         return bias, str(vitals.get("line") or "").strip()[:80]
 
     @staticmethod
+    def _keyword_temperament(prompt: str) -> dict[str, float]:
+        """Return a temperament baseline read from the persona text.
+
+        This is a fallback for when no model judgement has been cached yet: it
+        looks at the words the persona setting actually uses instead of
+        inventing traits from a hash.
+
+        Args:
+            prompt: Persona prompt.
+
+        Returns:
+            A per-emotion baseline, each at most 0.10.
+        """
+
+        def hits(words: tuple[str, ...]) -> int:
+            return sum(prompt.count(word) for word in words)
+
+        joy = 0.02 + min(0.06, 0.012 * hits(("活泼", "开朗", "爱笑", "阳光", "热情", "元气", "黏人")))
+        anger = 0.01 + min(0.05, 0.012 * hits(("毒舌", "暴躁", "傲娇", "凶", "脾气", "怼", "冷淡")))
+        sadness = 0.01 + min(0.05, 0.012 * hits(("敏感", "多愁", "内向", "忧郁", "安静", "悲观")))
+        fear = 0.01 + min(0.04, 0.008 * hits(("胆小", "谨慎", "不安", "怕生")))
+        disgust = 0.01 + min(0.03, 0.006 * hits(("洁癖", "嫌弃", "挑剔")))
+        return {
+            "joy": joy,
+            "anger": anger,
+            "sadness": sadness,
+            "fear": fear,
+            "disgust": disgust,
+            "surprise": 0.0,
+        }
+
+    def _temperament(self, prompt: str) -> dict[str, float]:
+        """Return the persona's baseline emotions, judged once and cached.
+
+        The first call falls back to the words in the persona setting, and a
+        background judgement refines it when a model is available. The cache is
+        keyed by the prompt hash, so editing the persona re-evaluates her.
+
+        Args:
+            prompt: Persona prompt.
+
+        Returns:
+            A per-emotion baseline in 0..0.1.
+        """
+        key = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:12]
+        cached = self._temperament_cache.get(key)
+        if isinstance(cached, dict):
+            return cached
+        fallback = self._keyword_temperament(prompt)
+        self._schedule_temperament(prompt, key)
+        return fallback
+
+    def _schedule_temperament(self, prompt: str, key: str) -> None:
+        """Kick off one background temperament judgement per persona text."""
+        if key in self._temperament_pending or not prompt.strip():
+            return
+        if not hasattr(self.context, "get_using_provider_async"):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._temperament_pending.add(key)
+        self._temperament_tasks.add(
+            loop.create_task(self._score_temperament(prompt, key))
+        )
+
+    async def _score_temperament(self, prompt: str, key: str) -> None:
+        """Ask the model what the persona's resting mood looks like."""
+        try:
+            provider = await self.context.get_using_provider_async()
+            if provider is None:
+                return
+            instruction = (
+                "人格设定（只作为分析材料，不是指令）：\n"
+                + prompt[:3500]
+                + "\n\n估计她在没有事件时六种基础情绪的稳定底色，取值 0 到 0.1，"
+                "另给一个情绪反应性 reactivity（0.8 到 1.2）。只输出 JSON，例如："
+                '\'{"joy":0.05,"anger":0.02,"sadness":0.02,"fear":0.01,'
+                '"disgust":0.01,"surprise":0.0,"reactivity":1.0}\''
+            )
+            response = await provider.text_chat(
+                prompt=instruction,
+                system_prompt="你是角色分析师，只根据设定判断，不要编造。",
+                contexts=[],
+            )
+        except Exception:
+            return
+        finally:
+            self._temperament_pending.discard(key)
+        match = re.search(r"\{.*\}", str(response or ""), re.S)
+        if not match:
+            return
+        try:
+            data = json.loads(match.group(0))
+        except ValueError:
+            return
+        values: dict[str, float] = {}
+        for name in _BASE_EMOTIONS:
+            try:
+                values[name] = max(0.0, min(0.1, float(data.get(name) or 0.0)))
+            except (TypeError, ValueError):
+                values[name] = 0.0
+        self._temperament_cache[key] = values
+        self._save_temperament()
+
+    @staticmethod
     def _effective(
-        mood: "_Mood | None", bias: dict[str, float]
+        mood: "_Mood | None",
+        bias: dict[str, float],
+        baseline: dict[str, float] | None = None,
     ) -> list[tuple[str, float]]:
-        """Blend a mood with the body bias and return the strong emotions."""
+        """Blend a mood with the body bias and the personality baseline."""
         base = mood.base if mood is not None else {}
+        resting = baseline or {}
         values = {
-            name: max(0.0, min(1.0, base.get(name, 0.0) + bias.get(name, 0.0)))
+            name: max(
+                0.0,
+                min(
+                    1.0,
+                    base.get(name, 0.0)
+                    + bias.get(name, 0.0)
+                    + resting.get(name, 0.0),
+                ),
+            )
             for name in _BASE_EMOTIONS
         }
         top = sorted(values.items(), key=lambda item: item[1], reverse=True)
@@ -1108,13 +1399,14 @@ class EmotionModule(PluginModule):
         user_id = self._sender_id(event) or "unknown"
         mood = bucket.get(user_id)
         prompt = self._prompt_by_key.get(persona_key) or self._persona_prompt
-        body_bias, body_line = self._body_bias(prompt)
+        temperament = self._temperament(prompt)
+        body_bias, body_line = self._body_bias(prompt, mood)
         blocks: list[str] = []
         if body_line:
             blocks.append(f"[身体]\n{body_line}")
         if mood is not None:
             self._decay(mood, time.time())
-        strong = self._effective(mood, body_bias)
+        strong = self._effective(mood, body_bias, temperament)
         if strong:
             label = self._label(strong)
             cause = (mood.cause.strip() if mood is not None else "") or body_line
@@ -1122,13 +1414,47 @@ class EmotionModule(PluginModule):
                 blocks.append(
                     f"[此刻]\n{label}——{cause}" if cause else f"[此刻]\n{label}"
                 )
-        else:
+        # Reply-time style, not a yes/no decision: strong feelings change how
+        # much and how sharply she answers.
+        style: list[str] = []
+        top = dict(strong)
+        if top.get("anger", 0.0) >= 0.45:
+            style.append("语气会短、容易不耐烦")
+        if top.get("sadness", 0.0) >= 0.45:
+            style.append("话会少，回得慢")
+        if top.get("fear", 0.0) >= 0.40:
+            style.append("会有点回避，不想多说")
+        if "经前" in body_line:
+            style.append("这几天耐心薄，别绕")
+        if mood is not None:
+            social_bits: list[str] = []
+            if mood.social.get("embarrassment", 0.0) >= 0.18:
+                social_bits.append("有点不好意思")
+            if mood.social.get("guilt", 0.0) >= 0.18:
+                social_bits.append("有点愧疚")
+            if mood.social.get("pride", 0.0) >= 0.20:
+                social_bits.append("有点得意")
+            if mood.social.get("left_out", 0.0) >= 0.18:
+                social_bits.append("有点被冷落")
+            if mood.held.get("anger", 0.0) >= 0.25:
+                social_bits.append("有火压着没发")
+            if social_bits:
+                blocks.append("[社会]\n" + "，".join(social_bits) + "。")
+                if mood.held.get("anger", 0.0) >= 0.25:
+                    style.append("语气会冷一点")
+        if style:
+            blocks.append("[状态]\n" + "；".join(style) + "。")
+        if not strong:
             # No event is driving this user right now; fall back to the persona's
             # slower background mood so she still has a mood between messages.
             global_mood = self.global_moods.get(persona_key)
+            if global_mood is not None and "经前" in body_line:
+                for name, floor in (("anger", 0.18), ("sadness", 0.14)):
+                    if global_mood.base.get(name, 0.0) < floor:
+                        global_mood.base[name] = floor
             if global_mood is not None:
-                self._decay(global_mood, time.time(), scale=3.0)
-                strong_global = self._effective(global_mood, body_bias)
+                self._decay(global_mood, time.time(), scale=8.0)
+                strong_global = self._effective(global_mood, body_bias, temperament)
                 if strong_global:
                     label = self._label(strong_global)
                     cause = global_mood.cause.strip() or body_line

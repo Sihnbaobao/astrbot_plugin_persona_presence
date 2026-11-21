@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.2.6
+
+- Show a recent private-chat mood even when it has decayed to calm. The control page no longer looks as if private emotion does not exist just because the current state is below the active-mood threshold.
+
 ## 2.2.5
 
 - Remove the extra “don’t force the topic back” instruction from the afterthought prompt. Allowing a natural topic shift already covers it; spelling it out only adds noise.
