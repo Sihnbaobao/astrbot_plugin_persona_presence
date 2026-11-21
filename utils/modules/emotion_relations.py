@@ -122,6 +122,7 @@ class RelationLedger:
                 negative_events=int(item.get("negative_events", 0) or 0),
                 updated_at=float(item.get("updated_at") or 0.0),
             )
+        self._unify_people()
 
     def save(self) -> None:
         if self.path is None:
@@ -179,6 +180,55 @@ class RelationLedger:
         rel.trust = max(0.0, min(1.0, rel.trust))
         rel.resentment = max(0.0, min(1.0, rel.resentment))
 
+    def _unify_people(self) -> None:
+        """Point every context at the same relation object for one user.
+
+        A person can talk in a group and in private; their long-term attitude
+        must not fork into two different people. Short-term emotion remains
+        per conversation, but the ledger row is shared.
+        """
+        by_user: dict[str, list[_Relation]] = {}
+        for bucket in self.relations.values():
+            for user_id, rel in bucket.items():
+                by_user.setdefault(str(user_id), []).append(rel)
+        for user_id, relations in by_user.items():
+            if len(relations) < 2:
+                continue
+            canonical = max(
+                relations,
+                key=lambda rel: (
+                    rel.updated_at,
+                    rel.bottomed_out,
+                    rel.resentment,
+                    abs(rel.warmth),
+                    rel.trust,
+                ),
+            )
+            for bucket in self.relations.values():
+                if user_id in bucket:
+                    bucket[user_id] = canonical
+
+    def _find_relation(self, user_id: str) -> _Relation | None:
+        """Return the best existing relation for a user across contexts."""
+        found = [
+            rel
+            for bucket in self.relations.values()
+            for uid, rel in bucket.items()
+            if str(uid) == str(user_id)
+        ]
+        if not found:
+            return None
+        return max(
+            found,
+            key=lambda rel: (
+                rel.updated_at,
+                rel.bottomed_out,
+                rel.resentment,
+                abs(rel.warmth),
+                rel.trust,
+            ),
+        )
+
     def appraise(
         self,
         umo: str,
@@ -207,13 +257,26 @@ class RelationLedger:
         now = time.time()
         bucket = self.relations.setdefault(umo, {})
         relation = bucket.get(user_id)
-        created = relation is None
+        created = False
         if relation is None:
-            relation = _Relation()
-            bucket[user_id] = relation
+            relation = self._find_relation(user_id)
+            if relation is None:
+                relation = _Relation()
+                bucket[user_id] = relation
+                created = True
+        changed = False
+        # A person's long-term attitude follows them across group and private
+        # chats even though short-term moods stay in their own conversation.
+        if not created:
+            for other_bucket in self.relations.values():
+                if user_id in other_bucket and other_bucket[user_id] is not relation:
+                    other_bucket[user_id] = relation
+                    changed = True
+            if bucket.get(user_id) is not relation:
+                bucket[user_id] = relation
+                changed = True
         if sender_name:
             relation.name = sender_name[:40]
-        changed = False
         if not created:
             last_seen = float(getattr(relation, "last_seen_at", 0.0) or 0.0)
             if last_seen <= 0 or now - last_seen > 60:

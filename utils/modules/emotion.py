@@ -1064,10 +1064,13 @@ class EmotionModule(PluginModule):
                     )
         moods.sort(key=lambda item: item["intensity"], reverse=True)
         relations: list[dict[str, Any]] = []
+        seen_people: dict[str, dict[str, Any]] = {}
         for umo, users in self.ledger.relations.items():
             for user_id, rel in users.items():
-                relations.append(
-                    {
+                if user_id in seen_people:
+                    seen_people[user_id].setdefault("contexts", []).append(umo)
+                    continue
+                row = {
                         "umo": umo,
                         "user_id": user_id,
                         "name": rel.name,
@@ -1080,8 +1083,10 @@ class EmotionModule(PluginModule):
                         "positive_events": rel.positive_events,
                         "last_seen_at": rel.last_seen_at,
                         "updated_at": rel.updated_at,
+                        "contexts": [umo],
                     }
-                )
+                seen_people[user_id] = row
+                relations.append(row)
         relations.sort(
             key=lambda item: (item["bottomed_out"], item["resentment"]),
             reverse=True,

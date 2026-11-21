@@ -1157,10 +1157,13 @@ function _relationCard(rel) {
     ? '<span class="pill need">已到底线</span>'
     : '<span class="pill">' + Math.round((rel.resentment || 0) * 100) + '% 不满</span>';
   const name = _displayPerson(rel);
+  const contextLabel = rel.contexts && rel.contexts.length > 1
+    ? "群聊 + 私聊"
+    : shortChat(rel.umo);
   const avatar = String(name || "?").slice(0, 1).toUpperCase();
   return '<article class="emotion-person-card">' +
     '<div class="emotion-person-head"><div class="emotion-avatar" style="--avatar-color:' + ringColor + '">' + esc(avatar) + '</div>' +
-      '<div class="emotion-person-title"><strong>' + esc(name) + '</strong><span>' + esc(shortChat(rel.umo)) + ' · ID ' + esc(rel.user_id) + '</span></div>' + badge + '</div>' +
+      '<div class="emotion-person-title"><strong>' + esc(name) + '</strong><span>' + esc(contextLabel) + ' · ID ' + esc(rel.user_id) + '</span></div>' + badge + '</div>' +
     '<div class="emotion-person-body"><div class="emotion-ring" style="--ring-value:' + warmthPct + '%;--ring-color:' + ringColor + '">' +
       '<div class="emotion-ring-inner"><strong>' + warmthText + '</strong><span>' + warmthWord + '</span></div></div>' +
       '<div class="emotion-bars">' + emotionBar("信任", rel.trust, "#5b7fc7", false) + emotionBar("不满", rel.resentment, "#d45a4a", false) + '</div></div>' +

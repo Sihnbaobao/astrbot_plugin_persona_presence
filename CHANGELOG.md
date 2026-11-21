@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.0
+
+- Unify long-term attitudes toward a person across group and private chats. The relation row is shared by user id, while short-term mood remains per conversation and group attitude remains per group. The control page shows one card with “群聊 + 私聊” when both contexts exist.
+
 ## 2.2.6
 
 - Show a recent private-chat mood even when it has decayed to calm. The control page no longer looks as if private emotion does not exist just because the current state is below the active-mood threshold.

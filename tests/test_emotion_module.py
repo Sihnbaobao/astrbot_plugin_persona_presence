@@ -464,3 +464,97 @@ def test_music_activity_only_reads_new_entries(tmp_path):
     assert events[-1]["source"] == "music"
     assert "新歌" in events[-1]["cause"]
     assert events[-1]["deltas"]["joy"] > 0
+
+def test_body_cycle_state_colors_the_emotion_bias(tmp_path):
+    import json
+
+    pack = _load()
+
+    module = pack.emotion.EmotionModule(
+        data_dir=tmp_path / "emotion",
+        body_link=True,
+        body_dir=tmp_path,
+        sensitivity=1.0,
+    )
+    (tmp_path / "vitals.json").write_text(
+        json.dumps(
+            {
+                "personas": {
+                    "璃月": {
+                        "tension": 0.5,
+                        "distress": 0.4,
+                        "valence": -0.4,
+                        "dirt": 0.2,
+                        "pms": 0.8,
+                        "irritability": 0.8,
+                        "sensitivity": 0.7,
+                        "tearfulness": 0.7,
+                        "cycle_phase": "luteal",
+                        "line": "经前，这几天容易烦、也容易委屈",
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    bias, line = module._body_bias("璃月是一个女孩子")
+    assert bias["anger"] > 0.3
+    assert bias["sadness"] > 0.2
+    assert bias["fear"] > 0.1
+    assert "经前" in line
+
+def test_temperament_comes_from_the_persona_text(tmp_path):
+    pack = _load()
+    module = pack.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    lively = module._keyword_temperament("她活泼、开朗、爱笑，喜欢黏人")
+    cool = module._keyword_temperament("她冷淡、毒舌，脾气不太好")
+    assert lively["joy"] > cool["joy"]
+    assert cool["anger"] > lively["anger"]
+
+def test_social_emotions_are_recorded(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    event = _Event("你好可爱，笑死我了")
+    asyncio.run(pack.on_event(_ctx(event)))
+    mood = _mood(pack, event)
+    assert mood.social["embarrassment"] > 0.0
+    assert mood.social["pride"] > 0.0
+
+
+def test_repeated_anger_is_held_back(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=1.0)
+    mood = loaded.emotion._Mood()
+    pack._add(mood, anger=0.2)
+    pack._add(mood, anger=0.2)
+    assert mood.held["anger"] > 0.05
+    assert mood.rumination > 0.0
+
+def test_semantic_appraisal_parses_social_and_sarcasm(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path)
+    payload = pack._parse_appraisal(
+        '{"thought":"真会夸人","intent":"反讽","intensity":0.7,'
+        '"social":{"embarrassment":0.2,"guilt":0}}'
+    )
+    assert payload["intent"] == "反讽"
+    assert payload["intensity"] == 0.7
+    assert payload["social"]["embarrassment"] == 0.2
+    assert "guilt" not in payload["social"]
+
+
+def test_person_attitude_is_shared_between_group_and_private(tmp_path):
+    loaded = _load()
+    pack = loaded.emotion.EmotionModule(tmp_path, sensitivity=2.0)
+    group = _Event("你好可爱", uid="same-person", private=False, at=True)
+    private = _Event("谢谢你", uid="same-person", private=True, at=True)
+    asyncio.run(pack.on_event(_ctx(group)))
+    asyncio.run(pack.on_event(_ctx(private)))
+    group_rel = pack.ledger.relations[group.unified_msg_origin]["same-person"]
+    private_rel = pack.ledger.relations[private.unified_msg_origin]["same-person"]
+    assert group_rel is private_rel
+    assert group_rel.positive_events >= 2
+    snapshot = pack.snapshot()
+    assert snapshot["counts"]["relations"] == 1
+    assert len(snapshot["relations"][0]["contexts"]) == 2
