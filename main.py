@@ -40,6 +40,7 @@ import os
 import random
 import re
 import time
+from difflib import SequenceMatcher
 import types
 import uuid
 from collections import OrderedDict
@@ -104,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.2.3"
+PLUGIN_VERSION = "2.2.4"
 
 
 @register(
@@ -8692,6 +8693,27 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         cleaned = re.sub(r"[\s\W_]+", "", str(text or ""))
         return re.sub(r"^(?:嗯|啊|哦|呃|唔|唉|哎|诶)+", "", cleaned)
 
+    @classmethod
+    def _followup_too_similar(cls, text: str, main_text: str) -> bool:
+        """Tell whether a follow-up merely paraphrases the main reply.
+
+        Args:
+            text: Candidate follow-up.
+            main_text: Already-sent main reply.
+
+        Returns:
+            True when both lines carry effectively the same content.
+        """
+        left = cls._followup_text_key(text)
+        right = cls._followup_text_key(main_text)
+        if not left or not right:
+            return False
+        if left == right or left in right or right in left:
+            return True
+        if len(left) < 8 or len(right) < 8:
+            return False
+        return SequenceMatcher(None, left, right).ratio() >= 0.72
+
     async def _deliver_followup_messages(
         self, event: AstrMessageEvent, texts: list[str], main_text: str = ""
     ) -> None:
@@ -8793,10 +8815,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
                 "这句话已经说完了，大多数时候不用再补。\n"
-                "确实还有半句没说完，就写；没有就只输出：沉默。\n"
+                "想接着补半句、改口、纠正，或者顺着刚才忽然想到另一件事，都可以写；\n"
+                "没有就只输出：沉默。\n"
                 "主回复已经说过的内容不要再补；\n"
-                "不要重复、改写或总结上一句。\n"
-                "只能补充、改口、吐槽刚才这件事。\n"
+                "不要把主回复换个说法再说一遍。\n"
+                "不用为了扣题硬拉回刚才的话题。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(
@@ -8865,15 +8888,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return
         if not text:
             return
-        normalized_text = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", text)
-        normalized_main = re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", main_text)
-        if text == main_text.strip() or (
-            normalized_text
-            and normalized_main
-            and (
-                normalized_text in normalized_main or normalized_main in normalized_text
-            )
-        ):
+        if text == main_text.strip() or self._followup_too_similar(text, main_text):
             logger.info("[补一句] 与主回复重复，跳过")
             return
         if self._last_user_message_at.get(chat_key, 0.0) > scheduled_at:

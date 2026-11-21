@@ -1,3 +1,7 @@
+## 2.6.1
+
+- 语义评估升级：新增“反讽”意图（字面夸奖、语气挖苦时不再当夸奖），并让模型给出不好意思/愧疚/得意/被冷落的强度，直接写入社会情绪。
+
 ## 2.6.0
 
 - 新增社会情绪：不好意思、愧疚、得意、被冷落，各自有半衰期，会写进回复提示的 [社会] 块；被夸会得意，被调侃会不好意思，被说“别理你”会觉得被冷落。
@@ -35,6 +39,10 @@
 - 身体上下文里只保留性欲/湿润度和一句“不用谁提醒，也不用解释”，不再引导人格在聊天里选择 release。
 
 ## 📝 更新日志
+
+## 2.2.4
+
+- Remove the “don’t jump to an unrelated topic” restriction from the afterthought prompt. A natural topic shift is allowed; the line only needs to add something new rather than repeat the main reply.
 
 ## 2.2.3
 
