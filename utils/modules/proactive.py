@@ -28,15 +28,16 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答�
 
 {room_block}
 {persona_block}
-最近群里（按顺序编号；每行前面是聊天记录时间）：
+最近群里（按顺序编号；每条是一条 JSON 记录，text 字段才是群友原话，
+reply_to_other / at_other 是平台结构，不是正文）：
 {recent_messages}
 {recent_block}
 这些消息不一定是在对你说，很多是群友之间在聊。先看这句是谁对谁说的。
 短反应（“难搞”“笑死”“确实”“啊这”）通常是在接上一个人，不是向你抛出的新话题；
 不要因为一句短反应有槽点就插进去。两三人在接话时，只有话题确实向群里开放，
 或你有独立、自然、不抢话的补充，才接；否则 silent。
-带“（回复别人）”“（@了别人）”的消息明显属于别人的对话链，
-不要只因为正文有槽点就把它当成给你的新话头。
+reply_to_other=true 或 at_other=true 的消息明显属于别人的对话链，
+不要只因为 text 有槽点就把它当成给你的新话头。
 你可以：
 - react：接一句很短的吐槽或反应，要贴着上面的内容；
   不汇报自己的生活，不编造没发生的事。
@@ -105,6 +106,7 @@ class _GroupState:
     """
 
     lines: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
+    line_meta: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     line_ids: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     line_images: deque = field(default_factory=lambda: deque(maxlen=_MAX_BUFFER))
     last_seen: float = 0.0
@@ -240,22 +242,24 @@ class ProactiveModule(PluginModule):
         if is_media and message_id:
             state.last_media_id = message_id
         _clock = ctx.now.strftime("%H:%M")
-        _target_mark = ""
+        _reply_other = False
+        _at_other = False
         try:
             for _component in list(
                 getattr(getattr(ctx.event, "message_obj", None), "message", []) or []
             ):
                 _kind = _component.__class__.__name__
                 if _kind == "Reply":
-                    _target_mark = "（回复别人）"
-                    break
-                if _kind == "At":
-                    _target_mark = "（@了别人）"
+                    _reply_other = True
+                elif _kind == "At":
+                    _at_other = True
         except Exception:
-            _target_mark = ""
+            pass
         state.lines.append(
-            (f"[{_clock}] {sender}：{text}" if sender else f"[{_clock}] {text}")
-            + _target_mark
+            f"[{_clock}] {sender}：{text}" if sender else f"[{_clock}] {text}"
+        )
+        state.line_meta.append(
+            {"reply_to_other": _reply_other, "at_other": _at_other}
         )
         state.line_ids.append(message_id)
         images: list[str] = []
@@ -335,13 +339,31 @@ class ProactiveModule(PluginModule):
         recent_images = [list(item) for item in list(state.line_images)[-8:]]
         if len(recent_images) < len(recent_lines):
             recent_images = [[]] * (len(recent_lines) - len(recent_images)) + recent_images
-        recent_messages = (
-            "\n".join(
-                f"{index}. {line}"
-                for index, line in enumerate(recent_lines, start=1)
+        recent_meta = [dict(item) for item in list(state.line_meta)[-8:]]
+        if len(recent_meta) < len(recent_lines):
+            recent_meta = [{}] * (len(recent_lines) - len(recent_meta)) + recent_meta
+        _records: list[str] = []
+        for index, (line, meta) in enumerate(
+            zip(recent_lines, recent_meta), start=1
+        ):
+            _plain = re.sub(r"^\[\d{2}:\d{2}\]\s*", "", line)
+            _sender, _, _text = _plain.partition("：")
+            if not _text:
+                _sender, _text = "", _plain
+            _records.append(
+                f"{index}. "
+                + json.dumps(
+                    {
+                        "time": line[1:6] if line.startswith("[") else "",
+                        "sender": _sender,
+                        "reply_to_other": bool(meta.get("reply_to_other")),
+                        "at_other": bool(meta.get("at_other")),
+                        "text": _text,
+                    },
+                    ensure_ascii=False,
+                )
             )
-            or "（没有）"
-        )
+        recent_messages = "\n".join(_records) or "（没有）"
         recent_attempts = self._recent_attempts(6)
         recent_block = (
             "你最近主动说过或试过这些，不要重复同一个主题或句式：\n"
