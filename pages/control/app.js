@@ -1170,7 +1170,8 @@ function _relationCard(rel) {
     '<div class="emotion-scale">−1 疏远 · 0 中性 · +1 亲近</div>' +
     '<div class="emotion-facts"><span>不愉快 ' + (rel.negative_events || 0) + ' 次</span><span>正向 ' + (rel.positive_events || 0) + ' 次</span>' +
       (rel.last_seen_at ? '<span>最近聊过 ' + _formatEmotionDate(rel.last_seen_at) + '</span>' : '') + '</div>' +
-    (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次变化</span>' + esc(rel.cause) +
+    (rel.cause ? '<div class="emotion-cause"><span class="emotion-cause-label">最近一次变化</span>' +
+      (rel.cause_context ? '<span class="emotion-cause-context">' + esc(rel.cause_context) + '</span> ' : '') + esc(rel.cause) +
       (rel.updated_at ? ' <span class="emotion-cause-time">' + _formatEmotionDate(rel.updated_at) + '</span>' : '') + '</div>' : '') + '</article>';
 }
 

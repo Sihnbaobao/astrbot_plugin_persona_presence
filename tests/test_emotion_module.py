@@ -555,6 +555,8 @@ def test_person_attitude_is_shared_between_group_and_private(tmp_path):
     private_rel = pack.ledger.relations[private.unified_msg_origin]["same-person"]
     assert group_rel is private_rel
     assert group_rel.positive_events >= 2
+    assert set(group_rel.context_causes) == {"群聊 g1", "私聊"}
+    assert group_rel.cause_context == "私聊"
     snapshot = pack.snapshot()
     assert snapshot["counts"]["relations"] == 1
     assert len(snapshot["relations"][0]["contexts"]) == 2

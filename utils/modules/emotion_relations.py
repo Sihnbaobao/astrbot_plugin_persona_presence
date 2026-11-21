@@ -37,6 +37,8 @@ class _Relation:
     resentment: float = 0.0
     bottomed_out: bool = False
     cause: str = ""
+    cause_context: str = ""
+    context_causes: dict = field(default_factory=dict)
     name: str = ""
     negative_events: int = 0
     positive_events: int = 0
@@ -105,6 +107,12 @@ class RelationLedger:
                     resentment=float(item.get("resentment", 0.0)),
                     bottomed_out=bool(item.get("bottomed_out", False)),
                     cause=str(item.get("cause") or "")[:120],
+                    cause_context=str(item.get("cause_context") or "")[:40],
+                    context_causes={
+                        str(key)[:40]: str(value)[:120]
+                        for key, value in (item.get("context_causes") or {}).items()
+                        if isinstance(key, str) and isinstance(value, str)
+                    },
                     name=str(item.get("name") or "")[:40],
                     negative_events=int(item.get("negative_events", 0) or 0),
                     positive_events=int(item.get("positive_events", 0) or 0),
@@ -137,6 +145,8 @@ class RelationLedger:
                         "resentment": rel.resentment,
                         "bottomed_out": rel.bottomed_out,
                         "cause": rel.cause,
+                        "cause_context": getattr(rel, "cause_context", ""),
+                        "context_causes": getattr(rel, "context_causes", {}),
                         "name": rel.name,
                         "negative_events": rel.negative_events,
                         "positive_events": rel.positive_events,
@@ -255,6 +265,14 @@ class RelationLedger:
         if not text:
             return False
         now = time.time()
+        if is_private:
+            context_label = "私聊"
+        elif group_name:
+            context_label = f"群聊 · {group_name}"
+        elif group_id:
+            context_label = f"群聊 {group_id}"
+        else:
+            context_label = "群聊"
         bucket = self.relations.setdefault(umo, {})
         relation = bucket.get(user_id)
         created = False
@@ -315,6 +333,16 @@ class RelationLedger:
             relation.cause = relation.cause or text[:60]
             relation.positive_events += 1
             changed = True
+
+        if severe or conflict or praise or apology:
+            relation.cause_context = context_label
+            contexts = getattr(relation, "context_causes", None)
+            if not isinstance(contexts, dict):
+                contexts = {}
+                relation.context_causes = contexts
+            contexts[context_label] = text[:60]
+            while len(contexts) > 6:
+                contexts.pop(next(iter(contexts)))
 
         if relation.resentment >= 0.85:
             relation.bottomed_out = True

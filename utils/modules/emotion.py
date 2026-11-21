@@ -1079,6 +1079,8 @@ class EmotionModule(PluginModule):
                         "resentment": round(rel.resentment, 3),
                         "bottomed_out": rel.bottomed_out,
                         "cause": rel.cause,
+                        "cause_context": getattr(rel, "cause_context", ""),
+                        "context_causes": getattr(rel, "context_causes", {}),
                         "negative_events": rel.negative_events,
                         "positive_events": rel.positive_events,
                         "last_seen_at": rel.last_seen_at,
