@@ -650,6 +650,7 @@ class DecisionAI:
         has_at_others: bool = False,
         previous_sender_name: str = "",
         previous_sender_gap: str = "",
+        previous_sender_time: str = "",
         include_current_time: bool | None = None,
     ) -> ParticipationDecision:
         """
@@ -771,6 +772,7 @@ class DecisionAI:
                     enhanced_context += (
                         "\n\n[系统信息-上一条有内容的发言] "
                         f"上一条有内容的发言来自 {previous_sender_name}"
+                        + (f"，聊天记录时间 {previous_sender_time}" if previous_sender_time else "")
                         + (f"，约 {previous_sender_gap} 前" if previous_sender_gap else "")
                         + f"；当前消息来自 {sender_name or '当前用户'}。"
                         "这只是一个候选，不证明当前消息在对那个人说。"

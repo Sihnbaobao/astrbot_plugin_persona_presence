@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.7
+
+- Put the previous textual speaker’s chat-record clock time into the decision context (for example `2026-11-21 18:48:47`), alongside the elapsed gap. This is the time shown in the transcript, not just “a few seconds ago”.
+
 ## 2.1.6
 
 - Give the previous textual speaker an age (“约 8 秒前”, “约 4 分钟前”). A nearby message is a stronger candidate; an old or topic-shifted one is weaker. Time is context, not proof of the addressee.

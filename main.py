@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.1.6"
+PLUGIN_VERSION = "2.1.7"
 
 
 @register(
@@ -6126,6 +6126,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
             _previous_sender_name = ""
             _previous_sender_gap = ""
+            _previous_sender_time = ""
             try:
                 _self_id = str(event.get_self_id())
                 _current_sender_id = str(event.get_sender_id())
@@ -6150,10 +6151,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             _previous_sender_gap = f"{int(_gap / 60)} 分钟"
                         else:
                             _previous_sender_gap = f"{_gap / 3600:.1f} 小时"
+                        _previous_sender_time = datetime.fromtimestamp(
+                            _prev_ts
+                        ).strftime("%Y-%m-%d %H:%M:%S")
                     break
             except Exception:
                 _previous_sender_name = ""
                 _previous_sender_gap = ""
+                _previous_sender_time = ""
 
             if (
                 is_private
@@ -6190,6 +6195,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         has_at_others=has_at_others,
                         previous_sender_name=_previous_sender_name,
                         previous_sender_gap=_previous_sender_gap,
+                        previous_sender_time=_previous_sender_time,
                     )
             else:
                 if speculative_decision_task is not None:
@@ -6222,6 +6228,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     has_at_others=has_at_others,
                     previous_sender_name=_previous_sender_name,
                     previous_sender_gap=_previous_sender_gap,
+                    previous_sender_time=_previous_sender_time,
                 )
             # 话轮节制硬底线：最近几条里已经说过话、又没被点名，就不再主动插进别人的对话。
             # 提示词只能做到"多数时候遵守"，这里按事实兜底，去掉"有时候"。
@@ -6741,6 +6748,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     reply_context_hint = (
                         "[系统提示-指代确认] 平台没有@你、没有回复你；"
                         f"上一条有内容的发言来自 {_previous_sender_name}"
+                        + (f"，聊天记录时间 {_previous_sender_time}" if _previous_sender_time else "")
                         + (f"，约 {_previous_sender_gap} 前" if _previous_sender_gap else "")
                         + "，但它不一定是对象。先看当前消息是否明显承接那句话；"
                         "如果看不出对象，不要用直接回话的口吻替对方作答，"
@@ -7054,6 +7062,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         has_at_others: bool = False,
         previous_sender_name: str = "",
         previous_sender_gap: str = "",
+        previous_sender_time: str = "",
     ) -> ParticipationDecision:
         """
         执行AI决策判断（在处理完消息内容后）
@@ -7219,6 +7228,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             has_at_others=has_at_others,
             previous_sender_name=previous_sender_name,
             previous_sender_gap=previous_sender_gap,
+            previous_sender_time=previous_sender_time,
         )
 
         if self.debug_mode:
