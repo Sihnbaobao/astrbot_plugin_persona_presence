@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.6
+
+- Give the previous textual speaker an age (“约 8 秒前”, “约 4 分钟前”). A nearby message is a stronger candidate; an old or topic-shifted one is weaker. Time is context, not proof of the addressee.
+
 ## 2.1.5
 
 - Do not treat the immediately preceding event as the addressee. Pokes, images and stickers are skipped; the last textual speaker is only a candidate, not a default owner of “你/你的”.

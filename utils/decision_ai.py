@@ -649,6 +649,7 @@ class DecisionAI:
         is_reply_to_other: bool = False,
         has_at_others: bool = False,
         previous_sender_name: str = "",
+        previous_sender_gap: str = "",
         include_current_time: bool | None = None,
     ) -> ParticipationDecision:
         """
@@ -768,13 +769,17 @@ class DecisionAI:
                 )
                 if previous_sender_name:
                     enhanced_context += (
-                        "\n\n[系统信息-上一条发言者] "
-                        f"上一条可识别的发言来自 {previous_sender_name}；"
-                        f"当前消息来自 {sender_name or '当前用户'}。"
-                        "如果当前消息没有@你、没有回复你、也没有叫你的名字，"
-                        "正文里的“你/你的”先按上一条发言者理解，不要默认指向机器人。"
+                        "\n\n[系统信息-上一条有内容的发言] "
+                        f"上一条有内容的发言来自 {previous_sender_name}"
+                        + (f"，约 {previous_sender_gap} 前" if previous_sender_gap else "")
+                        + f"；当前消息来自 {sender_name or '当前用户'}。"
+                        "这只是一个候选，不证明当前消息在对那个人说。"
+                        "只有当前消息明显承接那句话、或明显在对那个人说时，"
+                        "才把正文里的“你/你的”理解为上一条发言者；"
+                        "看不出对象就按 open/other 判断，不能默认指向机器人，"
+                        "也不能默认指向上一条发言者。"
+                        "如果中间隔了很久，或期间已经换了话题，更不能把它当成对象。"
                     )
-
             # 发送者再确认（追加在 prompt 末尾，避免混淆发送者）
             _decision_sender_tail = ""
             if include_sender_info and sender_name:
