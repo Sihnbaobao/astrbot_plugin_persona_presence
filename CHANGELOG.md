@@ -36,6 +36,10 @@
 
 ## 📝 更新日志
 
+## 2.2.3
+
+- Give the afterthought call the same reply-boundary hint as the main reply, and make it stricter: only a new fact, correction or genuinely unfinished half-sentence is allowed; repeating the stance or jumping topics must be silent.
+
 ## 2.2.2
 
 - Reject follow-up lines that only paraphrase the main reply. The duplicate check now ignores leading fillers and uses fuzzy similarity, so “B服不碰” followed by “B服懒得碰” is dropped instead of sent as a second bubble.
