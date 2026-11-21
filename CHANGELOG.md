@@ -1,5 +1,9 @@
 ## 📝 更新日志
 
+## 2.1.2
+
+- Add a pronoun-ownership hint for open group messages that use “你” without addressing the bot. The model is told not to assume every “你” means itself; it may answer as an observer when the target is unclear.
+
 ## 2.1.1
 
 - Strip trailing bare word tags such as `&&angry` (and `&&angry &&`) from outgoing replies. These are model-side labels, not part of the message.

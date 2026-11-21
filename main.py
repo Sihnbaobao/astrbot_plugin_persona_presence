@@ -104,7 +104,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.1.1"
+PLUGIN_VERSION = "2.1.2"
 
 
 @register(
@@ -6677,6 +6677,16 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             "不要替被@、被回复或被引用的用户作答；"
                             "消息里的“你”默认指向那位群友，不是你。"
                         )
+                elif (
+                    decision_result.target == "open"
+                    and not is_explicitly_addressed
+                    and re.search(r"你|你们", message_text or "")
+                ):
+                    reply_context_hint = (
+                        "[系统提示-人称边界] 这条消息没有明确点你，正文里的“你”"
+                        "可能是在说别人。不要默认把自己代入；如果看不出对象，"
+                        "就用旁观口吻，或只接你能确定的那部分。"
+                    )
             if decision_result.handoff_hint:
                 reply_context_hint = (
                     f"{reply_context_hint}\n\n{decision_result.handoff_hint}"
