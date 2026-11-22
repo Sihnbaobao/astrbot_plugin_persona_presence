@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.7
+
+- Refresh the relationship “last change” cause on every conflict, praise or apology. It previously used `cause or new_text`, so after the first significant event the displayed cause stayed frozen even while counters and timestamps moved.
+
 ## 2.3.6
 
 - Give the afterthought the same background block as the main reply: notebook/jargon, curiosity knowledge, emotion/relationship and life context. Remove the extra “don’t pretend you forgot” instructions; the context itself now carries the facts.

@@ -315,7 +315,7 @@ class RelationLedger:
         if conflict:
             relation.resentment += 0.06 * self.sensitivity
             relation.warmth -= 0.02 * self.sensitivity
-            relation.cause = relation.cause or text[:60]
+            relation.cause = text[:60]
             relation.negative_events += 1
             changed = True
         if praise:
@@ -323,14 +323,14 @@ class RelationLedger:
             relation.trust += 0.02 * self.sensitivity
             if not relation.bottomed_out:
                 relation.resentment -= 0.02 * self.sensitivity
-            relation.cause = relation.cause or text[:60]
+            relation.cause = text[:60]
             relation.positive_events += 1
             changed = True
         if apology:
             if not relation.bottomed_out:
                 relation.resentment -= 0.10 * self.sensitivity
                 relation.warmth += 0.02 * self.sensitivity
-            relation.cause = relation.cause or text[:60]
+            relation.cause = text[:60]
             relation.positive_events += 1
             changed = True
 
