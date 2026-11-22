@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.10
+
+- Treat a punctuation-only afterthought (such as “…”) as silence. It used to pass the “沉默” check and send an empty ellipsis bubble.
+
 ## 2.3.9
 
 - Simplify the afterthought prompt. Remove the parenthetical self-reference and the stacked anti-self-dialogue rules; state only that the line is the persona’s own last message and that a follow-up continues it.

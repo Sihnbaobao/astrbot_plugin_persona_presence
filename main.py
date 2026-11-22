@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.9"
+PLUGIN_VERSION = "2.3.10"
 
 
 @register(
@@ -8872,6 +8872,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return
         text = AIResponseFilter.sanitize_reply_text(text).strip()
         text = AIResponseFilter.strip_leaked_system_tags(text).strip()
+        if not re.sub(r"[\s.。…·!！?？,，、~～\-—]+", "", text):
+            logger.debug("[补一句] 只有标点，跳过")
+            return
         if self.reply_ellipsis_style != "keep":
             text = AIResponseFilter.normalize_ellipsis(text, self.reply_ellipsis_style)
         meme_match = re.search(
