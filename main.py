@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.5"
+PLUGIN_VERSION = "2.3.6"
 
 
 @register(
@@ -8824,6 +8824,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             )
             except Exception as exc:
                 logger.debug(f"[补一句] 长期记忆读取失败: {exc}")
+            try:
+                background = await self._build_background_block(event, is_private)
+                if background:
+                    prompt_parts.append("你已经知道的背景：\n" + background[:2500])
+            except Exception as exc:
+                logger.debug(f"[补一句] 背景读取失败: {exc}")
             history_lines: list[str] = []
             try:
                 history = await ContextManager.get_history_messages_with_fallback(
@@ -8852,9 +8858,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "没有就只输出：沉默。\n"
                 "主回复已经说过的内容不要再补；\n"
                 "不要把主回复换个说法再说一遍。\n"
-                "你已经知道的事，不要用“什么时候出/是多少”这种问题来补一句；\n"
-                "长期记忆、近期事实和最近对话里已经有的，不要装不知道；\n"
-                "不确定的事就沉默，不要装作忘了再问。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(

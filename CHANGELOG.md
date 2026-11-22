@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.6
+
+- Give the afterthought the same background block as the main reply: notebook/jargon, curiosity knowledge, emotion/relationship and life context. Remove the extra “don’t pretend you forgot” instructions; the context itself now carries the facts.
+
 ## 2.3.5
 
 - Give the afterthought call the same long-term memory retrieval as the main reply. Recent curiosity facts alone could not cover older conversations; the follow-up now retrieves the memory plugin result and is told not to pretend it forgot known facts.
