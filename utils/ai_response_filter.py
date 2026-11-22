@@ -121,6 +121,14 @@ class AIResponseFilter:
             cleaned,
         )
         cleaned = re.sub(r"\s*&&\s*$", "", cleaned)
+        # Inline custom markup such as "&& queue_meme: ..." is a model-side
+        # instruction, never chat text. Drop it up to the next && or line end.
+        cleaned = re.sub(
+            r"\s*&&\s*(?:queue_meme|meme|meme_query)\s*[:：].*?(?=\s*&&|$)",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
         tool_tags = (
             r"(?:queue_meme|queue_followup|queue_saved_image|queue_image|"
             r"web_lookup|search_songs|send_song_card|listen_song|"

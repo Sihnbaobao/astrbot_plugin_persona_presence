@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.2
+
+- Strip inline `&& queue_meme:` / `&& meme:` markup from outgoing text. Give the afterthought call recent curiosity facts and forbid asking about a date or value it already knows; if unsure, it stays silent.
+
 ## 2.3.1
 
 - Remember which context caused a change in the shared person attitude. Each relation keeps its latest cause per group/private context, the reply prompt mentions where it happened, and the control page labels the cause with its context.

@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.1"
+PLUGIN_VERSION = "2.3.2"
 
 
 @register(
@@ -8791,6 +8791,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             prompt_parts = []
             if persona:
                 prompt_parts.append("你的人格设定：" + persona[:800])
+            try:
+                known_facts = self._curiosity_state_lines()
+            except Exception:
+                known_facts = []
+            if known_facts:
+                prompt_parts.append(
+                    "你近期已经知道的事：\n" + "\n".join(known_facts[:3])
+                )
             history_lines: list[str] = []
             try:
                 history = await ContextManager.get_history_messages_with_fallback(
@@ -8819,6 +8827,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "没有就只输出：沉默。\n"
                 "主回复已经说过的内容不要再补；\n"
                 "不要把主回复换个说法再说一遍。\n"
+                "你已经知道的事，不要用“什么时候出/是多少”这种问题来补一句；\n"
+                "不确定的事就沉默，不要装作忘了再问。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(

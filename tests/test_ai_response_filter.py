@@ -104,3 +104,12 @@ def test_trailing_word_mood_tag_is_stripped(monkeypatch):
         module.AIResponseFilter.sanitize_reply_text(text)
         == "玩玩...别玩到自己都信了..."
     )
+
+
+def test_inline_queue_meme_markup_is_stripped(monkeypatch):
+    module = _load_module(monkeypatch)
+    text = "...加个合法就想蒙过去... && queue_meme: 阴阳怪气地看不起对方"
+    cleaned = module.AIResponseFilter.sanitize_reply_text(text)
+    assert "queue_meme" not in cleaned
+    assert "阴阳怪气" not in cleaned
+    assert cleaned == "...加个合法就想蒙过去..."
