@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.8
+
+- Make the afterthought a continuation of the persona’s own turn, not a reply to its own main message. The prompt now labels the main text as the persona’s own sent line and forbids answering it or self-dialogue.
+
 ## 2.3.7
 
 - Refresh the relationship “last change” cause on every conflict, praise or apology. It previously used `cause or new_text`, so after the first significant event the displayed cause stayed frozen even while counters and timestamps moved.
