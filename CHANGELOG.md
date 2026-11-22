@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.9
+
+- Simplify the afterthought prompt. Remove the parenthetical self-reference and the stacked anti-self-dialogue rules; state only that the line is the persona’s own last message and that a follow-up continues it.
+
 ## 2.3.8
 
 - Make the afterthought a continuation of the persona’s own turn, not a reply to its own main message. The prompt now labels the main text as the persona’s own sent line and forbids answering it or self-dialogue.

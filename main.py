@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.8"
+PLUGIN_VERSION = "2.3.9"
 
 
 @register(
@@ -8850,18 +8850,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if history_lines:
                 prompt_parts.append("最近对话：\n" + "\n".join(history_lines))
             prompt_parts.append(
-                f"你自己上一条已经发出去的话（不是别人问你，也不是你要回答的对象）：{main_text}"
+                f"你刚发出去的是：{main_text}"
             )
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
-                "这句话已经说完了，大多数时候不用再补。\n"
-                "想接着补半句、改口、纠正，或者顺着刚才忽然想到另一件事，都可以写；\n"
-                "没有就只输出：沉默。\n"
-                "主回复已经说过的内容不要再补；\n"
-                "不要把主回复换个说法再说一遍。\n"
-                "你现在是同一轮里再补一句自己的话，不是在回复自己的上一条，也不是自问自答；\n"
-                "如果上一条正好是你在问别人，不要替别人回答它。\n"
+                "还有想接着说的，就写；没有就只输出：沉默。\n"
+                "主回复已经说过的，不要换个说法再说一遍。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
             response = await self.context.llm_generate(
