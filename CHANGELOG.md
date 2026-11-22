@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.4
+
+- Do not trigger proactive speech on a media-only turn. A sticker or picture at the tail of the buffer is not a conversation hook, even if earlier text exists.
+
 ## 2.3.3
 
 - Stop teaching the model to write `queue_meme` in the prompt text; tools are offered structurally. Strip any remaining `&&` tool markup generically and clear residual markers, instead of enumerating each variant.

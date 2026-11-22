@@ -497,3 +497,15 @@ def test_recent_spoke_timestamp_blocks_restart(monkeypatch, tmp_path):
     assert reloaded._in_quiet_hours(datetime(2026, 1, 1, 12, 0)) is False
     state = reloaded.groups.get("100")
     assert state is not None and state.last_spoke > 0
+
+
+def test_media_only_latest_message_blocks_proactive(monkeypatch, tmp_path):
+    module = _load_module(monkeypatch)
+    context = _Context("接一句")
+    pack = module.ProactiveModule(context, _settings(module), data_dir=tmp_path)
+    ctx = _ctx(module, _Event(text=""))
+    for _ in range(3):
+        asyncio.run(pack.on_event(ctx))
+    assert pack.can_propose(ctx) is False
+    assert asyncio.run(pack.propose(ctx)) is None
+    assert context.calls == 0

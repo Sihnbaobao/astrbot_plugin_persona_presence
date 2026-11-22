@@ -300,6 +300,10 @@ class ProactiveModule(PluginModule):
         state = self.groups.get(group)
         if state is None:
             return False
+        # A picture or sticker is not a conversation hook. Do not answer it
+        # merely because it is the latest buffered item.
+        if state.last_was_media:
+            return False
         return self._should_consider(state, ctx.now)
 
     async def propose(self, ctx: FeatureContext) -> Proposal | None:
