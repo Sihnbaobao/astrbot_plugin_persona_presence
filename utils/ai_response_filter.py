@@ -121,14 +121,18 @@ class AIResponseFilter:
             cleaned,
         )
         cleaned = re.sub(r"\s*&&\s*$", "", cleaned)
-        # Inline custom markup such as "&& queue_meme: ..." is a model-side
-        # instruction, never chat text. Drop it up to the next && or line end.
+        # The model sometimes writes a tool instruction as text: "&& name:
+        # ...". The marker is not natural chat syntax; drop any such segment
+        # generically instead of maintaining a list of tool names.
         cleaned = re.sub(
-            r"\s*&&\s*(?:queue_meme|meme|meme_query)\s*[:：].*?(?=\s*&&|$)",
+            r"\s*&&\s*[A-Za-z_][\w-]*(?:\s*[:：].*?)?(?=\s*&&|$)",
             "",
             cleaned,
             flags=re.IGNORECASE,
         )
+        # A doubled ampersand is itself model marker syntax in this plugin;
+        # clear any leftovers so a marker variant cannot survive.
+        cleaned = re.sub(r"\s*&&\s*", " ", cleaned)
         tool_tags = (
             r"(?:queue_meme|queue_followup|queue_saved_image|queue_image|"
             r"web_lookup|search_songs|send_song_card|listen_song|"

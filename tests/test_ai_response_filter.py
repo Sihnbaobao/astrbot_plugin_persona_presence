@@ -113,3 +113,16 @@ def test_inline_queue_meme_markup_is_stripped(monkeypatch):
     assert "queue_meme" not in cleaned
     assert "阴阳怪气" not in cleaned
     assert cleaned == "...加个合法就想蒙过去..."
+
+
+def test_generic_ampersand_markup_is_stripped(monkeypatch):
+    module = _load_module(monkeypatch)
+    for text in (
+        "你好 && queue_meme: 无语",
+        "你好 &&queue_meme: 无语",
+        "你好 && meme: 无语 && 再见",
+    ):
+        cleaned = module.AIResponseFilter.sanitize_reply_text(text)
+        assert "&&" not in cleaned
+        assert "queue_meme" not in cleaned
+        assert "无语" not in cleaned

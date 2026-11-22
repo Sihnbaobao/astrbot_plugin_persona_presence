@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.2"
+PLUGIN_VERSION = "2.3.3"
 
 
 @register(
@@ -8133,9 +8133,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             )
         if self._meme_bridge_enabled(is_private):
             final_message += (
-                "\n\n[表情] 需要配图时可以用 queue_meme 选一张具体的图，"
-                "它会并进当前回复；如果只想发表情，可以只调用 queue_meme，"
-                "不要再写正文。"
+                "\n\n[表情] 想配表情就实际调用可用工具，"
+                "不要把工具名或调用语法写进正文。"
             )
 
         # Generate the formal reply after context preparation.

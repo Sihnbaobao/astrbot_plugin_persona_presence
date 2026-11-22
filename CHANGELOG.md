@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.3
+
+- Stop teaching the model to write `queue_meme` in the prompt text; tools are offered structurally. Strip any remaining `&&` tool markup generically and clear residual markers, instead of enumerating each variant.
+
 ## 2.3.2
 
 - Strip inline `&& queue_meme:` / `&& meme:` markup from outgoing text. Give the afterthought call recent curiosity facts and forbid asking about a date or value it already knows; if unsure, it stays silent.
