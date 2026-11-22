@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.5
+
+- Give the afterthought call the same long-term memory retrieval as the main reply. Recent curiosity facts alone could not cover older conversations; the follow-up now retrieves the memory plugin result and is told not to pretend it forgot known facts.
+
 ## 2.3.4
 
 - Do not trigger proactive speech on a media-only turn. A sticker or picture at the tail of the buffer is not a conversation hook, even if earlier text exists.

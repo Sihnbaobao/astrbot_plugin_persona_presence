@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.4"
+PLUGIN_VERSION = "2.3.5"
 
 
 @register(
@@ -8798,6 +8798,32 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 prompt_parts.append(
                     "你近期已经知道的事：\n" + "\n".join(known_facts[:3])
                 )
+            try:
+                if self.enable_memory_injection:
+                    memory_mode, memory_version = MemoryInjector.resolve_mode(
+                        self.context,
+                        self.memory_plugin_mode,
+                        self.livingmemory_version,
+                    )
+                    if memory_mode and MemoryInjector.check_memory_plugin_available(
+                        self.context, mode=memory_mode, version=memory_version
+                    ):
+                        memories = await MemoryInjector.get_memories(
+                            self.context,
+                            event,
+                            mode=memory_mode,
+                            top_k=self.livingmemory_top_k,
+                            version=memory_version,
+                            persona_compat_mode=(
+                                self.livingmemory_persona_compat_mode
+                            ),
+                        )
+                        if memories and "当前没有任何记忆" not in memories:
+                            prompt_parts.append(
+                                "长期记忆：\n" + str(memories)[:2000]
+                            )
+            except Exception as exc:
+                logger.debug(f"[补一句] 长期记忆读取失败: {exc}")
             history_lines: list[str] = []
             try:
                 history = await ContextManager.get_history_messages_with_fallback(
@@ -8827,6 +8853,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "主回复已经说过的内容不要再补；\n"
                 "不要把主回复换个说法再说一遍。\n"
                 "你已经知道的事，不要用“什么时候出/是多少”这种问题来补一句；\n"
+                "长期记忆、近期事实和最近对话里已经有的，不要装不知道；\n"
                 "不确定的事就沉默，不要装作忘了再问。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
             )
