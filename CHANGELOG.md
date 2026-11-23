@@ -44,6 +44,12 @@
 
 ## 📝 更新日志
 
+## 2.6.3
+
+- Remove the case-specific “game vs anime” afterthought instruction. It now uses one general anchor: continue from the sentence the other person just said.
+## 2.5.7
+
+- Remove the case-specific “game vs anime” afterthought instruction. It now uses one general anchor: continue from the sentence the other person just said.
 ## 2.5.6
 
 - Anchor the afterthought to the object in the current user message. Remove the broad topic summary from this short follow-up context (it could pull in an earlier anime thread), and tell it to keep “game” as “game” rather than switching to “anime”.

@@ -107,7 +107,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.5.6"
+PLUGIN_VERSION = "2.6.3"
 
 
 @register(
@@ -9056,8 +9056,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if user_text:
                 prompt_parts.append(f"对方刚才说：{user_text[:300]}")
             prompt_parts.append(
-                "补的时候沿用对方原话里的对象；他说的是游戏就接着说游戏，"
-                "不要换成动画或别的作品。\n"
+                "补的时候接着对方刚才那句话补。\n"
                 "还有想接着说的，就写；没有就只输出：沉默。\n"
                 "主回复已经说过的，不要换个说法再说一遍。\n"
                 "想补一张表情时，只写：（表情包：想表达的表情）"
