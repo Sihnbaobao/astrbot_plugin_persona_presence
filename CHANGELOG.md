@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.6
+
+- Fix the hollow emotion radar for real: zero shares used to collapse several polygon vertices onto the exact center, making the filled path self-intersect and cancel its own fill. Give zero values a tiny inner radius and use sqrt area scaling so the shape is visibly filled while the percentage labels stay unchanged.
 ## 2.4.5
 
 - Render the emotion radar as a filled translucent area instead of an outline-only polygon. Use explicit SVG fill attributes and bump the control-page asset version so cached old JavaScript cannot keep showing the hollow version.

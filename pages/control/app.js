@@ -1002,9 +1002,15 @@ function emotionRadar(base) {
     const p = _radarPoint(32, i);
     return '<line x1="50" y1="50" x2="' + p[0] + '" y2="' + p[1] + '" stroke="currentColor" stroke-opacity="0.1" stroke-width="0.5"/>';
   }).join("");
-  const points = values.map((value, i) => _radarPoint(32 * value, i).join(",")).join(" ");
-  const dots = values.map((value, i) => {
-    const p = _radarPoint(32 * value, i);
+  // Zero shares used to collapse several vertices onto the exact center.
+  // That made the polygon self-intersect and cancel its own fill, leaving
+  // only the stroke visible. Keep a tiny inner radius and expand the area
+  // with sqrt so the filled shape stays readable without changing the
+  // percentage labels.
+  const areaValues = values.map((value) => Math.max(0.04, value));
+  const points = areaValues.map((value, i) => _radarPoint(32 * Math.sqrt(value), i).join(",")).join(" ");
+  const dots = areaValues.map((value, i) => {
+    const p = _radarPoint(32 * Math.sqrt(value), i);
     return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.2" fill="currentColor"/>';
   }).join("");
   const labels = keys.map((key, i) => {
@@ -1013,7 +1019,7 @@ function emotionRadar(base) {
     return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + Math.round(values[i] * 100) + '%</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪构成雷达图">' +
-    rings + axes + '<polygon class="emotion-radar-area" points="' + points + '" fill="currentColor" fill-opacity="0.24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
+    rings + axes + '<polygon class="emotion-radar-area" points="' + points + '" fill="currentColor" fill-opacity="0.28" fill-rule="nonzero" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
     dots + labels + '</svg>';
 }
 
