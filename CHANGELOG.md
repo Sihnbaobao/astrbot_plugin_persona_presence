@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.7
+
+- Clarify the radar caption: percentages are normalized shares; the polygon uses a square-root area scale so the filled shape is readable.
 ## 2.4.6
 
 - Fix the hollow emotion radar for real: zero shares used to collapse several polygon vertices onto the exact center, making the filled path self-intersect and cancel its own fill. Give zero values a tiny inner radius and use sqrt area scaling so the shape is visibly filled while the percentage labels stay unchanged.

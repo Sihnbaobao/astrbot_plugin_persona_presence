@@ -1120,7 +1120,7 @@ function _emotionHero(moods, enabled) {
     '</div>' +
     '<div class="emotion-hero-radar">' + emotionRadar(base) + '</div>' +
     '<div class="emotion-hero-side"><div class="emotion-chips">' + _emotionChips(base) + '</div>' +
-      '<div class="emotion-radar-caption">六轴按当前情绪总量归一化，标签是占比；右侧单独显示主导强度。</div>' +
+      '<div class="emotion-radar-caption">六轴按当前情绪总量归一化，标签是占比；面积用平方根展开，便于看清。</div>' +
       '<div class="emotion-hero-intensity"><div class="emotion-intensity-label"><span>强度</span><strong>' + intensity + '%</strong></div>' +
         '<div class="emotion-intensity-track"><i style="width:' + intensity + '%;background:' + accent + '"></i></div></div>' +
     '</div>' +
