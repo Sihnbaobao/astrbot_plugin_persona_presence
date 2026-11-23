@@ -95,6 +95,7 @@ from .utils.message_cache_manager import MessageCacheManager
 from .utils.modules.base import FeatureContext, Proposal
 from .utils.modules.curiosity import CuriosityModule
 from .utils.modules.dialogue_threads import DialogueThreads
+from .utils.modules.topic_digest import TopicDigestStore
 from .utils.modules.curiosity_store import CuriosityStore
 from .utils.modules.emotion import EmotionModule
 from .utils.modules.image_archive import (
@@ -106,7 +107,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.5.3"
+PLUGIN_VERSION = "2.5.4"
 
 
 @register(
@@ -549,6 +550,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             legacy_data_dir.rename(data_dir)
         data_dir.mkdir(parents=True, exist_ok=True)
         self.plugin_data_dir = str(data_dir)
+        self.topic_digest = TopicDigestStore(self.plugin_data_dir)
         self._cleanup_old_temp_images()
 
         # ========== 后台任务容器 ==========
@@ -7953,10 +7955,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             recent = thread_context or context_tail[-1600:]
             if not current or not recent:
                 return ""
+            digest_summary = self.topic_digest.summary_for(
+                event.unified_msg_origin
+            )
+            prior_summary = previous_summary or digest_summary
             signature = (
                 thread_id
                 + "|"
-                + previous_summary
+                + prior_summary
                 + "|"
                 + recent[-1000:]
                 + "|"
@@ -7972,7 +7978,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 "你只做话题理解，不回复，不评价。"
                 + chr(10)
                 + "之前这段话题的理解："
-                + (previous_summary or "无")
+                + (prior_summary or "无")
                 + chr(10)
                 + chr(10)
                 + "这段相关的原话："
@@ -8010,6 +8016,11 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 self._topic_summary_cache.pop(next(iter(self._topic_summary_cache)))
             self.dialogue_threads.set_topic_summary(
                 event.unified_msg_origin, sender_id, current, summary
+            )
+            self.topic_digest.update(
+                event.unified_msg_origin,
+                summary,
+                participants=[str(event.get_sender_name() or "")],
             )
             event.set_extra("_persona_topic_summary", summary)
             return summary

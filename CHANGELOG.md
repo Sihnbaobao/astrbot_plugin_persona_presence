@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.4
+
+- Persist the rolling AI topic summary per group in topic_digest.json. On restart the thread tracker is empty, but the latest digest is still available as the prior topic when summarising a new turn. Add tests and document the store.
 ## 2.5.3
 
 - Carry the topic forward instead of re-reading only six turns. Each thread now keeps its last summary, up to 24 turns, and the reply summariser also sees the full prepared context (including injected long-term memory). Add docs/CONVERSATION_THREADS.md.

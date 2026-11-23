@@ -109,8 +109,12 @@ participation=direct/side/open/none
 超过 24 条 turn 的完整线程
 ```
 
-线程和 summary 都是内存态；进程重启后会重新积累。
-更早的历史只能依赖 `formatted_context` 和外部记忆插件，不会自动恢复成线程。
+线程和 thread summary 是内存态；进程重启后会重新积累。
+
+另有一份落盘的 `topic_digest.json`：每个群保存最近一句 AI 话题摘要。
+thread summary 为空时，会把它当作“更早的话题摘要”传给总结模型，
+所以重启后仍能认出之前没聊完的话题。它只保存最新一句，不保存完整历史。
+更早的历史还会依赖 `formatted_context` 和外部记忆插件。
 
 ## 6. 相关代码
 
