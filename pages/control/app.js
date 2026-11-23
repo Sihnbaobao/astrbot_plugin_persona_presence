@@ -1011,7 +1011,7 @@ function emotionRadar(base) {
   const points = areaValues.map((value, i) => _radarPoint(32 * Math.sqrt(value), i).join(",")).join(" ");
   const dots = areaValues.map((value, i) => {
     const p = _radarPoint(32 * Math.sqrt(value), i);
-    return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.2" fill="currentColor"/>';
+    return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1" fill="currentColor" fill-opacity="0.85"/>';
   }).join("");
   const labels = keys.map((key, i) => {
     const p = _radarPoint(40, i);
@@ -1019,7 +1019,7 @@ function emotionRadar(base) {
     return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + Math.round(values[i] * 100) + '%</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪构成雷达图">' +
-    rings + axes + '<polygon class="emotion-radar-area" points="' + points + '" fill="currentColor" fill-opacity="0.28" fill-rule="nonzero" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
+    rings + axes + '<polygon class="emotion-radar-area" points="' + points + '" fill="currentColor" fill-opacity="0.30" fill-rule="nonzero" stroke="currentColor" stroke-width="0.9" stroke-opacity="0.7" stroke-linejoin="round"/>' +
     dots + labels + '</svg>';
 }
 

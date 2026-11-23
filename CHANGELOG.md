@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.8
+
+- Lighten the filled radar outline from 1.6 to 0.9, reduce stroke opacity, and slightly raise the fill opacity so the area reads before the border.
 ## 2.4.7
 
 - Clarify the radar caption: percentages are normalized shares; the polygon uses a square-root area scale so the filled shape is readable.

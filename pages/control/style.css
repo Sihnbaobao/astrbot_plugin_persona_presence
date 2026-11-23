@@ -1133,7 +1133,7 @@ html[data-theme="dark"] .image-card-actions .mini-btn.danger.confirming { color:
 }
 .emotion-hero-radar { display: flex; justify-content: center; color: var(--mood-color, var(--accent)); }
 .emotion-radar-svg { width: 100%; max-width: 210px; height: auto; overflow: visible; }
-.emotion-radar-area { fill: currentColor; fill-opacity: 0.28; stroke: currentColor; stroke-linejoin: round; }
+.emotion-radar-area { fill: currentColor; fill-opacity: 0.30; stroke: currentColor; stroke-width: 0.9; stroke-opacity: 0.7; stroke-linejoin: round; }
 .emotion-hero-side { min-width: 0; }
 .emotion-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; }
 .emotion-chip {
