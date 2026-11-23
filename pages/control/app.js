@@ -1013,7 +1013,7 @@ function emotionRadar(base) {
     return '<text class="emotion-radar-axis-label" x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="middle" style="fill:currentColor" font-size="7">' + meta.label + Math.round(values[i] * 100) + '%</text>';
   }).join("");
   return '<svg class="emotion-radar-svg" viewBox="0 0 100 100" role="img" aria-label="六种情绪构成雷达图">' +
-    rings + axes + '<polygon points="' + points + '" style="fill:var(--mood-color, var(--accent));fill-opacity:.34;stroke:var(--mood-color, var(--accent));stroke-width:2"/>' +
+    rings + axes + '<polygon class="emotion-radar-area" points="' + points + '" fill="currentColor" fill-opacity="0.24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
     dots + labels + '</svg>';
 }
 

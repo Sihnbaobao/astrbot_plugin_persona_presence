@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.5
+
+- Render the emotion radar as a filled translucent area instead of an outline-only polygon. Use explicit SVG fill attributes and bump the control-page asset version so cached old JavaScript cannot keep showing the hollow version.
 ## 2.4.4
 
 - Restore compact versions of the details removed during prompt consolidation: the previous-speaker anchor for unaddressed “你”, the `reply_to_other / at_other` chain warning, the mixed old-text/latest-image quoting rule, and the no-impersonation clause.
