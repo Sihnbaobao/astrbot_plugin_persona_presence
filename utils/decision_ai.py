@@ -651,6 +651,7 @@ class DecisionAI:
         previous_sender_name: str = "",
         previous_sender_gap: str = "",
         previous_sender_time: str = "",
+        thread_hint: str = "",
         include_current_time: bool | None = None,
     ) -> ParticipationDecision:
         """
@@ -768,6 +769,8 @@ class DecisionAI:
                     "不能直接断言消息没有指向机器人。普通历史、AstrBot 官方群聊上下文、【📦近期未回复】缓存和长期记忆只能作为背景，"
                     "不能制造对话对象、补写当前消息的主语或单独成为回复理由。"
                 )
+                if thread_hint:
+                    enhanced_context += "\n\n" + thread_hint
                 if previous_sender_name:
                     enhanced_context += (
                         "\n\n[系统信息-上一条有内容的发言] "

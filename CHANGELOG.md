@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.4.0
+
+- Add a lightweight per-group dialogue-thread layer. It remembers recent speakers and passes a “who was just talking” hint into the decision and reply prompts, so an unaddressed “你/你说的这个” no longer defaults to the bot.
+- Pass the decision target to the reply prompt. `open` is now explicitly described as “no clear object, do not assume it means you”; `other` as “mainly addressed to someone else”.
 ## 2.3.12
 
 - Do not start proactive speech from a very short reaction line. “难搞”“不如乙游女” and similar fragments are usually answers inside another thread, not open topics; they stay in the buffer but cannot trigger a proposal.

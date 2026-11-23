@@ -94,6 +94,7 @@ from .utils.meme_bridge import select_meme_image
 from .utils.message_cache_manager import MessageCacheManager
 from .utils.modules.base import FeatureContext, Proposal
 from .utils.modules.curiosity import CuriosityModule
+from .utils.modules.dialogue_threads import DialogueThreads
 from .utils.modules.curiosity_store import CuriosityStore
 from .utils.modules.emotion import EmotionModule
 from .utils.modules.image_archive import (
@@ -105,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.12"
+PLUGIN_VERSION = "2.4.0"
 
 
 @register(
@@ -507,6 +508,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self._last_user_message_at: dict[str, float] = {}
         self._decision_results_by_message: dict[str, ParticipationDecision] = {}
+        self.dialogue_threads = DialogueThreads()
         self._last_web_lookup_at: dict[str, float] = {}
         self._processing_started_at: dict[str, float] = {}
         self._reply_anchor_ids: dict[str, str] = {}
@@ -6756,6 +6758,37 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         "如果看不出对象，不要用直接回话的口吻替对方作答，"
                         "也不要默认“你”是在说你。"
                     )
+            try:
+                _thread_hint = str(
+                    event.get_extra("_persona_thread_hint") or ""
+                ).strip()
+            except Exception:
+                _thread_hint = ""
+            if _thread_hint:
+                reply_context_hint = (
+                    f"{reply_context_hint}\n\n{_thread_hint}"
+                    if reply_context_hint
+                    else _thread_hint
+                )
+            _target_hint = ""
+            if not is_private and not is_explicitly_addressed:
+                if decision_result.target == "open":
+                    _target_hint = (
+                        "[本轮对象] 这条没有明确对象，按公开话题处理。"
+                        "正文里的“你/你说的这个”可能指群里的别人，"
+                        "不要默认是在说你自己。"
+                    )
+                elif decision_result.target == "other":
+                    _target_hint = (
+                        "[本轮对象] 这条主要是对别人说的；"
+                        "你可以旁观补充，不要替对方回答。"
+                    )
+            if _target_hint:
+                reply_context_hint = (
+                    f"{reply_context_hint}\n\n{_target_hint}"
+                    if reply_context_hint
+                    else _target_hint
+                )
             if decision_result.handoff_hint:
                 reply_context_hint = (
                     f"{reply_context_hint}\n\n{decision_result.handoff_hint}"
@@ -7086,6 +7119,31 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     return previous
         except Exception:
             _decision_key = ""
+        thread_hint = ""
+        try:
+            _thread_text = original_message_text or str(event.get_message_str() or "")
+            _thread_sender = str(event.get_sender_id() or "")
+            thread_hint = self.dialogue_threads.hint(
+                event.unified_msg_origin,
+                _thread_sender,
+                _thread_text,
+                is_directly_addressed=is_directly_addressed,
+                persona_name=str(getattr(self, "_name", "") or ""),
+            )
+            if not getattr(event, "_persona_thread_observed", False):
+                self.dialogue_threads.observe(
+                    event.unified_msg_origin,
+                    _thread_sender,
+                    str(event.get_sender_name() or ""),
+                    _thread_text,
+                    reply_to_other=is_reply_to_other,
+                    at_other=has_at_others,
+                )
+                event._persona_thread_observed = True
+            if thread_hint:
+                event.set_extra("_persona_thread_hint", thread_hint)
+        except Exception as exc:
+            logger.debug(f"[话轮] 记录失败: {exc}")
         body_context = await self._body_decision_context(event)
         body_away = "刚自慰过" in body_context
 
@@ -7238,6 +7296,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             previous_sender_name=previous_sender_name,
             previous_sender_gap=previous_sender_gap,
             previous_sender_time=previous_sender_time,
+            thread_hint=thread_hint,
         )
 
         if self.debug_mode:
@@ -8857,6 +8916,14 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                             )
             except Exception as exc:
                 logger.debug(f"[补一句] 长期记忆读取失败: {exc}")
+            try:
+                _thread_hint = str(
+                    event.get_extra("_persona_thread_hint") or ""
+                ).strip()
+                if _thread_hint:
+                    prompt_parts.append(_thread_hint)
+            except Exception:
+                pass
             try:
                 background = await self._build_background_block(event, is_private)
                 if background:
