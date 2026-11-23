@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.11
+
+- Keep a per-message decision result so a later batch/speculative recheck cannot flip an earlier high-confidence “no” into “bot” without an explicit @ or reply. This addresses the same turn being classified open/no and then bot/yes seconds apart.
+
 ## 2.3.10
 
 - Treat a punctuation-only afterthought (such as “…”) as silence. It used to pass the “沉默” check and send an empty ellipsis bubble.

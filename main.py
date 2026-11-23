@@ -105,7 +105,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.3.10"
+PLUGIN_VERSION = "2.3.11"
 
 
 @register(
@@ -506,6 +506,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             "afterthought_delay_ms", 1200, minimum=0, maximum=10_000
         )
         self._last_user_message_at: dict[str, float] = {}
+        self._decision_results_by_message: dict[str, ParticipationDecision] = {}
         self._last_web_lookup_at: dict[str, float] = {}
         self._processing_started_at: dict[str, float] = {}
         self._reply_anchor_ids: dict[str, str] = {}
@@ -7065,6 +7066,26 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         platform_name = event.get_platform_name()
         is_private = event.is_private_chat()
         chat_id = event.get_group_id() if not is_private else event.get_sender_id()
+        _decision_key = ""
+        try:
+            _message_id = str(
+                getattr(getattr(event, "message_obj", None), "message_id", "") or ""
+            )
+            if _message_id:
+                _decision_key = f"{event.unified_msg_origin}|{_message_id}"
+                previous = self._decision_results_by_message.get(_decision_key)
+                if (
+                    previous is not None
+                    and not previous.reply
+                    and previous.confidence == "high"
+                    and not is_directly_addressed
+                ):
+                    logger.info(
+                        "[决策AI] 同一消息已高置信判过不回复，沿用旧判断"
+                    )
+                    return previous
+        except Exception:
+            _decision_key = ""
         body_context = await self._body_decision_context(event)
         body_away = "刚自慰过" in body_context
 
@@ -7224,6 +7245,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             logger.info(f"【步骤9】决策AI判断完成，耗时: {_decision_elapsed:.2f}秒")
 
         if not decision_result.reply:
+            if _decision_key:
+                self._decision_results_by_message[_decision_key] = decision_result
+                while len(self._decision_results_by_message) > 1000:
+                    self._decision_results_by_message.pop(
+                        next(iter(self._decision_results_by_message))
+                    )
             logger.debug(f"决策AI判断: 不应该回复此消息 ({decision_result.summary()})")
             # 清理pre_decision缓存（防止内存残留）
             try:
@@ -7239,6 +7266,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 pass
             return decision_result
 
+        if _decision_key:
+            self._decision_results_by_message[_decision_key] = decision_result
+            while len(self._decision_results_by_message) > 1000:
+                self._decision_results_by_message.pop(
+                    next(iter(self._decision_results_by_message))
+                )
         logger.debug(f"决策AI判断: 应该回复此消息 ({decision_result.summary()})")
         return decision_result
 
