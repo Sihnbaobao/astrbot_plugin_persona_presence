@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.6
+
+- Anchor the afterthought to the object in the current user message. Remove the broad topic summary from this short follow-up context (it could pull in an earlier anime thread), and tell it to keep “game” as “game” rather than switching to “anime”.
 ## 2.5.5
 
 - Keep speaker attribution in AI topic summaries. The summariser is asked to name the key speakers and what each said, and the persistent digest now stores the thread participants rather than only the current sender.
