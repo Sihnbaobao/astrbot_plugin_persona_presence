@@ -509,3 +509,14 @@ def test_media_only_latest_message_blocks_proactive(monkeypatch, tmp_path):
     assert pack.can_propose(ctx) is False
     assert asyncio.run(pack.propose(ctx)) is None
     assert context.calls == 0
+
+
+def test_short_reaction_does_not_trigger_proactive(monkeypatch, tmp_path):
+    module = _load_module(monkeypatch)
+    context = _Context("接一句")
+    pack = module.ProactiveModule(context, _settings(module), data_dir=tmp_path)
+    ctx = _ctx(module, _Event(text="难搞"))
+    for _ in range(3):
+        asyncio.run(pack.on_event(ctx))
+    assert asyncio.run(pack.propose(ctx)) is None
+    assert context.calls == 0

@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.3.12
+
+- Do not start proactive speech from a very short reaction line. “难搞”“不如乙游女” and similar fragments are usually answers inside another thread, not open topics; they stay in the buffer but cannot trigger a proposal.
+
 ## 2.3.11
 
 - Keep a per-message decision result so a later batch/speculative recheck cannot flip an earlier high-confidence “no” into “bot” without an explicit @ or reply. This addresses the same turn being classified open/no and then bot/yes seconds apart.

@@ -324,6 +324,19 @@ class ProactiveModule(PluginModule):
             return None
 
         state.last_try = time.time()
+        latest_line = str(state.lines[-1]) if state.lines else ""
+        latest_text = re.sub(r"^\[\d{2}:\d{2}\]\s*", "", latest_line)
+        latest_text = latest_text.partition("：")[2] or latest_text
+        latest_text = latest_text.strip()
+        if (
+            len(latest_text) <= 6
+            and not re.search(
+                r"[?？]|吗|怎么|什么|为什么|有没有|聊|说|来|去|看|听|玩|吃|睡|走|问|谁|哪|啥|句",
+                latest_text,
+            )
+        ):
+            self._record("skip", group, reason="short_reaction")
+            return None
         if random.random() > self.settings.base_probability:
             self._record("skip", group, reason="random")
             return None
