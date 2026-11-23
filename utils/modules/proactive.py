@@ -304,6 +304,11 @@ class ProactiveModule(PluginModule):
         # merely because it is the latest buffered item.
         if state.last_was_media:
             return False
+        try:
+            if ctx.event.get_extra("_persona_thread_open") is False:
+                return False
+        except Exception:
+            pass
         return self._should_consider(state, ctx.now)
 
     async def propose(self, ctx: FeatureContext) -> Proposal | None:

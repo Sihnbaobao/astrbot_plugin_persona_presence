@@ -40,3 +40,13 @@ def test_explicit_name_has_no_hint():
         threads.hint("g", "b", "璃月你觉得呢", persona_name="璃月")
         == ""
     )
+
+
+def test_thread_openness_needs_three_people():
+    module = _load()
+    threads = module.DialogueThreads()
+    threads.observe("g", "a", "阿甲", "话费怎么扣这么快")
+    threads.observe("g", "b", "阿乙", "我也想知道")
+    assert threads.is_open_thread("g", "b", "我也想知道") is False
+    threads.observe("g", "c", "阿丙", "运营商的问题")
+    assert threads.is_open_thread("g", "c", "运营商的问题") is True

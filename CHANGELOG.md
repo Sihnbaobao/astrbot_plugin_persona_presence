@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.1
+
+- Add lightweight thread segmentation: reply/@ links, short-reaction inheritance, time gaps and lexical overlap assign turns to a thread. Proactive speech skips closed two-person threads, and an unaddressed bot target inside a thread is downgraded to open before replying.
 ## 2.4.0
 
 - Add a lightweight per-group dialogue-thread layer. It remembers recent speakers and passes a “who was just talking” hint into the decision and reply prompts, so an unaddressed “你/你说的这个” no longer defaults to the bot.

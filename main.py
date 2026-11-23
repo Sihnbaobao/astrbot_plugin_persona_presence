@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.4.0"
+PLUGIN_VERSION = "2.4.1"
 
 
 @register(
@@ -2569,6 +2569,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             return
         try:
             ctx = await self._build_feature_context(event, is_private, raw_chat_id)
+            try:
+                event.set_extra(
+                    "_persona_thread_open",
+                    self.dialogue_threads.is_open_thread(
+                        event.unified_msg_origin,
+                        str(event.get_sender_id() or ""),
+                        str(event.get_message_str() or ""),
+                    ),
+                )
+            except Exception:
+                pass
             await module.on_event(ctx)
         except Exception as exc:
             logger.debug(f"[Feature] Observation failed: {exc}")
@@ -7298,6 +7309,18 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             previous_sender_time=previous_sender_time,
             thread_hint=thread_hint,
         )
+
+        if (
+            not is_private
+            and not is_directly_addressed
+            and decision_result.target == "bot"
+            and decision_result.continuation != "yes"
+            and thread_hint
+        ):
+            logger.info("[话轮] 无明确点名但判成 bot，按当前线程降为 open")
+            decision_result = decision_result.with_reply(
+                decision_result.reply, target="open", participation="open"
+            )
 
         if self.debug_mode:
             _decision_elapsed = time.time() - _decision_start
