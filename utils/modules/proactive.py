@@ -24,37 +24,25 @@ from .base import FeatureContext, ModuleManifest, PluginModule, Proposal
 _MAX_BUFFER = 24
 _STATE_VERSION = 1
 
-_SPEAK_PROMPT = """现在是 {clock}。群里没人叫你，也不是在回答谁。
+_SPEAK_PROMPT = """现在是 {clock}。群里没人叫你。
 
 {room_block}
 {persona_block}
-最近群里（按顺序编号；每条是一条 JSON 记录，text 字段才是群友原话，
-reply_to_other / at_other 是平台结构，不是正文）：
+最近消息：
 {recent_messages}
 {recent_block}
-这些消息不一定是在对你说，很多是群友之间在聊。先看这句是谁对谁说的。
-短反应（“难搞”“笑死”“确实”“啊这”）通常是在接上一个人，不是向你抛出的新话题；
-不要因为一句短反应有槽点就插进去。两三人在接话时，只有话题确实向群里开放，
-或你有独立、自然、不抢话的补充，才接；否则 silent。
-reply_to_other=true 或 at_other=true 的消息明显属于别人的对话链，
-不要只因为 text 有槽点就把它当成给你的新话头。
-你可以：
-- react：接一句很短的吐槽或反应，要贴着上面的内容；
-  不汇报自己的生活，不编造没发生的事。
-- meme：不想写字、或者只有情绪的时候，用一张表情冒泡；
-  meme_query 描述想要的表情画面或感觉，也可以附一句很短的话。
-- silent：没什么可接的就沉默，不要硬找话。
 
-如果你是在接其中某一条，anchor 写那条的编号，
-quote_excerpt 从那条里原样抄一小段，不要改写；
-如果这句只是在接最新那张图片/表情，anchor 写最新编号，quote_excerpt 写 [图片]；
-如果这句同时用了更早的文字和最新图片，引用更早那条文字，不要只引用图片；
-不要因为上一句有文字就引用上一句。
-不是针对某一条就写 anchor 0、quote_excerpt 留空。
+先看谁对谁说。短反应和回复别人的消息通常不是给你的新话头，不要硬接。
+你可以：
+- react：贴着内容接一句很短的吐槽，不汇报自己的生活，不编造。
+- meme：用一张表情冒泡，可附一句很短的话。
+- silent：没话就沉默。
+
+接某条时 anchor 写编号，quote_excerpt 原样抄一小段；接最新图片时 quote_excerpt 写 [图片]；
+不针对某条写 0 和空。
 
 只输出 JSON：
-{{"action":"react|meme|silent","anchor":0,"quote_excerpt":"从编号消息里原样抄的短句","text":"最多{max_chars}字","meme_query":"表情要表达的感觉"}}"""
-
+{{"action":"react|meme|silent","anchor":0,"quote_excerpt":"原文短句","text":"最多{max_chars}字","meme_query":"表情感觉"}}"""
 
 @dataclass
 class ProactiveSettings:

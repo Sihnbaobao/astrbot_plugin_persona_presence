@@ -582,7 +582,7 @@ def test_participation_policy_balances_direct_and_ambient_messages(monkeypatch):
         is_directly_addressed=True,
     )
     assert direct_relevant.reply is True
-    assert direct_relevant.handoff_hint.startswith("[系统提示-本次参与依据]")
+    assert direct_relevant.handoff_hint.startswith("[参与] 直接回应")
     assert "共同兴趣" in direct_relevant.handoff_hint
 
 
@@ -611,7 +611,7 @@ def test_participation_policy_requires_independent_side_comment(monkeypatch):
         has_at_others=True,
     )
     assert independent_comment.reply is True
-    assert "不要替其他用户" in independent_comment.handoff_hint
+    assert "不替对方答" in independent_comment.handoff_hint
 
     weak_side_comment = normalize(
         _decision_payload(

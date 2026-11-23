@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.4.2"
+PLUGIN_VERSION = "2.4.3"
 
 
 @register(
@@ -6716,59 +6716,28 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
 
         try:
             smart_batch_reply_hint = ""
-            reply_context_hint = ""
+            hints: list[str] = []
             if not is_private:
                 has_at_others = bool(
                     isinstance(mention_info, dict) and mention_info.get("has_at_others")
                 )
                 if is_reply_to_other or has_at_others:
                     if is_explicitly_addressed:
-                        reply_context_hint = (
-                            "[系统提示-群聊回复边界] 当前消息中有一部分明确对你说，也涉及其他群友。"
-                            "请只回答明确给你的部分；不要替其他群友回答、承诺或冒充对方。"
-                        )
+                        hints.append("[对象] 有部分点你，也有别人；只答你的部分。")
                     else:
-                        reply_context_hint = (
-                            "[系统提示-群聊旁观边界] 当前消息直接指向其他群友；"
-                            "本次若回复，请用你自己的口吻、立场和经历补充相关内容。"
-                            "不要替被@、被回复或被引用的用户作答；"
-                            "消息里的“你”默认指向那位群友，不是你。"
-                        )
+                        hints.append("[对象] 在跟别人说；别替对方答。")
                 elif (
                     decision_result.target == "open"
                     and not is_explicitly_addressed
                     and re.search(r"你|你们", message_text or "")
                 ):
-                    reply_context_hint = (
-                        "[系统提示-人称边界] 这条消息没有明确点你，正文里的“你”"
-                        "可能是在说别人。不要默认把自己代入；如果看不出对象，"
-                        "就用旁观口吻，或只接你能确定的那部分。"
-                    )
+                    hints.append("[对象] 没点你；“你”可能不是说你。")
                 elif (
                     decision_result.target == "bot"
                     and not is_explicitly_addressed
                     and re.search(r"你的", message_text or "")
                 ):
-                    reply_context_hint = (
-                        "[系统提示-指代确认] 平台没有点名你，但正文用了“你的……”。"
-                        "这通常是在对拥有那个人或东西的群友说话，不是在问你。"
-                        "先确认“你”指向谁；不要用‘你自己去聊’这种直接回话口吻。"
-                    )
-                elif (
-                    decision_result.target == "bot"
-                    and not is_explicitly_addressed
-                    and _previous_sender_name
-                    and re.search(r"你", message_text or "")
-                ):
-                    reply_context_hint = (
-                        "[系统提示-指代确认] 平台没有@你、没有回复你；"
-                        f"上一条有内容的发言来自 {_previous_sender_name}"
-                        + (f"，聊天记录时间 {_previous_sender_time}" if _previous_sender_time else "")
-                        + (f"，约 {_previous_sender_gap} 前" if _previous_sender_gap else "")
-                        + "，但它不一定是对象。先看当前消息是否明显承接那句话；"
-                        "如果看不出对象，不要用直接回话的口吻替对方作答，"
-                        "也不要默认“你”是在说你。"
-                    )
+                    hints.append("[对象] 没点你；“你的”多半指别人。")
             try:
                 _thread_hint = str(
                     event.get_extra("_persona_thread_hint") or ""
@@ -6776,29 +6745,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             except Exception:
                 _thread_hint = ""
             if _thread_hint:
-                reply_context_hint = (
-                    f"{reply_context_hint}\n\n{_thread_hint}"
-                    if reply_context_hint
-                    else _thread_hint
-                )
-            _target_hint = ""
-            if not is_private and not is_explicitly_addressed:
+                hints.append(_thread_hint)
+            elif not is_private and not is_explicitly_addressed:
                 if decision_result.target == "open":
-                    _target_hint = "[对象] 没点你，按公开话题接。"
+                    hints.append("[对象] 没点你，按公开话题接。")
                 elif decision_result.target == "other":
-                    _target_hint = "[对象] 在跟别人说，别替对方答。"
-            if _target_hint:
-                reply_context_hint = (
-                    f"{reply_context_hint}\n\n{_target_hint}"
-                    if reply_context_hint
-                    else _target_hint
-                )
+                    hints.append("[对象] 在跟别人说，别替对方答。")
             if decision_result.handoff_hint:
-                reply_context_hint = (
-                    f"{reply_context_hint}\n\n{decision_result.handoff_hint}"
-                    if reply_context_hint
-                    else decision_result.handoff_hint
-                )
+                hints.append(decision_result.handoff_hint)
+            reply_context_hint = chr(10).join(dict.fromkeys(hints))[:600]
             reply_message_text = message_text
             if use_smart_batch:
                 if smart_batch_messages:

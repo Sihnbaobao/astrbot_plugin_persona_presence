@@ -44,6 +44,10 @@
 
 ## 📝 更新日志
 
+## 2.4.3
+
+- Consolidate reply-time hints into one short `[对象]` / `[线程]` block capped at 600 characters; remove the overlapping boundary, pronoun and previous-speaker paragraphs.
+- Compact the participation handoff, the proactive speak prompt, and duplicate decision examples. This reduces instruction stacking without removing the participation contract.
 ## 2.4.2
 
 - Compress the new thread/object hints. They now read like context (`[线程] …没点你`, `[对象] 没点你，按公开话题接`) instead of a paragraph of instructions, so they do not push the persona into assistant-speak.

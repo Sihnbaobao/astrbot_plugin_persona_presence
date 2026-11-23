@@ -115,16 +115,8 @@ class ParticipationDecision:
         posture = _PARTICIPATION_LABELS.get(self.participation, "自然回应")
         reason = _REASON_LABELS.get(self.reason_code, "当前人格愿意参与这条消息")
         if self.participation == "direct":
-            return (
-                "[系统提示-本次参与依据] 本次可以直接回应当前消息。"
-                f"参与依据：{reason}。"
-                "请仍以你自己的口吻、立场和经历回答；不要把这条提示当成用户正文。"
-            )
-        return (
-            "[系统提示-本次参与依据] 本次允许采用"
-            f"{posture}的姿态发言。参与依据：{reason}。"
-            "请只说你自己确实想补充的相关内容；不要替其他用户作答、承诺或冒充对方。"
-        )
+            return f"[参与] 直接回应。依据：{reason}。"
+        return f"[参与] {posture}。依据：{reason}。不替对方答。"
 
     def summary(self) -> str:
         """Return bounded fields suitable for an operational log line."""
