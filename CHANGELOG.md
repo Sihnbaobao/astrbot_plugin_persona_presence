@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.0
+
+- Do not participate in elided-subject follow-up questions. “为什么不找女朋友”“然后呢” and similar lines are treated as continuations of the previous speaker; unless the persona is explicitly addressed, the decision is now reply=no instead of only changing the reply wording.
 ## 2.4.9
 
 - Treat elided questions such as “为什么不找女朋友” as continuations of the previous speaker, not as new public topics about the persona. Add a reply hint that the implied subject is not the bot, so the reply does not answer with “我/璃月”.
