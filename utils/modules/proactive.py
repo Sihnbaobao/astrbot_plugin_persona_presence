@@ -33,13 +33,14 @@ _SPEAK_PROMPT = """现在是 {clock}。群里没人叫你。
 {recent_block}
 
 先看谁对谁说。短反应和回复别人的消息通常不是给你的新话头，不要硬接。
+reply_to_other / at_other 说明它属于别人的对话链，不要只因为 text 有槽点就当成新话头。
 你可以：
 - react：贴着内容接一句很短的吐槽，不汇报自己的生活，不编造。
 - meme：用一张表情冒泡，可附一句很短的话。
 - silent：没话就沉默。
 
 接某条时 anchor 写编号，quote_excerpt 原样抄一小段；接最新图片时 quote_excerpt 写 [图片]；
-不针对某条写 0 和空。
+同时用了更早文字和最新图片时，引用那条文字。不针对某条写 0 和空。
 
 只输出 JSON：
 {{"action":"react|meme|silent","anchor":0,"quote_excerpt":"原文短句","text":"最多{max_chars}字","meme_query":"表情感觉"}}"""

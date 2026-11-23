@@ -116,7 +116,7 @@ class ParticipationDecision:
         reason = _REASON_LABELS.get(self.reason_code, "当前人格愿意参与这条消息")
         if self.participation == "direct":
             return f"[参与] 直接回应。依据：{reason}。"
-        return f"[参与] {posture}。依据：{reason}。不替对方答。"
+        return f"[参与] {posture}。依据：{reason}。不替对方答、不冒充。"
 
     def summary(self) -> str:
         """Return bounded fields suitable for an operational log line."""

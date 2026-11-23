@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.4
+
+- Restore compact versions of the details removed during prompt consolidation: the previous-speaker anchor for unaddressed “你”, the `reply_to_other / at_other` chain warning, the mixed old-text/latest-image quoting rule, and the no-impersonation clause.
 ## 2.4.3
 
 - Consolidate reply-time hints into one short `[对象]` / `[线程]` block capped at 600 characters; remove the overlapping boundary, pronoun and previous-speaker paragraphs.

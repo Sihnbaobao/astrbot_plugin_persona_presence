@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.4.3"
+PLUGIN_VERSION = "2.4.4"
 
 
 @register(
@@ -6738,6 +6738,15 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     and re.search(r"你的", message_text or "")
                 ):
                     hints.append("[对象] 没点你；“你的”多半指别人。")
+                elif (
+                    decision_result.target == "bot"
+                    and not is_explicitly_addressed
+                    and _previous_sender_name
+                    and re.search(r"你", message_text or "")
+                ):
+                    hints.append(
+                        f"[前一条] {_previous_sender_name} 说的，先看这句是不是在接他。"
+                    )
             try:
                 _thread_hint = str(
                     event.get_extra("_persona_thread_hint") or ""
