@@ -171,34 +171,22 @@ class DialogueThreads:
         turns = [turn for turn in thread.turns if not turn.is_bot]
         if any(turn.is_bot for turn in thread.turns):
             return ""
-        names: list[str] = []
-        for turn in turns:
-            if turn.sender_id == str(sender_id):
-                continue
-            if turn.sender_name and turn.sender_name not in names:
-                names.append(turn.sender_name)
-        if not names:
+        # On a re-decision the current turn may already be in the thread.
+        if (
+            turns
+            and turns[-1].sender_id == str(sender_id)
+            and turns[-1].text == str(text or "")[:300]
+        ):
+            turns = turns[:-1]
+        if not turns:
             return ""
-        snippet = ""
-        for turn in reversed(turns):
-            if turn.sender_id != str(sender_id) and len(turn.text) > 6:
-                snippet = turn.text[:24]
-                break
-        if len(names) == 1:
-            return (
-                "[线程] "
-                + names[0]
-                + " 和另一个人在聊"
-                + (f"「{snippet}」" if snippet else "")
-                + "。没点你。"
-            )
-        return (
-            "[线程] "
-            + "、".join(names[:3])
-            + " 在聊"
-            + (f"「{snippet}」" if snippet else "")
-            + "。没点你。"
-        )
+        lines: list[str] = []
+        for turn in turns[-3:]:
+            speaker = turn.sender_name or "群友"
+            lines.append(f"{speaker}：{turn.text[:20]}")
+        if not lines:
+            return ""
+        return "[线程] " + "；".join(lines) + "。没点你，顺着这段聊。"
 
     def is_open_thread(self, umo: str, sender_id: str, text: str = "") -> bool:
         """Tell whether the current thread looks open to the group.

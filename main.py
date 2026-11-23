@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.5.0"
+PLUGIN_VERSION = "2.5.1"
 
 
 @register(
@@ -6753,19 +6753,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 ).strip()
             except Exception:
                 _thread_hint = ""
-            if (
-                not is_private
-                and not is_explicitly_addressed
-                and decision_result.target in ("open", "other")
-                and not re.search(r"我|你|他|她|它|大家|有人|谁", message_text or "")
-                and re.search(
-                    r"为什么|怎么|是不是|有没有|要不要|会不会|吗|呢|[?？]",
-                    message_text or "",
-                )
-            ):
-                hints.append(
-                    "[对象] 这是接着别人问的，主语不是你；别用“我/璃月”回答。"
-                )
             if _thread_hint:
                 hints.append(_thread_hint)
             elif not is_private and not is_explicitly_addressed:
@@ -7279,26 +7266,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             previous_sender_time=previous_sender_time,
             thread_hint=thread_hint,
         )
-
-        _elided_question = bool(
-            not is_private
-            and not is_directly_addressed
-            and decision_result.target in ("open", "other")
-            and not re.search(r"我|你|他|她|它|大家|有人|谁", original_message_text or "")
-            and re.match(
-                r"^(为什么|怎么|是不是|要不要|会不会|然后|那)",
-                (original_message_text or "").strip(),
-            )
-        )
-        if _elided_question:
-            logger.info("[话轮] 省略主语的追问，按接上一位说话人处理，不参与")
-            decision_result = decision_result.with_reply(
-                False,
-                target="other",
-                participation="none",
-                interest="none",
-                reason_code="none",
-            )
 
         if (
             not is_private

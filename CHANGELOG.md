@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.1
+
+- Replace the “do not reply to elided questions” gate with topic-following context. The thread hint now carries the last three turns with speakers, so the reply can continue the actual conversation instead of turning an omitted subject into “me”.
 ## 2.5.0
 
 - Do not participate in elided-subject follow-up questions. “为什么不找女朋友”“然后呢” and similar lines are treated as continuations of the previous speaker; unless the persona is explicitly addressed, the decision is now reply=no instead of only changing the reply wording.
