@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.2
+
+- Add a reply-side topic summariser. The decision model only says yes/no; the reply model now gets a separate one-sentence view of the last six turns: who/what is being discussed and which turn the current message continues. Cached per chat, with an 8-second timeout.
 ## 2.5.1
 
 - Replace the “do not reply to elided questions” gate with topic-following context. The thread hint now carries the last three turns with speakers, so the reply can continue the actual conversation instead of turning an omitted subject into “me”.
