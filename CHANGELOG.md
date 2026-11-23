@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.9
+
+- Treat elided questions such as “为什么不找女朋友” as continuations of the previous speaker, not as new public topics about the persona. Add a reply hint that the implied subject is not the bot, so the reply does not answer with “我/璃月”.
 ## 2.4.8
 
 - Lighten the filled radar outline from 1.6 to 0.9, reduce stroke opacity, and slightly raise the fill opacity so the area reads before the border.
