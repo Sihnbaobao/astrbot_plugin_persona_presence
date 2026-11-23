@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.5.2"
+PLUGIN_VERSION = "2.5.3"
 
 
 @register(
@@ -7924,40 +7924,44 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         return "\n\n".join(blocks)
 
     async def _summarize_group_topic(
-        self, event: AstrMessageEvent, cache_key: str
+        self, event: AstrMessageEvent, cache_key: str, formatted_context: str = ""
     ) -> str:
         """Summarise the current group topic for the reply prompt.
 
         The decision model only answers yes/no. This separate view is for the
-        reply model: who is being talked about, what the last few turns were
-        actually doing, and which turn the current message continues.
+        reply model: what the current thread has been about, what was already
+        established, and which turn the current message continues.
 
         Args:
             event: Current message event.
             cache_key: Scoped chat key used to reuse a recent summary.
+            formatted_context: Full context prepared for the reply, including
+                history older than the thread's recent turns.
 
         Returns:
             One compact topic sentence, or an empty string on failure.
         """
         try:
-            history = await ContextManager.get_history_messages_with_fallback(
-                event, 10, self.context
-            )
-            self_id = str(event.get_self_id() or "")
-            lines: list[str] = []
-            for item in list(history)[-6:]:
-                text = str(getattr(item, "message_str", "") or "").strip()
-                if not text:
-                    continue
-                sender = getattr(item, "sender", None)
-                sender_id = str(getattr(sender, "user_id", "") or "")
-                sender_name = str(getattr(sender, "nickname", "") or "")
-                speaker = "你" if sender_id == self_id else (sender_name or "群友")
-                lines.append(f"{speaker}：{text[:120]}")
             current = str(event.get_message_str() or "").strip()
-            if not lines or not current:
+            sender_id = str(event.get_sender_id() or "")
+            thread_id, thread_context, previous_summary = (
+                self.dialogue_threads.topic_context(
+                    event.unified_msg_origin, sender_id, current
+                )
+            )
+            context_tail = str(formatted_context or "")[-2600:]
+            recent = thread_context or context_tail[-1600:]
+            if not current or not recent:
                 return ""
-            signature = "|".join(lines[-6:] + [current])
+            signature = (
+                thread_id
+                + "|"
+                + previous_summary
+                + "|"
+                + recent[-1000:]
+                + "|"
+                + current[:300]
+            )
             cached = self._topic_summary_cache.get(cache_key)
             if cached and cached[0] == signature:
                 return cached[1]
@@ -7965,35 +7969,48 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if not provider_id:
                 return ""
             prompt = (
-                "只看下面的群聊，不回复，只说明现在在聊什么。"
+                "你只做话题理解，不回复，不评价。"
                 + chr(10)
-                + "最近对话："
+                + "之前这段话题的理解："
+                + (previous_summary or "无")
                 + chr(10)
-                + chr(10).join(lines[-6:])
+                + chr(10)
+                + "这段相关的原话："
+                + chr(10)
+                + recent
+                + chr(10)
+                + chr(10)
+                + "更早的上下文节选："
+                + chr(10)
+                + context_tail
+                + chr(10)
                 + chr(10)
                 + "当前消息："
                 + current[:300]
                 + chr(10)
                 + chr(10)
-                + "用一句中文说明：现在在聊谁/什么事，当前这句是在接谁或接什么。"
+                + "用一句中文更新：现在在聊谁/什么事，前面已经说到哪，当前这句在接谁或接什么。"
                 + chr(10)
-                + "不要评价，不要回答问题，不要用“你应该”。不超过 80 字。"
+                + "不要回答问题，不要用“你应该”。不超过 90 字。"
             )
             response = await asyncio.wait_for(
                 self.context.llm_generate(
                     chat_provider_id=provider_id,
                     prompt=prompt,
-                    max_tokens=100,
+                    max_tokens=110,
                 ),
                 timeout=8,
             )
             summary = str(getattr(response, "completion_text", "") or "").strip()
-            summary = " ".join(summary.split())[:160]
+            summary = " ".join(summary.split())[:180]
             if not summary:
                 return ""
             self._topic_summary_cache[cache_key] = (signature, summary)
             while len(self._topic_summary_cache) > 200:
                 self._topic_summary_cache.pop(next(iter(self._topic_summary_cache)))
+            self.dialogue_threads.set_topic_summary(
+                event.unified_msg_origin, sender_id, current, summary
+            )
             event.set_extra("_persona_topic_summary", summary)
             return summary
         except Exception as exc:
@@ -8070,7 +8087,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         try:
             if not is_private and event.get_extra("_persona_thread_hint"):
                 topic_summary = await self._summarize_group_topic(
-                    event, state_chat_id
+                    event, state_chat_id, final_message
                 )
                 if topic_summary:
                     final_message = (

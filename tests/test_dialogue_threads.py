@@ -50,3 +50,17 @@ def test_thread_openness_needs_three_people():
     assert threads.is_open_thread("g", "b", "我也想知道") is False
     threads.observe("g", "c", "阿丙", "运营商的问题")
     assert threads.is_open_thread("g", "c", "运营商的问题") is True
+
+
+def test_topic_summary_sticks_to_thread():
+    module = _load()
+    threads = module.DialogueThreads()
+    threads.observe("g", "a", "阿甲", "为什么不找女朋友")
+    threads.observe("g", "b", "阿乙", "因为是男同")
+    thread_id, context, previous = threads.topic_context("g", "b", "因为是男同")
+    assert thread_id
+    assert "阿甲" in context
+    assert previous == ""
+    threads.set_topic_summary("g", "b", "因为是男同", "在聊阿甲不找女朋友的事")
+    _, _, updated = threads.topic_context("g", "b", "因为是男同")
+    assert updated == "在聊阿甲不找女朋友的事"

@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.3
+
+- Carry the topic forward instead of re-reading only six turns. Each thread now keeps its last summary, up to 24 turns, and the reply summariser also sees the full prepared context (including injected long-term memory). Add docs/CONVERSATION_THREADS.md.
 ## 2.5.2
 
 - Add a reply-side topic summariser. The decision model only says yes/no; the reply model now gets a separate one-sentence view of the last six turns: who/what is being discussed and which turn the current message continues. Cached per chat, with an 8-second timeout.

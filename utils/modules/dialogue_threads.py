@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 _MAX_TURNS = 24
 _NEW_THREAD_GAP = 180.0
-_MAX_TURNS_IN_THREAD = 8
+_MAX_TURNS_IN_THREAD = 24
 
 
 def _normal_text(text: str) -> str:
@@ -51,6 +51,7 @@ class _Thread:
 
     thread_id: str
     turns: deque = field(default_factory=lambda: deque(maxlen=_MAX_TURNS_IN_THREAD))
+    summary: str = ""
 
 
 class DialogueThreads:
@@ -187,6 +188,52 @@ class DialogueThreads:
         if not lines:
             return ""
         return "[线程] " + "；".join(lines) + "。没点你，顺着这段聊。"
+
+    def topic_context(
+        self, umo: str, sender_id: str, text: str, max_chars: int = 2400
+    ) -> tuple[str, str, str]:
+        """Return the current thread, its recent turns and prior summary.
+
+        Args:
+            umo: Conversation origin.
+            sender_id: Current sender identifier.
+            text: Current message text.
+            max_chars: Maximum characters in the rendered turn block.
+
+        Returns:
+            A tuple of thread id, recent turn transcript and previous summary.
+        """
+        thread = self._current_thread(umo, sender_id, text)
+        if thread is None:
+            return "", "", ""
+        turns = list(thread.turns)
+        if (
+            turns
+            and turns[-1].sender_id == str(sender_id)
+            and turns[-1].text == str(text or "")[:300]
+        ):
+            turns = turns[:-1]
+        lines: list[str] = []
+        for turn in turns[-12:]:
+            speaker = "你" if turn.is_bot else (turn.sender_name or "群友")
+            lines.append(f"{speaker}：{turn.text[:80]}")
+        block = chr(10).join(lines)
+        return thread.thread_id, block[-max_chars:], thread.summary
+
+    def set_topic_summary(
+        self, umo: str, sender_id: str, text: str, summary: str
+    ) -> None:
+        """Attach the latest one-sentence topic summary to the thread.
+
+        Args:
+            umo: Conversation origin.
+            sender_id: Current sender identifier.
+            text: Current message text.
+            summary: One-sentence topic summary.
+        """
+        thread = self._current_thread(umo, sender_id, text)
+        if thread is not None and summary:
+            thread.summary = str(summary)[:300]
 
     def is_open_thread(self, umo: str, sender_id: str, text: str = "") -> bool:
         """Tell whether the current thread looks open to the group.
