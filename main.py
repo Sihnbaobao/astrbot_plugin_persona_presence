@@ -106,7 +106,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.4.1"
+PLUGIN_VERSION = "2.4.2"
 
 
 @register(
@@ -6784,16 +6784,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             _target_hint = ""
             if not is_private and not is_explicitly_addressed:
                 if decision_result.target == "open":
-                    _target_hint = (
-                        "[本轮对象] 这条没有明确对象，按公开话题处理。"
-                        "正文里的“你/你说的这个”可能指群里的别人，"
-                        "不要默认是在说你自己。"
-                    )
+                    _target_hint = "[对象] 没点你，按公开话题接。"
                 elif decision_result.target == "other":
-                    _target_hint = (
-                        "[本轮对象] 这条主要是对别人说的；"
-                        "你可以旁观补充，不要替对方回答。"
-                    )
+                    _target_hint = "[对象] 在跟别人说，别替对方答。"
             if _target_hint:
                 reply_context_hint = (
                     f"{reply_context_hint}\n\n{_target_hint}"

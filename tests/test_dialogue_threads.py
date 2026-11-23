@@ -22,7 +22,7 @@ def test_two_person_side_chat_is_flagged():
     threads.observe("g", "b", "阿乙", "你那个在哪买的")
     hint = threads.hint("g", "b", "你说的这个能发我吗")
     assert "阿甲" in hint
-    assert "不要默认" in hint
+    assert "没点你" in hint
 
 
 def test_bot_turn_clears_side_hint():

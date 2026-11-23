@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.4.2
+
+- Compress the new thread/object hints. They now read like context (`[线程] …没点你`, `[对象] 没点你，按公开话题接`) instead of a paragraph of instructions, so they do not push the persona into assistant-speak.
 ## 2.4.1
 
 - Add lightweight thread segmentation: reply/@ links, short-reaction inheritance, time gaps and lexical overlap assign turns to a thread. Proactive speech skips closed two-person threads, and an unaddressed bot target inside a thread is downgraded to open before replying.

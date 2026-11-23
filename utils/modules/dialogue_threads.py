@@ -186,20 +186,18 @@ class DialogueThreads:
                 break
         if len(names) == 1:
             return (
-                "[话题线索] 当前更像 "
+                "[线程] "
                 + names[0]
-                + " 和另一个人在接话"
-                + (f"，刚才在说「{snippet}」" if snippet else "")
-                + "。这句没有明确点你，先按他们之间的对话理解，"
-                "不要默认“你/你说的这个”是在说 bot。"
+                + " 和另一个人在聊"
+                + (f"「{snippet}」" if snippet else "")
+                + "。没点你。"
             )
         return (
-            "[话题线索] 当前线程里主要是 "
+            "[线程] "
             + "、".join(names[:3])
             + " 在聊"
             + (f"「{snippet}」" if snippet else "")
-            + "。这句没有明确点你，先看它是不是在接他们的对话，"
-            "不要默认“你/你说的这个”是在说 bot。"
+            + "。没点你。"
         )
 
     def is_open_thread(self, umo: str, sender_id: str, text: str = "") -> bool:
