@@ -220,6 +220,28 @@ class DialogueThreads:
         block = chr(10).join(lines)
         return thread.thread_id, block[-max_chars:], thread.summary
 
+    def participants(self, umo: str, sender_id: str, text: str = "") -> list[str]:
+        """Return unique human participants in the current thread.
+
+        Args:
+            umo: Conversation origin.
+            sender_id: Current sender identifier.
+            text: Current message text when available.
+
+        Returns:
+            Display names, most recent first.
+        """
+        thread = self._current_thread(umo, sender_id, text)
+        if thread is None:
+            return []
+        names: list[str] = []
+        for turn in reversed(thread.turns):
+            if turn.is_bot or not turn.sender_name:
+                continue
+            if turn.sender_name not in names:
+                names.append(turn.sender_name)
+        return names[:8]
+
     def set_topic_summary(
         self, umo: str, sender_id: str, text: str, summary: str
     ) -> None:

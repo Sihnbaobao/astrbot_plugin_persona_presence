@@ -64,3 +64,11 @@ def test_topic_summary_sticks_to_thread():
     threads.set_topic_summary("g", "b", "因为是男同", "在聊阿甲不找女朋友的事")
     _, _, updated = threads.topic_context("g", "b", "因为是男同")
     assert updated == "在聊阿甲不找女朋友的事"
+
+
+def test_topic_participants_keep_speakers():
+    module = _load()
+    threads = module.DialogueThreads()
+    threads.observe("g", "a", "阿甲", "为什么不找女朋友")
+    threads.observe("g", "b", "阿乙", "因为是男同")
+    assert threads.participants("g", "b", "因为是男同") == ["阿乙", "阿甲"]

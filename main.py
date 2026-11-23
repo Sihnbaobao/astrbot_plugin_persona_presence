@@ -107,7 +107,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.5.4"
+PLUGIN_VERSION = "2.5.5"
 
 
 @register(
@@ -7995,9 +7995,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 + current[:300]
                 + chr(10)
                 + chr(10)
-                + "用一句中文更新：现在在聊谁/什么事，前面已经说到哪，当前这句在接谁或接什么。"
+                + "用一句中文更新：现在在聊谁/什么事，前面已经说到哪；"
+                + "保留关键说话人的名字和各自说法，最后说明当前这句在接谁。"
                 + chr(10)
-                + "不要回答问题，不要用“你应该”。不超过 90 字。"
+                + "不要回答问题，不要用“你应该”。不超过 120 字。"
             )
             response = await asyncio.wait_for(
                 self.context.llm_generate(
@@ -8020,7 +8021,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             self.topic_digest.update(
                 event.unified_msg_origin,
                 summary,
-                participants=[str(event.get_sender_name() or "")],
+                participants=self.dialogue_threads.participants(
+                    event.unified_msg_origin, sender_id, current
+                ),
             )
             event.set_extra("_persona_topic_summary", summary)
             return summary

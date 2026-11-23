@@ -44,6 +44,9 @@
 
 ## 📝 更新日志
 
+## 2.5.5
+
+- Keep speaker attribution in AI topic summaries. The summariser is asked to name the key speakers and what each said, and the persistent digest now stores the thread participants rather than only the current sender.
 ## 2.5.4
 
 - Persist the rolling AI topic summary per group in topic_digest.json. On restart the thread tracker is empty, but the latest digest is still available as the prior topic when summarising a new turn. Add tests and document the store.
