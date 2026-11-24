@@ -691,6 +691,22 @@ def test_participation_parser_accepts_json_and_rejects_unknown_enums(monkeypatch
     assert private.boundary_interpretation == "ambiguous"
 
 
+def test_release_decision_keeps_the_message_unanswered(monkeypatch):
+    participation = _load_participation(monkeypatch)
+    normalize = participation.normalize_decision_payload
+    decision = normalize(_decision_payload(body_action="release"), is_private=True)
+    assert decision.body_action == "release"
+    assert decision.reply is False
+
+    untouched = normalize(_decision_payload(), is_private=True)
+    assert untouched.body_action == "none"
+    assert untouched.reply is True
+
+    group = normalize(_decision_payload(body_action="release"))
+    assert group.body_action == "none"
+    assert group.reply is True
+
+
 def test_decision_evaluate_prompt_modes_and_malformed_output(monkeypatch):
     response_filter = _load_module(
         monkeypatch,

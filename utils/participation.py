@@ -211,6 +211,10 @@ def normalize_decision_payload(
         "none",
     )
     body_action = _choice(payload.get("body_action"), BODY_ACTION_VALUES, "none")
+    if not is_private:
+        # Release is a one-to-one decision; a stray field in a group reply
+        # must not silence the group.
+        body_action = "none"
     reply = _as_bool(payload.get("reply"))
 
     if is_private:
@@ -241,6 +245,10 @@ def normalize_decision_payload(
         body_action=body_action,
     )
 
+    if body_action == "release":
+        # Deciding to go take care of herself means this message stays
+        # unanswered; the reply pipeline must not talk over that.
+        return decision.with_reply(False, reason_code="none")
     if not reply:
         return decision.with_reply(False, reason_code="none")
     if target == "unclear" or participation == "none":

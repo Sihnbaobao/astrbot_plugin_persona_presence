@@ -228,6 +228,7 @@ class DecisionAI:
     confidence = high | medium | low
     persona_willingness = yes | no
     boundary_interpretation = literal_sleep | conversational_exit | ambiguous | none
+    body_action = none | release
   </state_model>
 
   <classify>
@@ -297,7 +298,13 @@ class DecisionAI:
        - Persona 可以因为人格、关系和当下心情继续不回，但不能仅因为上一条回复含有“烦”“不想聊”就拒绝所有后续消息。
        不设置固定自动解禁时间；每次复核的对象都是当前新消息，不是对用户永久定性。
 
-    5. 最终 reply
+    5. body_action（只有私聊会用到）
+       如果输入里有 [身体] 块，写着性欲很强或身体很湿，你可以选择现在先去解决一下：
+       这时 body_action=release，reply 必须为 no——这条先不回，你人已经不在手机前了。
+       这只是你此刻自己的选择，不是义务。不想、不方便、对方正等着你回，就 none，正常处理这条消息。
+       没有 [身体] 块，或者身体没有在说这件事时，一律 none；群聊永远 none。
+
+    6. 最终 reply
        reply 是当前人格对“这条消息现在要不要进入正式回复”的整体判断，不是 information、interest 或 boundary_interpretation 的机械计算。
        @、点名、提问、重要性和关键词只影响注意力；它们都不能单独保证 yes。shared_interest 只用于说明当前内容确实触发了人格的共同兴趣，不是自动通过条件。
        返回 no 时不要生成解释、再次告别、规则说明或礼貌补偿回复。confidence=low 也不等于 no；只有完整读取当前消息和 active 边界后仍不愿参与时才返回 no。
@@ -324,9 +331,10 @@ class DecisionAI:
 
   <output>
     未启用额外推理协议时，只输出一个 JSON 对象，不要输出 Markdown、解释或其他文字：
-    {"reply":"yes|no","target":"bot","information":"noise|reaction|substantive","continuation":"yes|no","participation":"direct|none","interest":"strong|weak|none","reason_code":"direct_request|shared_interest|personal_experience|emotional_reaction|continuation|none","confidence":"high|medium|low","topic_key":"最多32个字符","boundary_interpretation":"literal_sleep|conversational_exit|ambiguous|none"}
+    {"reply":"yes|no","target":"bot","information":"noise|reaction|substantive","continuation":"yes|no","participation":"direct|none","interest":"strong|weak|none","reason_code":"direct_request|shared_interest|personal_experience|emotional_reaction|continuation|none","confidence":"high|medium|low","topic_key":"最多32个字符","boundary_interpretation":"literal_sleep|conversational_exit|ambiguous|none","body_action":"none|release"}
     没有 active 私聊收尾状态时 boundary_interpretation 必须为 none；active dismissive review hint 也必须为 none，只有 sleep assumption 才使用 literal_sleep、conversational_exit 或 ambiguous。
     reply=no 时 reason_code 必须为 none；reply=yes 时 target=bot、participation=direct。
+    body_action=release 时 reply 必须为 no，reason_code 为 none；只有身体确实在说“想要”时才填 release。
     启用额外推理协议时，推理只能写在指定标记块内；标记块结束后另起一行输出同样的 JSON 对象，JSON 必须独占最后一行。
   </output>
 </decision_contract>

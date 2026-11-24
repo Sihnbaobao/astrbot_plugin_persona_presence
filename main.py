@@ -107,7 +107,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.6.3"
+PLUGIN_VERSION = "2.7.0"
 
 
 @register(
@@ -648,6 +648,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         )
         self._private_conversation_state = PrivateConversationState()
         self._private_wake_tasks: dict[str, asyncio.Task] = {}
+        self._body_review_tasks: dict[str, asyncio.Task] = {}
+        self._body_window: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._private_late_night_active_until: dict[str, float] = {}
 
         # Smart 并发参数同步
@@ -4748,6 +4750,504 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                         chat_key, pending_message
                     )
 
+
+    # ── 身体回顾：睡醒/忙完后由 persona 决定要不要回 ──
+
+    async def on_body_window_message(
+        self, persona_id: str, event: AstrMessageEvent, reason: str = "busy"
+    ) -> None:
+        """Keep one raw message that arrived while the body was unavailable.
+
+        body_needs only knows she is asleep or busy. Deciding whether the
+        message actually called her, which ones matter, and what context they
+        need all happens here, from the raw event.
+
+        Args:
+            persona_id: Persona that is away.
+            event: Live message event; copied immediately.
+            reason: "sleep" or "busy".
+        """
+        try:
+            umo = str(getattr(event, "unified_msg_origin", "") or "")
+            text = " ".join(str(getattr(event, "message_str", "") or "").split())
+            if not umo or not text:
+                return
+            directed, via, quote = self._body_directed_info(event)
+            try:
+                sender = str(event.get_sender_name() or "").strip()[:40]
+            except Exception:
+                sender = ""
+            try:
+                sender_id = str(event.get_sender_id() or "").strip()[:40]
+            except Exception:
+                sender_id = ""
+            key = (str(persona_id), umo)
+            rows = self._body_window.setdefault(key, [])
+            if (
+                rows
+                and rows[-1].get("text") == text
+                and time.time() - float(rows[-1].get("at") or 0.0) < 1.0
+            ):
+                return
+            rows.append(
+                {
+                    "at": time.time(),
+                    "sender": sender,
+                    "sender_id": sender_id,
+                    "text": text[:120],
+                    "directed": directed,
+                    "via": via,
+                    "quote": quote,
+                    "reason": str(reason or "busy"),
+                }
+            )
+            self._body_window[key] = rows[-8:]
+        except Exception as exc:
+            logger.debug(f"[身体回顾] 记录静默消息失败: {exc}")
+
+    async def on_body_return(
+        self, persona_id: str, reason: str = "busy", trigger_umo: str = ""
+    ) -> None:
+        """Review messages that called her while she was away.
+
+        Args:
+            persona_id: Persona that just returned.
+            reason: "sleep" or "busy".
+            trigger_umo: Chat whose message detected the return.
+        """
+        key = str(persona_id or "").strip()
+        if not key:
+            return
+        task = self._body_review_tasks.get(key)
+        if task is not None and not task.done():
+            return
+        entry = self._build_body_review_entry(key, reason, trigger_umo)
+        if entry is None:
+            return
+        self._body_review_tasks[key] = asyncio.create_task(
+            self._run_body_review(key, entry), name=f"persona-body-review:{key}"
+        )
+
+    def _build_body_review_entry(
+        self, persona_id: str, reason: str, trigger_umo: str
+    ) -> dict[str, Any] | None:
+        """Turn the in-memory window transcript into review candidates.
+
+        Args:
+            persona_id: Persona that returned.
+            reason: "sleep" or "busy".
+            trigger_umo: Chat whose message detected the return.
+
+        Returns:
+            A review entry, or None when nobody called her.
+        """
+        chats: list[dict[str, Any]] = []
+        keys = [key for key in self._body_window if key[0] == persona_id]
+        for key in keys:
+            umo = key[1]
+            rows = self._body_window.pop(key, [])
+            directed = [row for row in rows if row.get("directed")]
+            if not directed:
+                continue
+            candidates = []
+            for row in directed[-4:]:
+                at = float(row.get("at") or 0.0)
+                before = [
+                    item
+                    for item in rows
+                    if float(item.get("at") or 0.0) < at
+                ][-2:]
+                after = [
+                    item
+                    for item in rows
+                    if float(item.get("at") or 0.0) > at
+                ][:2]
+                candidates.append(
+                    {
+                        "at": at,
+                        "sender": row.get("sender") or "",
+                        "sender_id": row.get("sender_id") or "",
+                        "via": row.get("via") or "",
+                        "text": row.get("text") or "",
+                        "quote": row.get("quote") or "",
+                        "context": [
+                            {
+                                "at": float(item.get("at") or 0.0),
+                                "sender": item.get("sender") or "",
+                                "text": item.get("text") or "",
+                            }
+                            for item in before + after
+                        ],
+                    }
+                )
+            chats.append({"umo": umo, "candidates": candidates})
+        if not chats:
+            return None
+        return {
+            "persona": persona_id,
+            "reason": "sleep" if str(reason) == "sleep" else "busy",
+            "trigger_umo": str(trigger_umo or ""),
+            "chats": chats[:3],
+        }
+
+    @staticmethod
+    def _body_directed_info(event: AstrMessageEvent) -> tuple[bool, str, str]:
+        """Return whether a raw message targets her, and how it was phrased.
+
+        Args:
+            event: Live message event.
+
+        Returns:
+            (directed, via, quoted_text).
+        """
+        try:
+            if event.is_private_chat():
+                return True, "", ""
+        except Exception:
+            return False, "", ""
+        self_id = ""
+        try:
+            self_id = str(event.get_self_id() or "")
+        except Exception:
+            self_id = ""
+        at_me = False
+        reply_me = False
+        quoted = ""
+        try:
+            chain = list(
+                getattr(getattr(event, "message_obj", None), "message", []) or []
+            )
+        except Exception:
+            chain = []
+        for component in chain:
+            name = type(component).__name__
+            if name == "At":
+                target = str(getattr(component, "qq", "") or "")
+                if target and target != "all" and self_id and target == self_id:
+                    at_me = True
+            elif name == "Reply":
+                sender = str(getattr(component, "sender_id", "") or "")
+                if sender and self_id and sender == self_id:
+                    reply_me = True
+                    quoted = " ".join(
+                        str(getattr(component, "message_str", "") or "").split()
+                    )[:40]
+        wake_me = bool(getattr(event, "is_at_or_wake_command", False))
+        if at_me and reply_me:
+            via = "@你，引用你的消息"
+        elif at_me:
+            via = "@你"
+        elif reply_me and wake_me:
+            via = "引用你的消息，叫你"
+        elif reply_me:
+            via = "引用你的消息"
+        elif wake_me:
+            via = "叫你"
+        else:
+            via = ""
+        return bool(via), via, quoted
+
+    async def _run_body_review(
+        self, persona_id: str, entry: dict[str, Any]
+    ) -> None:
+        """Decide whether to answer a missed call, then queue at most one reply.
+
+        Args:
+            persona_id: Persona that returned.
+            entry: Candidates built from the window transcript.
+        """
+        try:
+            candidates = self._review_candidates(entry)
+            if not candidates:
+                return
+            # Let a reply for the message that triggered the return finish first.
+            await asyncio.sleep(5)
+            choice = await self._choose_body_review_reply(
+                persona_id, entry, candidates
+            )
+            if choice is None:
+                logger.info("[身体回顾] 她决定都不回")
+                return
+            if self._chat_recently_answered(str(choice.get("umo") or "")):
+                logger.info("[身体回顾] 这个会话刚回过消息，不再补一条")
+                return
+            self._queue_body_review_event(entry, choice)
+        except Exception as exc:
+            logger.error(f"[身体回顾] 失败: {exc}", exc_info=True)
+        finally:
+            task = self._body_review_tasks.get(persona_id)
+            if task is asyncio.current_task():
+                self._body_review_tasks.pop(persona_id, None)
+
+    def _review_candidates(self, entry: dict[str, Any]) -> list[dict[str, Any]]:
+        """Flatten one review entry into at most four candidates.
+
+        Args:
+            entry: Review entry written by body_needs.
+
+        Returns:
+            A list of {umo, candidate} rows.
+        """
+        rows: list[dict[str, Any]] = []
+        for chat in entry.get("chats") or []:
+            if not isinstance(chat, dict):
+                continue
+            umo = str(chat.get("umo") or "")
+            if not umo:
+                continue
+            for candidate in chat.get("candidates") or []:
+                if isinstance(candidate, dict):
+                    rows.append({"umo": umo, "candidate": candidate})
+        return rows[:4]
+
+    @staticmethod
+    def _review_clock(value: Any) -> str:
+        """Format a review timestamp as HH:MM."""
+        try:
+            return datetime.fromtimestamp(float(value or 0.0)).strftime("%H:%M")
+        except (TypeError, ValueError, OSError):
+            return ""
+
+    @staticmethod
+    def _review_chat_label(umo: str) -> str:
+        """Return a short chat label for the review prompt."""
+        return "群聊" if "Group" in str(umo) else "私聊"
+
+    def _review_provider_id(self) -> str:
+        """Resolve the provider used for the review decision."""
+        provider_id = str(getattr(self, "decision_ai_provider_id", "") or "").strip()
+        if provider_id:
+            return provider_id
+        try:
+            provider = self.context.get_using_provider()
+            if provider is not None:
+                return str(getattr(provider.meta(), "id", "") or "")
+        except Exception:
+            return ""
+        return ""
+
+    async def _choose_body_review_reply(
+        self,
+        persona_id: str,
+        entry: dict[str, Any],
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Ask the persona whether to answer one missed message.
+
+        Args:
+            persona_id: Persona that returned.
+            entry: Review entry from body_needs.
+            candidates: Flattened candidates.
+
+        Returns:
+            The chosen {umo, candidate} row, or None for "ignore all".
+        """
+        provider_id = self._review_provider_id()
+        if not provider_id:
+            logger.warning("[身体回顾] 没有可用的 provider")
+            return None
+        persona_prompt = ""
+        try:
+            persona = self.context.persona_manager.get_persona_v3_by_id(persona_id)
+            if isinstance(persona, dict):
+                persona_prompt = str(persona.get("prompt") or "")
+        except Exception:
+            persona_prompt = ""
+        reason = (
+            "睡醒了"
+            if str(entry.get("reason") or "") == "sleep"
+            else "刚忙完自己的事"
+        )
+        lines = [
+            f"你是{persona_id}。你{reason}，看到刚才有人在叫你。",
+            "下面是叫你的消息，以及它们前后的几句：",
+        ]
+        for index, row in enumerate(candidates, 1):
+            candidate = row["candidate"]
+            sender = str(candidate.get("sender") or "有人")
+            via = str(candidate.get("via") or "")
+            when = self._review_clock(candidate.get("at"))
+            text = str(candidate.get("text") or "").strip()
+            label = self._review_chat_label(row["umo"])
+            head = f"[c{index}] {label} {when} {sender}"
+            if via:
+                head += f" {via}"
+            head += f"：「{text}」"
+            quote = str(candidate.get("quote") or "").strip()
+            if quote:
+                head += f"（引用你的「{quote}」）"
+            lines.append(head)
+            try:
+                candidate_at = float(candidate.get("at") or 0.0)
+            except (TypeError, ValueError):
+                candidate_at = 0.0
+            for context in candidate.get("context") or []:
+                if not isinstance(context, dict):
+                    continue
+                try:
+                    context_at = float(context.get("at") or 0.0)
+                except (TypeError, ValueError):
+                    context_at = 0.0
+                relation = "之前" if context_at <= candidate_at else "之后"
+                clock = self._review_clock(context_at)
+                lines.append(
+                    f"  {relation} {clock} {context.get('sender') or '有人'}"
+                    f"：「{context.get('text') or ''}」"
+                )
+        lines.extend(
+            [
+                "",
+                "你要不要回其中一条？只判断回不回、回哪条，不要写回复正文。",
+                '都不想回就输出 {"reply_to":"none"}；想回某一条就输出 {"reply_to":"cN"}。',
+                "不用为了礼貌硬回；已经说了算了/没事，或者时间过去太久的，可以不理。",
+            ]
+        )
+        prompt = "\n".join(lines)
+        try:
+            response = await asyncio.wait_for(
+                self.context.llm_generate(
+                    chat_provider_id=provider_id,
+                    prompt=prompt,
+                    system_prompt=persona_prompt,
+                    max_tokens=80,
+                ),
+                timeout=25,
+            )
+        except Exception as exc:
+            logger.warning(f"[身体回顾] 判断失败: {exc}")
+            return None
+        text = str(getattr(response, "completion_text", "") or "")
+        match = re.search(r"\{[^{}]*\}", text, re.S)
+        if not match:
+            return None
+        try:
+            payload = json.loads(match.group(0))
+        except (TypeError, ValueError):
+            return None
+        choice = str(payload.get("reply_to") or "none").strip().lower()
+        for index, row in enumerate(candidates, 1):
+            if choice == f"c{index}":
+                return row
+        return None
+
+    def _chat_recently_answered(self, umo: str) -> bool:
+        """Return whether a chat just received a reply.
+
+        Args:
+            umo: Conversation origin.
+
+        Returns:
+            True when a bot reply was recorded in the last minute.
+        """
+        try:
+            platform_name, _, rest = str(umo).partition(":")
+            is_private = "GroupMessage" not in rest
+            chat_id = rest.split(":")[-1]
+            key = ProbabilityManager.get_chat_key(
+                platform_name, is_private, chat_id
+            )
+            return time.time() - float(self._last_bot_reply_at.get(key, 0.0)) < 60.0
+        except Exception:
+            return False
+
+    def _format_body_review_context(
+        self, entry: dict[str, Any], candidate: dict[str, Any]
+    ) -> str:
+        """Build the hidden context block for the review reply.
+
+        Args:
+            entry: Review entry from body_needs.
+            candidate: The message she chose to answer.
+
+        Returns:
+            Text appended to the reply prompt.
+        """
+        reason = (
+            "睡醒"
+            if str(entry.get("reason") or "") == "sleep"
+            else "刚忙完自己的事"
+        )
+        lines = [
+            f"[回顾] 你{reason}，选了回复这条叫你的消息。"
+            "自然接住，不要提“刚才没看到”、系统或回顾流程。"
+        ]
+        quote = str(candidate.get("quote") or "").strip()
+        if quote:
+            lines.append(f"这条引用的是你之前说的：「{quote}」。")
+        context_rows = candidate.get("context") or []
+        if context_rows:
+            lines.append("前后发生了什么：")
+            for row in context_rows:
+                if not isinstance(row, dict):
+                    continue
+                clock = self._review_clock(row.get("at"))
+                lines.append(
+                    f"{clock} {row.get('sender') or '有人'}：{row.get('text') or ''}"
+                )
+            lines.append("结合前后文理解这条，不要答非所问。")
+        return "\n".join(lines)
+
+    def _queue_body_review_event(
+        self, entry: dict[str, Any], row: dict[str, Any]
+    ) -> None:
+        """Commit one synthetic event so the normal pipeline writes the reply.
+
+        Args:
+            entry: Review entry from body_needs.
+            row: Chosen {umo, candidate} row.
+        """
+        from astrbot.core.platform.astrbot_message import (
+            AstrBotMessage,
+            MessageMember,
+        )
+        from astrbot.core.platform.message_session import MessageSession
+
+        umo = str(row.get("umo") or "")
+        candidate = row.get("candidate") or {}
+        text = str(candidate.get("text") or "").strip()
+        if not umo or not text:
+            return
+        try:
+            session = MessageSession.from_str(umo)
+            platform = self.context.get_platform_inst(session.platform_id)
+            if platform is None:
+                logger.warning(f"[身体回顾] 平台不可用: {session.platform_id}")
+                return
+            if not getattr(platform.meta(), "support_proactive_message", True):
+                logger.info(
+                    f"[身体回顾] 平台不支持主动消息: {session.platform_id}"
+                )
+                return
+            message = AstrBotMessage()
+            message.type = session.message_type
+            message.self_id = "astrbot"
+            message.session_id = session.session_id
+            if "Group" in umo:
+                message.group_id = session.session_id
+            message.message_id = uuid.uuid4().hex
+            message.sender = MessageMember(
+                user_id=str(candidate.get("sender_id") or session.session_id),
+                nickname=str(candidate.get("sender") or "用户"),
+            )
+            message.message = [Plain(text)]
+            message.message_str = text
+            message.raw_message = text
+            message.timestamp = int(time.time())
+            review_event = platform.create_event(message)
+            review_event.session = session
+            review_event.set_extra("_persona_body_review_forced", True)
+            review_event.set_extra(
+                "_persona_body_review_context",
+                self._format_body_review_context(entry, candidate),
+            )
+            platform.commit_event(review_event)
+            logger.info(
+                f"[身体回顾] 已排入回复：{self._review_chat_label(umo)} "
+                f"{candidate.get('sender') or ''}「{text[:40]}」"
+            )
+        except Exception as exc:
+            logger.error(f"[身体回顾] 排队失败: {exc}", exc_info=True)
+
     async def _get_official_group_context_records(
         self, event: AstrMessageEvent
     ) -> list[str]:
@@ -6481,6 +6981,10 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     )
                 except Exception as exc:
                     logger.warning(f"[Feature] Proposal gate failed: {exc}")
+            if is_private and decision_result.body_action == "release":
+                # The decision was "not this message, I'm going to take care
+                # of myself"; start the busy window before the pipeline ends.
+                await self._request_body_release(event)
             if takeover_reply:
                 try:
                     event.stop_event()
@@ -6985,25 +7489,86 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
     # AI决策判断（参与判断）
     # ============================================================
 
-    async def _body_decision_context(self, event: AstrMessageEvent) -> str:
-        """Return the body state that may make her choose silence.
+    async def _body_vitals_for(self, event: AstrMessageEvent) -> dict[str, Any]:
+        """Return the body plugin snapshot that belongs to this persona.
 
         Args:
             event: Incoming message event.
 
         Returns:
-            A short context line, or an empty string when the body link is off.
+            The matching vitals dict, or an empty one when the link is off.
         """
         try:
             emotion = getattr(self, "emotion_module", None)
             if emotion is None or not getattr(emotion, "body_link", False):
-                return ""
+                return {}
             prompt = await self._resolve_persona_prompt(event.unified_msg_origin)
             vitals = emotion._body_vitals(prompt)
-            if not isinstance(vitals, dict) or not vitals:
-                return ""
-            away_until = float(vitals.get("away_until") or 0.0)
-            remaining = away_until - time.time()
+            return vitals if isinstance(vitals, dict) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _body_busy(vitals: dict[str, Any]) -> bool:
+        """Return whether the body says she is still busy.
+
+        Args:
+            vitals: Body snapshot from the body plugin.
+
+        Returns:
+            True while the published busy window has not expired.
+        """
+        try:
+            busy = float(
+                vitals.get("busy_until") or vitals.get("away_until") or 0.0
+            )
+            return busy > time.time()
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _body_desire_high(vitals: dict[str, Any]) -> bool:
+        """Return whether the body may make her skip a private message.
+
+        Args:
+            vitals: Body snapshot from the body plugin.
+
+        Returns:
+            True when she is aroused and not already busy.
+        """
+        try:
+            now = time.time()
+            busy = float(
+                vitals.get("busy_until") or vitals.get("away_until") or 0.0
+            )
+            if busy > now:
+                return False
+            last_self = float(vitals.get("last_self_at") or 0.0)
+            if last_self and now - last_self < 1800:
+                return False
+            return (
+                float(vitals.get("libido") or 0.0) >= 0.65
+                or float(vitals.get("wetness") or 0.0) >= 0.5
+            )
+        except (TypeError, ValueError):
+            return False
+
+    def _body_context_text(self, vitals: dict[str, Any]) -> str:
+        """Format a body snapshot as the short decision-context line.
+
+        Args:
+            vitals: Body snapshot from the body plugin.
+
+        Returns:
+            A short context line, or an empty string when nothing notable.
+        """
+        if not vitals:
+            return ""
+        try:
+            remaining = (
+                float(vitals.get("busy_until") or vitals.get("away_until") or 0.0)
+                - time.time()
+            )
             libido = float(vitals.get("libido") or 0.0)
             wetness = float(vitals.get("wetness") or 0.0)
             pms = float(vitals.get("pms") or 0.0)
@@ -7021,7 +7586,7 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             parts = []
             if remaining > 0:
                 minutes = max(1, round(remaining / 60))
-                parts.append(f"她刚忙完自己的事，可能不想马上回（约 {minutes} 分钟）")
+                parts.append(f"她正在忙自己的事，可能一时回不了（约 {minutes} 分钟）")
             if pms >= 0.4:
                 parts.append("经前，耐心薄、容易烦躁，也容易委屈")
             if phase == "menstrual":
@@ -7035,8 +7600,52 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 + "；".join(parts)
                 + "。是否开口由人格自己决定，不用谁提醒，也不用解释。"
             )
-        except Exception:
+        except (TypeError, ValueError):
             return ""
+
+    async def _request_body_release(self, event: AstrMessageEvent) -> None:
+        """Ask the body plugin to start a release for this private message.
+
+        The request file is the durable half: if the body plugin is not loaded
+        right now, its next private-event hook applies it. When it is loaded,
+        the immediate call starts the busy window before the reply pipeline
+        finishes, so this turn stays unanswered.
+
+        Args:
+            event: The private message event that triggered the decision.
+        """
+        umo = str(getattr(event, "unified_msg_origin", "") or "")
+        try:
+            from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
+
+            data_dir = (
+                Path(get_astrbot_plugin_data_path()) / "astrbot_plugin_body_needs"
+            )
+            data_dir.mkdir(parents=True, exist_ok=True)
+            (data_dir / "body_request.json").write_text(
+                json.dumps(
+                    {
+                        "action": "release",
+                        "persona": "",
+                        "umo": umo,
+                        "created_at": time.time(),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.warning(f"[身体] 写 release 请求失败: {exc}")
+            return
+        try:
+            star = self.context.get_registered_star("astrbot_plugin_body_needs")
+            plugin = getattr(star, "star_cls", None) if star else None
+            handler = getattr(plugin, "consume_release_request", None)
+            if callable(handler):
+                await handler(event)
+        except Exception as exc:
+            logger.debug(f"[身体] 立即执行 release 失败，留待下一条私聊: {exc}")
+        logger.info("[身体] 人格选择先解决一下，本条不回复")
 
     async def _check_ai_decision(
         self,
@@ -7069,6 +7678,17 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         """
         platform_name = event.get_platform_name()
         is_private = event.is_private_chat()
+        if event.get_extra("_persona_body_review_forced"):
+            return ParticipationDecision(
+                reply=True,
+                target="bot" if is_private else "open",
+                participation="direct" if is_private else "open",
+                information="substantive",
+                interest="weak",
+                reason_code="direct_request",
+                confidence="high",
+                source="policy",
+            )
         chat_id = event.get_group_id() if not is_private else event.get_sender_id()
         _decision_key = ""
         try:
@@ -7115,17 +7735,21 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 event.set_extra("_persona_thread_hint", thread_hint)
         except Exception as exc:
             logger.debug(f"[话轮] 记录失败: {exc}")
-        body_context = await self._body_decision_context(event)
-        body_away = "刚自慰过" in body_context
+        body_vitals = await self._body_vitals_for(event)
+        body_context = self._body_context_text(body_vitals)
+        body_away = self._body_busy(body_vitals)
+        body_desire = self._body_desire_high(body_vitals)
 
         # Direct private chat treats the sender as the conversation target.
         # Keep AI gating available for private media and an explicit decide mode.
-        # When the body says she is away, run the decision AI instead of bypassing.
+        # When the body says she is busy or aroused, run the decision AI so the
+        # persona can choose to go take care of herself instead of replying.
         if (
             is_private
             and self.private_reply_mode == "direct"
             and not force_ai_decision
             and not body_away
+            and not body_desire
         ):
             if self.debug_mode:
                 logger.info("Private direct mode: bypassing group-style reply decision")
@@ -7236,8 +7860,8 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             if body_away:
                 decision_extra_prompt = (
                     decision_extra_prompt
-                    + "\n\n[身体边界] 她刚自慰过，可能正在忙；"
-                    "是否回复仍由人格和当前消息决定。"
+                    + "\n\n[身体边界] 她正在忙自己的事，可能一时回不了；"
+                    "是否回复仍由人格和当前消息决定，这次不必再选 body_action=release。"
                 )
 
         decision_result = await DecisionAI.evaluate(
@@ -7269,6 +7893,12 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             previous_sender_time=previous_sender_time,
             thread_hint=thread_hint,
         )
+
+        if body_away and decision_result.body_action == "release":
+            # She is already busy; a second release is not a real choice.
+            decision_result = decision_result.with_reply(
+                decision_result.reply, body_action="none"
+            )
 
         if (
             not is_private
@@ -8110,6 +8740,13 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                     logger.info(f"[话题] 已注入 {len(topic_summary)} 字符")
         except Exception as exc:
             logger.debug(f"[话题] 注入失败: {exc}")
+        try:
+            review_context = event.get_extra("_persona_body_review_context")
+            if review_context:
+                final_message = f"{final_message}\n\n{review_context}"
+                logger.info("[身体回顾] 已注入回顾上下文")
+        except Exception as exc:
+            logger.debug(f"[身体回顾] 注入失败: {exc}")
         try:
             background = await self._build_background_block(event, is_private)
             if background:
