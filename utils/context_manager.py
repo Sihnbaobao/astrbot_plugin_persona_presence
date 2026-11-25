@@ -16,7 +16,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 # 导入 MessageCleaner（延迟导入以避免循环依赖）
 from typing import TYPE_CHECKING, Any
@@ -307,13 +307,52 @@ class ContextManager:
             content = history_item.content
             message_text = ContextManager._content_to_safe_text(content)
 
+            # 批量回填的历史会把「[时间] 昵称(ID): 正文」整段存进 content，
+            # created_at 只是落库时间，可能比真实发言晚很多；照它排序会把
+            # 旧消息插到新消息后面，回复时就看不到紧挨着的那一句。这里还原
+            # 真实时间和发送者，并去掉重复前缀。
+            inner_timestamp = 0
+            parsed_sender_name = ""
+            parsed_sender_id = ""
+            prefix_match = re.match(
+                r"^\[(\d{4}-\d{2}-\d{2})\s+周[一二三四五六日]\s+"
+                r"(\d{2}:\d{2}:\d{2})\]\s*(.+)$",
+                message_text,
+                re.S,
+            )
+            if prefix_match:
+                try:
+                    inner_timestamp = int(
+                        datetime.strptime(
+                            f"{prefix_match.group(1)} {prefix_match.group(2)}",
+                            "%Y-%m-%d %H:%M:%S",
+                        ).timestamp()
+                    )
+                except ValueError:
+                    inner_timestamp = 0
+                message_text = prefix_match.group(3)
+                sender_match = re.match(
+                    r"^(.+?)\(ID:(\d+)\)\s*[:：]?\s*(.*)$", message_text, re.S
+                )
+                if sender_match:
+                    parsed_sender_name = sender_match.group(1).strip()
+                    parsed_sender_id = sender_match.group(2)
+                    message_text = sender_match.group(3)
+
             msg.message_str = message_text
             msg.platform_name = platform_name
 
-            # 处理时间戳
-            if hasattr(history_item, "created_at") and history_item.created_at:
+            # 处理时间戳：优先用正文里的真实时间，其次用落库时间。
+            # created_at 以 UTC 落库且读回来是 naive datetime，直接 .timestamp()
+            # 会被当成本地时间，整体偏 8 小时；这里显式按 UTC 处理。
+            if inner_timestamp:
+                msg.timestamp = inner_timestamp
+            elif hasattr(history_item, "created_at") and history_item.created_at:
                 if isinstance(history_item.created_at, datetime):
-                    msg.timestamp = int(history_item.created_at.timestamp())
+                    created_at = history_item.created_at
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    msg.timestamp = int(created_at.timestamp())
                 else:
                     msg.timestamp = 0
             else:
@@ -327,9 +366,9 @@ class ContextManager:
             if not is_private:
                 msg.group_id = chat_id
 
-            # 设置发送者信息
-            sender_id = history_item.sender_id or ""
-            sender_name = history_item.sender_name or "未知用户"
+            # 设置发送者信息：正文里的昵称/ID 优先于落库字段
+            sender_id = parsed_sender_id or (history_item.sender_id or "")
+            sender_name = parsed_sender_name or (history_item.sender_name or "未知用户")
             msg.sender = MessageMember(user_id=sender_id, nickname=sender_name)
             msg.self_id = bot_id
             msg.session_id = chat_id
