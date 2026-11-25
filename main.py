@@ -107,7 +107,7 @@ from .utils.modules.proactive import ProactiveModule, ProactiveSettings
 from .utils.participation import ParticipationDecision, ParticipationThrottle
 from .utils.private_conversation_state import PrivateConversationState
 
-PLUGIN_VERSION = "2.7.0"
+PLUGIN_VERSION = "2.7.1"
 
 
 @register(
