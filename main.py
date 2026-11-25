@@ -7224,36 +7224,6 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
         try:
             smart_batch_reply_hint = ""
             hints: list[str] = []
-            if not is_private:
-                has_at_others = bool(
-                    isinstance(mention_info, dict) and mention_info.get("has_at_others")
-                )
-                if is_reply_to_other or has_at_others:
-                    if is_explicitly_addressed:
-                        hints.append("[对象] 有部分点你，也有别人；只答你的部分。")
-                    else:
-                        hints.append("[对象] 在跟别人说；别替对方答。")
-                elif (
-                    decision_result.target == "open"
-                    and not is_explicitly_addressed
-                    and re.search(r"你|你们", message_text or "")
-                ):
-                    hints.append("[对象] 没点你；“你”可能不是说你。")
-                elif (
-                    decision_result.target == "bot"
-                    and not is_explicitly_addressed
-                    and re.search(r"你的", message_text or "")
-                ):
-                    hints.append("[对象] 没点你；“你的”多半指别人。")
-                elif (
-                    decision_result.target == "bot"
-                    and not is_explicitly_addressed
-                    and _previous_sender_name
-                    and re.search(r"你", message_text or "")
-                ):
-                    hints.append(
-                        f"[前一条] {_previous_sender_name} 说的，先看这句是不是在接他。"
-                    )
             try:
                 _thread_hint = str(
                     event.get_extra("_persona_thread_hint") or ""
@@ -7262,13 +7232,39 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 _thread_hint = ""
             if _thread_hint:
                 hints.append(_thread_hint)
-            elif not is_private and not is_explicitly_addressed:
-                if decision_result.target == "open":
-                    hints.append("[对象] 没点你，按公开话题接。")
-                elif decision_result.target == "other":
-                    hints.append("[对象] 在跟别人说，别替对方答。")
-            if decision_result.handoff_hint:
-                hints.append(decision_result.handoff_hint)
+            if not is_private and not is_explicitly_addressed:
+                try:
+                    _self_id = str(event.get_self_id())
+                    _recent_names: list[str] = []
+                    _bot_in_recent = False
+                    for _hist in (history_messages or [])[-6:]:
+                        _hist_sender = getattr(_hist, "sender", None)
+                        _hist_sid = str(getattr(_hist_sender, "user_id", "") or "")
+                        if not _hist_sid:
+                            continue
+                        if _hist_sid == _self_id:
+                            _bot_in_recent = True
+                            continue
+                        _hist_name = str(
+                            getattr(_hist_sender, "nickname", "") or "群友"
+                        )[:12]
+                        if _hist_name not in _recent_names:
+                            _recent_names.append(_hist_name)
+                    if _recent_names:
+                        hints.append(
+                            f"[话轮] 最近发言：{'、'.join(_recent_names[-3:])}；"
+                            + ("你也在。" if _bot_in_recent else "你最近没发言。")
+                        )
+                    event.set_extra(
+                        "_persona_addressing_facts",
+                        {
+                            "addressed": False,
+                            "previous_sender": _previous_sender_name or "",
+                            "bot_recent": _bot_in_recent,
+                        },
+                    )
+                except Exception:
+                    pass
             reply_context_hint = chr(10).join(dict.fromkeys(hints))[:600]
             reply_message_text = message_text
             if use_smart_batch:
@@ -8604,8 +8600,26 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
             provider_id = await self._resolve_feature_provider_id(event)
             if not provider_id:
                 return ""
+            try:
+                _facts = dict(event.get_extra("_persona_addressing_facts") or {})
+            except Exception:
+                _facts = {}
+            _prev_sender = str(_facts.get("previous_sender") or "").strip()
+            _cur_sender = str(event.get_sender_name() or "群友")
+            _fact_lines = [f"已知：当前这条是 {_cur_sender} 说的。"]
+            if _facts.get("addressed"):
+                _fact_lines.append("这条 @ 了她，或者引用了她。")
+            if _prev_sender:
+                _fact_lines.append(f"上一条是 {_prev_sender} 说的。")
+            _fact_lines.append(
+                "她最近几轮发过言。"
+                if _facts.get("bot_recent")
+                else "她最近几轮没发过言。"
+            )
             prompt = (
-                "你只做话题理解，不回复，不评价。"
+                "你只做群聊理解，不回复，不评价。"
+                + chr(10)
+                + chr(10).join(_fact_lines)
                 + chr(10)
                 + "之前这段话题的理解："
                 + (prior_summary or "无")
@@ -8621,25 +8635,33 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 + context_tail
                 + chr(10)
                 + chr(10)
-                + "当前消息："
+                + f"当前消息（{_cur_sender} 说的）："
                 + current[:300]
                 + chr(10)
                 + chr(10)
-                + "用一句中文更新：现在在聊谁/什么事，前面已经说到哪；"
-                + "保留关键说话人的名字和各自说法，最后说明当前这句在接谁。"
+                + "用两句话说明（这段说明会给她本人看，“你”只指她本人，"
+                + "不是当前发送者）："
                 + chr(10)
-                + "不要回答问题，不要用“你应该”。不超过 120 字。"
+                + "1) 现在群里有哪几条线，各是谁在跟谁聊什么，保留说话人名字；"
+                + "同时有几条线就分别写出来；"
+                + chr(10)
+                + "2) 当前这条最可能是在问谁：看得出就写名字"
+                + "（结合上一条是谁说的来判断），句中是“你们”或看不出就写“大家”；"
+                + "再说在说什么。"
+                + chr(10)
+                + "不要回答问题，不要评价，不要用“你应该”，"
+                + "也不要写“没点你”“不是问你”这类否定句。总共不超过 150 字。"
             )
             response = await asyncio.wait_for(
                 self.context.llm_generate(
                     chat_provider_id=provider_id,
                     prompt=prompt,
-                    max_tokens=110,
+                    max_tokens=180,
                 ),
                 timeout=8,
             )
             summary = str(getattr(response, "completion_text", "") or "").strip()
-            summary = " ".join(summary.split())[:180]
+            summary = " ".join(summary.split())[:220]
             if not summary:
                 return ""
             self._topic_summary_cache[cache_key] = (signature, summary)
@@ -8735,9 +8757,9 @@ class PersonaPresence(PokeMixin, MentionMixin, CommandMixin, SaveMixin, Star):
                 )
                 if topic_summary:
                     final_message = (
-                        f"{final_message}\n\n[话题] {topic_summary}"
+                        f"{final_message}\n\n[理解] {topic_summary}"
                     )
-                    logger.info(f"[话题] 已注入 {len(topic_summary)} 字符")
+                    logger.info(f"[理解] 已注入 {len(topic_summary)} 字符")
         except Exception as exc:
             logger.debug(f"[话题] 注入失败: {exc}")
         try:

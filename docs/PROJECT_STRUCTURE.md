@@ -38,7 +38,7 @@ main.py 不承担正式回复正文的人格生成，也不应重新引入随机
 | 文件 | 责任 |
 | --- | --- |
 | decision_ai.py | 构造参与判断请求、注入当前 Persona、解析结构化 JSON，并兼容旧 yes/no。 |
-| participation.py | 校验不可信模型字段、校验消息对象和说话姿态、生成最小 handoff、限制主动参与频率；不替 Persona 做主观兴趣或连续性裁决。 |
+| participation.py | 校验不可信模型字段、校验消息对象和说话姿态、限制主动参与频率；不替 Persona 做主观兴趣或连续性裁决。 |
 | reply_handler.py | 解析当前会话 Persona，创建 AstrBot provider request，复用正式回复和 Hook 边界。 |
 | message_cache_manager.py | 管理待处理消息、过期和数量限制；active 读取排除 decision_state=observed。 |
 | smart_concurrent_manager.py | 按到达序号选择 anchor，吸收 follower，维护有界 Smart 批次。 |
@@ -90,7 +90,7 @@ tests/test_persona_presence.py 覆盖：
 - 正式回复与参与判断 prompt 边界；
 - direct/open/side/other 的参与硬规则；
 - JSON 结构化解析、未知枚举和旧 yes/no 兼容；
-- handoff 不泄露分析过程；
+- 正式回复不注入决策姿态或理由；
 - observation-only 缓存隔离；
 - open/side 预算 interval、window、cap 与 direct bypass；
 - 关键词、缓存和 Smart 相关回归。

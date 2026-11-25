@@ -15,14 +15,16 @@ def _load():
     return module
 
 
-def test_two_person_side_chat_is_flagged():
+def test_two_person_side_chat_shows_both_speakers():
     module = _load()
     threads = module.DialogueThreads()
     threads.observe("g", "a", "阿甲", "这个本子好看")
     threads.observe("g", "b", "阿乙", "你那个在哪买的")
     hint = threads.hint("g", "b", "你说的这个能发我吗")
     assert "阿甲" in hint
-    assert "没点你" in hint
+    assert "阿乙" in hint
+    # 线程提示只给事实，不再断言“没点你”。
+    assert "没点你" not in hint
 
 
 def test_bot_turn_clears_side_hint():

@@ -187,7 +187,7 @@ class DialogueThreads:
             lines.append(f"{speaker}：{turn.text[:20]}")
         if not lines:
             return ""
-        return "[线程] " + "；".join(lines) + "。没点你，顺着这段聊。"
+        return "[线程] " + "；".join(lines) + "。"
 
     def topic_context(
         self, umo: str, sender_id: str, text: str, max_chars: int = 2400

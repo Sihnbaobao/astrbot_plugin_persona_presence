@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | main.py / PersonaPresence | 事件生命周期、硬过滤、媒体整理、Smart 协调、决策与发送编排 | 代替 Persona 写回复正文 |
 | utils/decision_ai.py | 构造参与判断请求、读取发送者和目标信号、解析模型输出 | 决定最终回复措辞 |
-| utils/participation.py | 校验结构化决策、执行参与硬规则、生成最小 handoff、限制 open/side 频率 | 调用模型或保存聊天历史 |
+| utils/participation.py | 校验结构化决策、执行参与硬规则、限制 open/side 频率 | 调用模型或保存聊天历史 |
 | utils/reply_handler.py | 解析当前 Persona、组织正式上下文、创建 AstrBot provider request | 决定消息是否值得参与 |
 | utils/message_cache_manager.py | 管理待处理缓存和 observation 过滤 | 把所有缓存当成待回答问题 |
 | SmartConcurrentManager | 按到达顺序选 anchor、吸收 follower、维护批次生命周期 | 改写 follower 的发送者或主要对象 |
@@ -192,7 +192,7 @@ direct 和 private 不消耗预算。预算在正式生成前记录，用于防�
 1. DecisionAI 的 system contract 与 parser。
 2. participation.py 的决策边界和 main.py 的历史事实边界。
 3. main.py 的 force 分支、throttle 和 observation 缓存。
-4. ReplyHandler handoff 是否仍然最小且无推理泄露。
+4. 正式回复 prompt 是否只含对话事实，不含姿态、理由或行为指令。
 5. Smart anchor/follower 的主对象不变量。
 6. README、CONFIG_REFERENCE.md 和 REFACTOR_DESIGN.md 的行为描述。
 7. direct、open、side、other、noise、malformed JSON 和 provider failure 的回归测试。

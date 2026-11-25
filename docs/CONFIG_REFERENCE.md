@@ -129,7 +129,7 @@ strong 和 weak 只描述这次人格意愿的力度：strong 可以展开；wea
 | max_context_messages | int | -1 | 历史上限；-1 不限，0 不获取。 |
 | collapse_reply_newlines | bool | false | 是否合并普通纯文本回复中的主动换行。 |
 
-正式回复使用 AstrBot 当前会话 Persona。参与判断的 JSON 和分析过程不会进入正式回复 prompt；只会传递 direct/side/open 姿态和有限 reason_code 的短 handoff。Persona Presence 不会把全部 active Skills 清单无条件追加到每条人格回复的 system prompt，但会继续合并当前请求的工具集。
+正式回复使用 AstrBot 当前会话 Persona。参与判断的 JSON 和分析过程不会进入正式回复 prompt；正式回复只拿对话本身和事实提示（[线程]、[话轮]、[理解]），不再注入 direct/side/open 姿态或 reason_code。Persona Presence 不会把全部 active Skills 清单无条件追加到每条人格回复的 system prompt，但会继续合并当前请求的工具集。
 
 被拒绝的消息可以写入 observation-only 缓存。它们不会作为 active 未回复上下文、续话依据或 lazy 图片候选。群聊参与判断和正式回复的近期群聊背景由 AstrBot 官方 GroupChatContext 提供；启用 `provider_ltm_settings.group_icl_enable` 时，`group_message_max_cnt` 默认保留 1000 条内存记录，正式回复由 AstrBot hook 注入，DecisionAI 由插件读取同一缓冲。`group_message_history_enable` 只控制是否持久化到历史库。
 

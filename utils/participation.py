@@ -27,20 +27,6 @@ BOUNDARY_INTERPRETATION_VALUES = {
 }
 BODY_ACTION_VALUES = {"none", "release"}
 
-_REASON_LABELS = {
-    "direct_request": "当前消息明确在邀请你回应",
-    "shared_interest": "当前内容与你有具体的共同兴趣",
-    "personal_experience": "你有与当前内容直接相关的个人经历或观点",
-    "emotional_reaction": "当前内容确实触发了你的即时情绪反应",
-    "continuation": "这是上一轮由你发起且没有被别人接管的自然续话",
-}
-_PARTICIPATION_LABELS = {
-    "direct": "直接回应",
-    "side": "旁观补充",
-    "open": "主动参与公开话题",
-}
-
-
 @dataclass(frozen=True, slots=True)
 class ParticipationDecision:
     """A validated, bounded handoff from attention to reply generation.
@@ -106,17 +92,6 @@ class ParticipationDecision:
             A new immutable decision.
         """
         return replace(self, reply=bool(reply), **changes)
-
-    @property
-    def handoff_hint(self) -> str:
-        """Return the minimal non-chain-of-thought prompt handoff."""
-        if not self.reply:
-            return ""
-        posture = _PARTICIPATION_LABELS.get(self.participation, "自然回应")
-        reason = _REASON_LABELS.get(self.reason_code, "当前人格愿意参与这条消息")
-        if self.participation == "direct":
-            return f"[参与] 直接回应。依据：{reason}。"
-        return f"[参与] {posture}。依据：{reason}。不替对方答、不冒充。"
 
     def summary(self) -> str:
         """Return bounded fields suitable for an operational log line."""

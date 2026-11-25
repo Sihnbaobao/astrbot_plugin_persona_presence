@@ -61,7 +61,7 @@ continuation 不是“历史中曾经聊过同一主题”的同义词。Decisio
 5. DecisionAI 只对仍可处理且需要门控的消息做参与判断。普通 direct 私聊文本直接进入 ReplyHandler；private decide、媒体 decide、活动私聊边界和群聊候选才走 DecisionAI。direct Smart 的纯文本预生成不使用 DecisionAI；预生成阶段不执行工具，模型若返回工具调用则回退到完整 Agent。
 6. 结构化结果经过本地 normalizer 的硬规则校验。模型不能通过未知枚举、模糊目标或无效意愿绕过边界。
 7. open/side 的通过结果进入按群维护的 in-memory participation throttle；direct/private 不消耗这个预算。
-8. 通过后才调用 ReplyHandler 生成正式回复；普通 direct 私聊没有 DecisionAI 结果也可直接调用 ReplyHandler。正式回复使用 AstrBot 当前会话最终 Persona，只收到最小的参与 handoff，不收到决策模型的推理过程。
+8. 通过后才调用 ReplyHandler 生成正式回复；普通 direct 私聊没有 DecisionAI 结果也可直接调用 ReplyHandler。正式回复使用 AstrBot 当前会话最终 Persona，只收到对话事实和 [理解] 归纳，不收到参与姿态或决策模型的推理过程。
 9. 未通过的当前消息和 Smart follower 可以保留为 observation-only 缓存，但 observation 不会成为下一次的“未回复问题”、不会制造 continuation、也不会提供图片候选。
 10. 正式回复经过现有内容过滤、重复检测、保存和发送流程；该部分仍由 AstrBot/插件既有链路负责。
 
@@ -106,18 +106,23 @@ normalize_decision_payload 是最终边界：
 
 平台没有检测到 @ 只表示平台 signal 缺失，不表示文本一定没有点名机器人；模型可以根据当前正文和群聊上下文判断文本目标，但不能仅凭较早历史的主题相似臆造当前目标。
 
-## 5. 正式回复 handoff
+## 5. 正式回复前的事实与理解
 
-DecisionAI 只把以下最小信息交给 ReplyHandler：允许的 participation 姿态和一个固定 reason_code 对应的短提示。handoff 用于提醒正式模型保持正确对象边界，不是新的行为人格。
+DecisionAI 只决定是否继续正式回复；结构化结果不再作为 handoff 注入回复 prompt。正式回复前补充的是对话事实，而不是行为要求：
+
+- [理解]：一次独立归纳产出的两句话，说明群里几条线、各是谁在跟谁聊什么，以及当前这条是谁对谁说的；
+- [线程] / [话轮]：最近发言顺序、上一条是谁说的、她最近有没有发言；
+- [对象]：这条引用或 @ 的是别人。
 
 正式模型不会收到：
 
 - DecisionAI 的完整 JSON 诊断；
+- participation 姿态和 reason_code 提示；
 - 隐藏推理或 chain-of-thought；
-- “模型应该怎样分析”的过程指令；
+- “模型应该怎样分析、怎样回复”的行为指令；
 - 关键词命中本身作为回复理由。
 
-正式模型会收到当前会话 Persona、格式化的消息上下文、现有 Smart/媒体必要提示，以及必要时的最小参与 handoff。side 和 open 的 handoff 明确要求只说自己的相关内容，不要替其他用户作答。
+正式模型会收到当前会话 Persona、格式化的消息上下文、上述事实，以及现有 Smart/媒体必要提示；接不接、怎么接由 Persona 自己判断。
 
 ## 6. 缓存与 Smart 规则
 
